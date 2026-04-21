@@ -1,0 +1,28 @@
+{
+  "__type__": "cc.SpriteFrame",
+  "content": {
+    "name": "wish_03",
+    "texture": "1c28ba8e-5b22-4e5f-8765-55e37f35910e",
+    "atlas": "",
+    "rect": [
+      0,
+      0,
+      188,
+      232
+    ],
+    "offset": [
+      0,
+      0
+    ],
+    "originalSize": [
+      188,
+      232
+    ],
+    "capInsets": [
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+{"version":3,"sources":["assets\\script\\config\\Level.ts"],"names":[],"mappings":";;;;AAAC,GAAG,CAAC,MAAM,CAAC,KAAK,GAAG,EAAC,GAAG,EAAC,EAAC,SAAS,EAAC,CAAC,EAAC,YAAY,EAAC,CAAC,EAAC,WAAW,EAAC,GAAG,EAAC,KAAK,EAAC,CAAC,EAAC,EAAC,CAAC","file":"","sourceRoot":"/","sourcesContent":["﻿yyp.config.Level = {\"0\":{\"LevelId\":0,\"EnemyCount\":5,\"CoinCount\":100,\"Max\":5}};"]}

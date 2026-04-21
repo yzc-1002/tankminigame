@@ -1,0 +1,28 @@
+{
+  "__type__": "cc.SpriteFrame",
+  "content": {
+    "name": "wish_btn",
+    "texture": "d1b28dbf-c8e2-45c1-a0a5-1ca494410293",
+    "atlas": "",
+    "rect": [
+      0,
+      0,
+      100,
+      102
+    ],
+    "offset": [
+      -5,
+      4.5
+    ],
+    "originalSize": [
+      110,
+      111
+    ],
+    "capInsets": [
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

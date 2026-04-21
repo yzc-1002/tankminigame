@@ -1,0 +1,7 @@
+"use strict";
+cc._RF.push(module, '97b73ql5txGqKZurIu8Zn8Z', 'Music');
+// script/config/Music.ts
+
+yyp.config.Music = { "bg": { "Type": "bg", "Path": "bg.mp3", "Genre": 0, "PlayOnload": 1 }, "boom": { "Type": "boom", "Path": "boom.mp3", "Genre": 1, "PlayOnload": 0 }, "btn": { "Type": "btn", "Path": "btn.mp3", "Genre": 1, "PlayOnload": 0 }, "btnLUp": { "Type": "btnLUp", "Path": "btnLUp.mp3", "Genre": 1, "PlayOnload": 0 }, "coin": { "Type": "coin", "Path": "coin.mp3", "Genre": 1, "PlayOnload": 0 }, "failed": { "Type": "failed", "Path": "failed.mp3", "Genre": 1, "PlayOnload": 0 }, "shoot": { "Type": "shoot", "Path": "shoot.mp3", "Genre": 1, "PlayOnload": 0 }, "win": { "Type": "win", "Path": "win.mp3", "Genre": 1, "PlayOnload": 0 } };
+
+cc._RF.pop();

@@ -1,0 +1,28 @@
+{
+  "__type__": "cc.SpriteFrame",
+  "content": {
+    "name": "up_btn_skillbg",
+    "texture": "8fec9b73-150c-4071-9ad1-473c3499c664",
+    "atlas": "",
+    "rect": [
+      0,
+      0,
+      55,
+      66
+    ],
+    "offset": [
+      0,
+      0
+    ],
+    "originalSize": [
+      55,
+      66
+    ],
+    "capInsets": [
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

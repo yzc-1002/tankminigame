@@ -1,0 +1,28 @@
+{
+  "__type__": "cc.SpriteFrame",
+  "content": {
+    "name": "settle_lose",
+    "texture": "eba27878-2f76-490f-9840-f3e1d4a4a0c0",
+    "atlas": "",
+    "rect": [
+      0,
+      0,
+      640,
+      173
+    ],
+    "offset": [
+      0,
+      0
+    ],
+    "originalSize": [
+      640,
+      173
+    ],
+    "capInsets": [
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

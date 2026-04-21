@@ -1,0 +1,28 @@
+{
+  "__type__": "cc.SpriteFrame",
+  "content": {
+    "name": "settle_win",
+    "texture": "4be1f4de-c9ed-4714-b33e-ba9e96735ab5",
+    "atlas": "",
+    "rect": [
+      0,
+      0,
+      640,
+      167
+    ],
+    "offset": [
+      0,
+      0
+    ],
+    "originalSize": [
+      640,
+      167
+    ],
+    "capInsets": [
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}

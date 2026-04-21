@@ -1,0 +1,1 @@
+{"version":3,"sources":["assets\\script\\sdk\\sdk\\dev\\DevChannel.ts"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;;AAAA,mDAA8C;AAE9C;IAAwC,8BAAW;IAAnD;;IAGA,CAAC;IAAD,iBAAC;AAAD,CAHA,AAGC,CAHuC,qBAAW,GAGlD","file":"","sourceRoot":"/","sourcesContent":["import BaseChannel from \"../base/BaseChannel\";\r\n\r\nexport default class DevChannel extends BaseChannel {\r\n\r\n\r\n}\r\n"]}

@@ -1,0 +1,28 @@
+{
+  "__type__": "cc.SpriteFrame",
+  "content": {
+    "name": "sp_sk_hit_ice_explosion2",
+    "texture": "7a0bfe49-2905-467a-91bc-f95e4ef35fb7",
+    "atlas": "",
+    "rect": [
+      0,
+      0,
+      177,
+      177
+    ],
+    "offset": [
+      0,
+      0
+    ],
+    "originalSize": [
+      177,
+      177
+    ],
+    "capInsets": [
+      0,
+      0,
+      0,
+      0
+    ]
+  }
+}
