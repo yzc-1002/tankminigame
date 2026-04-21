@@ -79,6 +79,7 @@ export class LinkPrefab extends cc.Component {
             let prefabNode = cc.instantiate(this._prefab);
             if(prefabNode){
                 //复制属性
+                
                 prefabNode.x = this.node.x;
                 prefabNode.y = this.node.y;
                 prefabNode.scale = this.node.scale;
