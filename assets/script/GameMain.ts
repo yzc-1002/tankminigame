@@ -49,11 +49,11 @@ export default class GameMain extends BaseComponent {
         //隐藏开始按钮
         this._fire._joystick.active = false;
         this._fire._ui.active = false;
-
+        console.log("yyp.safeTopBottom",yyp.safeTopBottom)
         this._fire._btnSetting.y = yyp.safeTopBottom-30;
         this._fire._btnSetting.zIndex = 1001;
                 
-        this._fire._recommendBtns.runAction(cc.moveTo(0.1,-270,120));
+        this._fire._recommendBtns.runAction(cc.moveTo(0.1,600,120));
         Utils.doQAction(this._fire._btnWish);
     }
     
@@ -180,7 +180,7 @@ export default class GameMain extends BaseComponent {
     
     //准备开始
     _prepare(event){
-        this._fire._recommendBtns.runAction(cc.moveTo(0.1,-270,120));
+        this._fire._recommendBtns.runAction(cc.moveTo(0.1,600,120));
 
         this._fire._lyStart.active = true;
         this._fire._nUpdate.active = true;
@@ -201,17 +201,17 @@ export default class GameMain extends BaseComponent {
     }
     _updateMsg(event){
         if (event.type == 'in') {
-            this._fire._recommendBtns.runAction(cc.moveTo(0.1,-390,120));
+            this._fire._recommendBtns.runAction(cc.moveTo(0.1,600,120));
         }
         else if (event.type == 'out') {
-            this._fire._recommendBtns.runAction(cc.moveTo(0.1,-270,120));
+            this._fire._recommendBtns.runAction(cc.moveTo(0.1,600,120));
         }
     }
 
     //开始按钮
     _onStartClick(){
         MusicManager.playEffect("btn");
-        this._fire._recommendBtns.runAction(cc.moveTo(0.1,-390,120));
+        this._fire._recommendBtns.runAction(cc.moveTo(0.1,600,120));
 
         //隐藏开始按钮
         this._fire._lyStart.active = false;

@@ -60,9 +60,10 @@ var GameMain = /** @class */ (function (_super) {
         //隐藏开始按钮
         this._fire._joystick.active = false;
         this._fire._ui.active = false;
+        console.log("yyp.safeTopBottom", yyp.safeTopBottom);
         this._fire._btnSetting.y = yyp.safeTopBottom - 30;
         this._fire._btnSetting.zIndex = 1001;
-        this._fire._recommendBtns.runAction(cc.moveTo(0.1, -270, 120));
+        this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
         Utils_1.Utils.doQAction(this._fire._btnWish);
     };
     GameMain.prototype.start = function () {
@@ -168,7 +169,7 @@ var GameMain = /** @class */ (function (_super) {
     // }
     //准备开始
     GameMain.prototype._prepare = function (event) {
-        this._fire._recommendBtns.runAction(cc.moveTo(0.1, -270, 120));
+        this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
         this._fire._lyStart.active = true;
         this._fire._nUpdate.active = true;
         // 清空场景
@@ -185,16 +186,16 @@ var GameMain = /** @class */ (function (_super) {
     };
     GameMain.prototype._updateMsg = function (event) {
         if (event.type == 'in') {
-            this._fire._recommendBtns.runAction(cc.moveTo(0.1, -390, 120));
+            this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
         }
         else if (event.type == 'out') {
-            this._fire._recommendBtns.runAction(cc.moveTo(0.1, -270, 120));
+            this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
         }
     };
     //开始按钮
     GameMain.prototype._onStartClick = function () {
         MusicManager_1.MusicManager.playEffect("btn");
-        this._fire._recommendBtns.runAction(cc.moveTo(0.1, -390, 120));
+        this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
         //隐藏开始按钮
         this._fire._lyStart.active = false;
         this._fire._joystick.active = true;
