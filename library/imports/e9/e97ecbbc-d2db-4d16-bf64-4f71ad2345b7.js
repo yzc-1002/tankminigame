@@ -132,6 +132,7 @@ var Player = /** @class */ (function (_super) {
                 return;
             }
         }
+        willPosition = this._map.clampMapInnerPosition(willPosition, this._radius);
         this.node.setPosition(willPosition);
     };
     Player.prototype.update = function (dt) {

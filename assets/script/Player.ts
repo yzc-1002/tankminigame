@@ -126,6 +126,7 @@ export class Player extends Tank {
             }
         }
 
+        willPosition = this._map.clampMapInnerPosition(willPosition, this._radius);
         this.node.setPosition(willPosition);
     }
 

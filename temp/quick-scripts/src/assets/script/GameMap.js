@@ -549,9 +549,43 @@ var GameMap = /** @class */ (function (_super) {
             this.node.y = ret.y;
         }
     };
+    GameMap.prototype._getViewportSize = function () {
+        var canvas = Utils_1.Utils.getCurrentSceneCanvas();
+        if (canvas && cc.isValid(canvas)) {
+            return canvas.getContentSize();
+        }
+        var visibleSize = cc.view.getVisibleSize();
+        if (visibleSize && visibleSize.width > 0 && visibleSize.height > 0) {
+            return visibleSize;
+        }
+        if (yyp.gameFrameSize) {
+            return yyp.gameFrameSize;
+        }
+        return cc.winSize;
+    };
+    GameMap.prototype.clampMapInnerPosition = function (pos, padding) {
+        if (padding === void 0) { padding = 0; }
+        var ret = cc.v2(pos);
+        var halfWidth = Math.max(0, this._tmSize.width / 2 - padding);
+        var halfHeight = Math.max(0, this._tmSize.height / 2 - padding);
+        if (ret.x < -halfWidth) {
+            ret.x = -halfWidth;
+        }
+        if (ret.x > halfWidth) {
+            ret.x = halfWidth;
+        }
+        if (ret.y < -halfHeight) {
+            ret.y = -halfHeight;
+        }
+        if (ret.y > halfHeight) {
+            ret.y = halfHeight;
+        }
+        return ret;
+    };
     GameMap.prototype._correctMapPosition = function (ret) {
-        var x = (this._tmSize.width - yyp.gameFrameSize.width) / 2;
-        var y = (this._tmSize.height - yyp.gameFrameSize.height) / 2;
+        var viewportSize = this._getViewportSize();
+        var x = Math.max(0, (this._tmSize.width - viewportSize.width) / 2);
+        var y = Math.max(0, (this._tmSize.height - viewportSize.height) / 2);
         var minPos = cc.v2(-x, -y);
         var maxPos = cc.v2(x, y);
         if (ret.x < minPos.x) {

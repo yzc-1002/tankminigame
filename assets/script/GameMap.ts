@@ -631,10 +631,47 @@ export class GameMap extends BaseComponent {
             this.node.y = ret.y;
         }
     }
+
+    _getViewportSize() {
+        let canvas = Utils.getCurrentSceneCanvas();
+        if (canvas && cc.isValid(canvas)) {
+            return canvas.getContentSize();
+        }
+        let visibleSize = cc.view.getVisibleSize();
+        if (visibleSize && visibleSize.width > 0 && visibleSize.height > 0) {
+            return visibleSize;
+        }
+        if (yyp.gameFrameSize) {
+            return yyp.gameFrameSize;
+        }
+        return cc.winSize;
+    }
+
+    clampMapInnerPosition(pos, padding = 0) {
+        let ret = cc.v2(pos);
+        let halfWidth = Math.max(0, this._tmSize.width / 2 - padding);
+        let halfHeight = Math.max(0, this._tmSize.height / 2 - padding);
+
+        if (ret.x < -halfWidth) {
+            ret.x = -halfWidth;
+        }
+        if (ret.x > halfWidth) {
+            ret.x = halfWidth;
+        }
+        if (ret.y < -halfHeight) {
+            ret.y = -halfHeight;
+        }
+        if (ret.y > halfHeight) {
+            ret.y = halfHeight;
+        }
+
+        return ret;
+    }
     
     _correctMapPosition(ret){
-        let x = (this._tmSize.width-yyp.gameFrameSize.width)/2;
-        let y = (this._tmSize.height-yyp.gameFrameSize.height)/2;
+        let viewportSize = this._getViewportSize();
+        let x = Math.max(0, (this._tmSize.width - viewportSize.width) / 2);
+        let y = Math.max(0, (this._tmSize.height - viewportSize.height) / 2);
         let minPos = cc.v2(-x,-y);
         let maxPos = cc.v2(x,y);
 
