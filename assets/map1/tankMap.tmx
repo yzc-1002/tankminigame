@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="80" height="60" tilewidth="32" tileheight="32" infinite="0" nextlayerid="3" nextobjectid="8">
+ <tileset firstgid="1" source="tankSprite.tsx"/>
+ <layer id="1" name="_tmLayerGroup" width="80" height="60">
+  <data encoding="base64" compression="zlib">
+   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
+  </data>
+ </layer>
+ <objectgroup id="2" name="_tmLayerObstacle">
+  <object id="1" name="mountain02" x="2048.48" y="575.613" width="128" height="128">
+   <polyline points="0,0 100,-0.666667 101.333,-96.333 1.33333,-94.333 -5.68434e-14,-0.666667"/>
+  </object>
+  <object id="2" name="mountain03" x="262.667" y="457.333" width="128" height="128">
+   <polyline points="0,0 208.333,-4 207,-107.667 238,-161.667 237.167,-207.5 160.833,-206.167 114.333,-163 -0.66667,-163.833 0,0"/>
+  </object>
+  <object id="3" name="mountain02" x="1385" y="513" width="128" height="128">
+   <polyline points="0,0 100,-0.666667 101.333,-96.333 1.33333,-94.333 -5.68434e-14,-0.666667"/>
+  </object>
+  <object id="4" name="mountain02" x="1403.42" y="1372" width="128" height="128">
+   <polyline points="0,0 100,-0.666667 101.333,-96.333 1.33333,-94.333 -5.68434e-14,-0.666667"/>
+  </object>
+  <object id="5" name="mountain02" x="1405.82" y="967.15" width="128" height="128">
+   <polyline points="0,0 100,-0.666667 101.333,-96.333 1.33333,-94.333 -5.68434e-14,-0.666667"/>
+  </object>
+  <object id="6" name="mountain03" x="2031.33" y="953.33" width="128" height="128">
+   <polyline points="0,0 208.333,-4 207,-107.667 238,-161.667 237.167,-207.5 160.833,-206.167 114.333,-163 -0.66667,-163.833 0,0"/>
+  </object>
+  <object id="7" name="mountain01" x="2068.75" y="267.5" width="64" height="64">
+   <polyline points="-1,-9 125.333,3.83333 147,93 345,94 347.333,-121.333 287.167,-139.667 266,-195 -0.5,-193 -0.666667,-11.3333"/>
+  </object>
+  <object id="9" name="mountain01" x="1373.5" y="222.33" width="64" height="64">
+   <polyline points="-1,-9 125.333,3.83333 147,93 345,94 347.333,-121.333 287.167,-139.667 266,-195 -0.5,-193 -0.666667,-11.3333"/>
+  </object>
+  <object id="10" name="mountain01" x="2101.27" y="1415.72">
+   <polyline points="-1,-9 125.333,3.83333 147,93 345,94 347.333,-121.333 287.167,-139.667 266,-195 -0.5,-193 -0.666667,-11.3333"/>
+  </object>
+  <object id="1" name="tree01" x="1457.58" y="1709.09">
+   <polyline points="0,0 19.875,15.5 58.125,4.125 32.75,-11.375 0.0527778,-0.0583333"/>
+  </object>
+  <object id="3" name="tree02" x="1742.67" y="1700">
+   <polyline points="0,0 19.875,15.5 58.125,4.125 32.75,-11.375 0.0527778,-0.0583333"/>
+  </object>
+ </objectgroup>
+ <objectgroup id="3" name="_tmLayerBorn">
+  <object id="11" x="508.73" y="1068.6" width="17.3333" height="17.3333">
+   <ellipse/>
+  </object>
+  <object id="12" name="player" x="291.545" y="1666.33" width="14.6667" height="25.3333">
+   <ellipse/>
+  </object>
+  <object id="13" x="789.663" y="1466.33" width="17.3333" height="17.3333">
+   <ellipse/>
+  </object>
+  <object id="14" x="775.33" y="1662.66" width="17.3333" height="17.3333">
+   <ellipse/>
+  </object>
+ </objectgroup>
+</map>

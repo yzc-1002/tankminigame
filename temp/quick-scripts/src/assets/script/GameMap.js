@@ -121,6 +121,7 @@ var GameMap = /** @class */ (function (_super) {
     GameMap.prototype._initTmObstacle = function () {
         var _startTime = (new Date()).valueOf();
         var objects = this._tmObj.getObjects();
+        console.log("objects11", objects);
         for (var i = 0; i < objects.length; i++) {
             var obj = objects[i];
             //获取位置

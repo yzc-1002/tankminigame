@@ -500,14 +500,9 @@
     "relativePath": "model\\primitives.fbx"
   },
   "699e2598-5707-4272-9b4e-9135dc30345b": {
-    "asset": 1609561794000,
-    "meta": 1776683591412,
+    "asset": 1776930948959,
+    "meta": 1776934462552,
     "relativePath": "map"
-  },
-  "883376d7-2957-43fc-bbc2-3e4a6e9e43f8": {
-    "asset": 1598192668000,
-    "meta": 1776683595233,
-    "relativePath": "map\\map01.tmx"
   },
   "b08cbb29-bb8a-446f-8bc2-d27b2674234d": {
     "asset": 1609561794000,
@@ -520,8 +515,8 @@
     "relativePath": "migration\\use_v2.1-2.2.1_cc.Toggle_event.js"
   },
   "6cae3224-9505-4e63-9a96-6face22c6bc4": {
-    "asset": 1609561794000,
-    "meta": 1776683591463,
+    "asset": 1776754823599,
+    "meta": 1776856747641,
     "relativePath": "prefab"
   },
   "a56ee7bb-5bc3-4418-8683-4993145b9e56": {
@@ -560,13 +555,13 @@
     "relativePath": "prefab\\GameMain.prefab"
   },
   "a7976efa-dcd2-4d89-9b42-43c437d4e6f4": {
-    "asset": 1776743280164,
-    "meta": 1776743280166,
+    "asset": 1776940066241,
+    "meta": 1776940066242,
     "relativePath": "prefab\\GameMap.prefab"
   },
   "099f4dde-58f4-4a3e-b662-48642286555d": {
-    "asset": 1776743905466,
-    "meta": 1776743905467,
+    "asset": 1776941436259,
+    "meta": 1776941436261,
     "relativePath": "prefab\\JoyStick.prefab"
   },
   "7aefe2c8-be5c-46a7-a3d9-dae9628bdd2b": {
@@ -580,8 +575,8 @@
     "relativePath": "prefab\\New Node.prefab"
   },
   "62ab33f7-5bb5-4f26-a2a3-68261b73d476": {
-    "asset": 1776683591511,
-    "meta": 1776683591513,
+    "asset": 1776930753935,
+    "meta": 1776930753936,
     "relativePath": "prefab\\obstacle\\Mountain01.prefab"
   },
   "1b121631-93a2-4c4a-8d85-b2fd57b76736": {
@@ -805,8 +800,8 @@
     "relativePath": "script\\ad\\Analytics.ts"
   },
   "1e8b141b-5b9d-48bb-aac6-bbfe073b2e61": {
-    "asset": 1776744177433,
-    "meta": 1776744177442,
+    "asset": 1776935955674,
+    "meta": 1776935955677,
     "relativePath": "scene\\StartScene.fire"
   },
   "95cb79fd-26d8-4e43-8f1d-903022f805af": {
@@ -988,11 +983,6 @@
     "asset": 1599900826000,
     "meta": 1776683593023,
     "relativePath": "script\\Finish.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1729690703214,
-    "meta": 1776683593158,
-    "relativePath": "script\\GameMap.ts"
   },
   "e1b90feb-a217-4493-849d-9a611900d683": {
     "asset": 1599899906000,
@@ -1918,5 +1908,45 @@
     "asset": 1776745813122,
     "meta": 1776746158538,
     "relativePath": "script\\TankE.ts"
+  },
+  "174d1775-6d17-4a2c-aa7e-ba21382e96a6": {
+    "asset": 1776940061769,
+    "meta": 1777018455904,
+    "relativePath": "map1"
+  },
+  "883376d7-2957-43fc-bbc2-3e4a6e9e43f8": {
+    "asset": 1776930948958,
+    "meta": 1776930972050,
+    "relativePath": "map\\map01.tmx"
+  },
+  "8790ec7d-8bac-4535-8608-5431c0350e73": {
+    "asset": 1776936116527,
+    "meta": 1776936121679,
+    "relativePath": "map1\\map002.tmx"
+  },
+  "4fca405f-1fc6-47cc-8382-58263bf7e229": {
+    "asset": 1776936116674,
+    "meta": 1776936116823,
+    "relativePath": "map1\\tile.png"
+  },
+  "8165b565-e1d1-44ea-8713-dbf373cb2dca": {
+    "asset": 1776937327816,
+    "meta": 1776937340743,
+    "relativePath": "map1\\tankTiles_retina.png"
+  },
+  "81812004-9ee9-4b2f-ae0b-8f489f83446d": {
+    "asset": 1776937407674,
+    "meta": 1776938535610,
+    "relativePath": "map1\\tankSprite.tsx"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1776939171677,
+    "meta": 1776939176331,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
+    "asset": 1776940061769,
+    "meta": 1776940063984,
+    "relativePath": "map1\\tankMap.tmx"
   }
 }

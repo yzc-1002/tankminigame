@@ -129,6 +129,7 @@ export class GameMap extends BaseComponent {
     _initTmObstacle(){
         let _startTime = (new Date()).valueOf();
         let objects = this._tmObj.getObjects();
+        console.log("objects11",objects)
         for (let i = 0; i < objects.length; i++) {
             let obj = objects[i];
             
