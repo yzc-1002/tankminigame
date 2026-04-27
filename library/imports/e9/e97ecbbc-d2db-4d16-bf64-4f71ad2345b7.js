@@ -75,11 +75,13 @@ var Player = /** @class */ (function (_super) {
     //初始化接收事件
     Player.prototype._initEvent = function () {
         yyp.eventCenter.on('joy-stick', this._doJoyStick, this); //摇杆事件
+        yyp.eventCenter.on('joy-stick-shoot', this._doShootJoyStick, this); //射击摇杆事件
         yyp.eventCenter.on('trigger-skill', this._doSkill, this); //触发技能
     };
     //销毁事件
     Player.prototype._destroyEvent = function () {
         yyp.eventCenter.off('joy-stick', this._doJoyStick, this); //摇杆事件
+        yyp.eventCenter.off('joy-stick-shoot', this._doShootJoyStick, this); //射击摇杆事件
         yyp.eventCenter.off('trigger-skill', this._doSkill, this); //触发技能
     };
     //摇杆事件
@@ -88,6 +90,14 @@ var Player = /** @class */ (function (_super) {
             this._dir = event.dir; //方向
             this._ratio = event.ratio; //速率
             this._refreshPosition();
+        }
+    };
+    //射击摇杆事件
+    Player.prototype._doShootJoyStick = function (event) {
+        if (this._inGame == false)
+            return;
+        if (event.fire === true) {
+            this.fireOnce();
         }
     };
     //触发技能
@@ -141,16 +151,7 @@ var Player = /** @class */ (function (_super) {
                 return;
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
-            //计算炮管方向
-            var enemy = this._map.getNearEnemy();
-            if (enemy) {
-                var enemyPos = cc.v2(enemy.position);
-                var playerPos = cc.v2(this.node.position);
-                this._barrelDir = enemyPos.sub(playerPos).normalize();
-            }
-            else {
-                this._barrelDir = this._dir;
-            }
+            this._refreshBarrelDir();
             this._refreshAngle();
             // 技能2(超级子弹)
             this._skill2Time -= dt;
@@ -160,8 +161,6 @@ var Player = /** @class */ (function (_super) {
             this._skill3Time -= dt;
             this._skill3Time = this._skill3Time < 0 ? 0 : this._skill3Time;
             this._fire._spSkill3.active = this._skill3Time > 0;
-            //射击
-            this.shooting(dt);
             //显示铠甲
             this._fire._spArmour.active = this._skill3Time > 0;
             this._def = this._skill3Time > 0 ? 10000000 : 0;
@@ -174,19 +173,26 @@ var Player = /** @class */ (function (_super) {
             this.shooting(dt);
         }
     };
+    // 炮管始终跟随坦克整体方向
+    Player.prototype._refreshBarrelDir = function () {
+        this._barrelDir = this._dir;
+    };
+    // 右侧按钮抬起时直接发射一发, 不走按住持续发射逻辑
+    Player.prototype.fireOnce = function () {
+        var type = (this._viewMode || this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
+        var attackRadius = this._viewMode ? this._config.AttackRadius * 0.8 : this._config.AttackRadius;
+        BulletE_1.Bullet.createBulletEx(type, this.node.position, this._barrelDir, this._fire._lyBarrel.height + 20, attackRadius, this._atk, this._camp, this.node.parent, this._map);
+        if (this._viewMode == false && this._map.enemyCount() > 0) {
+            MusicManager_1.MusicManager.playEffect("shoot");
+        }
+    };
     //射击
     Player.prototype.shooting = function (dt) {
         var judgeCD = this._skill2Time > 0 ? this._config.BulletCodeTime / 4 : this._config.BulletCodeTime;
         this._bulletCodeTime += dt;
         if (this._bulletCodeTime >= judgeCD) {
             this._bulletCodeTime = 0;
-            //创建子弹
-            var type = (this._viewMode || this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
-            var attackRadius = this._viewMode ? this._config.AttackRadius * 0.8 : this._config.AttackRadius;
-            BulletE_1.Bullet.createBulletEx(type, this.node.position, this._barrelDir, this._fire._lyBarrel.height + 20, attackRadius, this._atk, this._camp, this.node.parent, this._map);
-            if (this._viewMode == false && this._map.enemyCount() > 0) {
-                MusicManager_1.MusicManager.playEffect("shoot");
-            }
+            this.fireOnce();
         }
     };
     //执行死亡

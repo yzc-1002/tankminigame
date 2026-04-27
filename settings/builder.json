@@ -9,7 +9,7 @@
   "packageName": "org.cocos2d.helloworld",
   "startScene": "1e8b141b-5b9d-48bb-aac6-bbfe073b2e61",
   "title": "tank",
-  "webOrientation": "auto",
+  "webOrientation": "landscape",
   "includeSDKBox": false,
   "inlineSpriteFrames": false,
   "inlineSpriteFrames_native": true,

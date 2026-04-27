@@ -560,8 +560,8 @@
     "relativePath": "prefab\\GameMap.prefab"
   },
   "099f4dde-58f4-4a3e-b662-48642286555d": {
-    "asset": 1776941436259,
-    "meta": 1776941436261,
+    "asset": 1777027609003,
+    "meta": 1777027609006,
     "relativePath": "prefab\\JoyStick.prefab"
   },
   "7aefe2c8-be5c-46a7-a3d9-dae9628bdd2b": {
@@ -988,11 +988,6 @@
     "asset": 1599899906000,
     "meta": 1776683593174,
     "relativePath": "script\\GameScene.ts"
-  },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1598773046000,
-    "meta": 1776683593197,
-    "relativePath": "script\\JoyStick.ts"
   },
   "ca235d4f-354b-4cbf-a918-cfc0ea8111ed": {
     "asset": 1599900520000,
@@ -1934,19 +1929,34 @@
     "meta": 1776938535610,
     "relativePath": "map1\\tankSprite.tsx"
   },
-  "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
-    "asset": 1776940061769,
-    "meta": 1776940063984,
-    "relativePath": "map1\\tankMap.tmx"
-  },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
     "asset": 1777022207549,
     "meta": 1777022407176,
     "relativePath": "script\\GameMap.ts"
   },
+  "0344b5f3-0daf-44ae-86ba-94c09643ba1b": {
+    "asset": 1777024881695,
+    "meta": 1777024918867,
+    "relativePath": "texture\\rocker_02.png"
+  },
+  "777b006b-8af6-4723-8375-e6411962005f": {
+    "asset": 1777024881695,
+    "meta": 1777024911817,
+    "relativePath": "texture\\rocker_bg02.png"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1777026837308,
+    "meta": 1777026928611,
+    "relativePath": "script\\JoyStick.ts"
+  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777022210636,
-    "meta": 1777022407235,
+    "asset": 1777026859995,
+    "meta": 1777026928661,
     "relativePath": "script\\Player.ts"
+  },
+  "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
+    "asset": 1777258784011,
+    "meta": 1777258785591,
+    "relativePath": "map1\\tankMap.tmx"
   }
 }

@@ -61,12 +61,14 @@ export class Player extends Tank {
     //初始化接收事件
     _initEvent() {
         yyp.eventCenter.on('joy-stick',this._doJoyStick,this);      //摇杆事件
+        yyp.eventCenter.on('joy-stick-shoot',this._doShootJoyStick,this); //射击摇杆事件
         yyp.eventCenter.on('trigger-skill',this._doSkill,this);     //触发技能
     }
        
     //销毁事件
     _destroyEvent() {
         yyp.eventCenter.off('joy-stick',this._doJoyStick,this);     //摇杆事件
+        yyp.eventCenter.off('joy-stick-shoot',this._doShootJoyStick,this); //射击摇杆事件
         yyp.eventCenter.off('trigger-skill',this._doSkill,this);    //触发技能
     }
     
@@ -77,6 +79,14 @@ export class Player extends Tank {
             this._ratio = event.ratio;  //速率
     
             this._refreshPosition();
+        }
+    }
+
+    //射击摇杆事件
+    _doShootJoyStick(event) {
+        if (this._inGame == false) return;
+        if (event.fire === true) {
+            this.fireOnce();
         }
     }
     
@@ -137,17 +147,8 @@ export class Player extends Tank {
             
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
-    
-            //计算炮管方向
-            let enemy = this._map.getNearEnemy();
-            if (enemy) {
-                let enemyPos = cc.v2(enemy.position);
-                let playerPos = cc.v2(this.node.position);
-                this._barrelDir = enemyPos.sub(playerPos).normalize();
-            }
-            else{
-                this._barrelDir = this._dir;
-            }
+
+            this._refreshBarrelDir();
             this._refreshAngle();
     
             // 技能2(超级子弹)
@@ -159,9 +160,6 @@ export class Player extends Tank {
             this._skill3Time -= dt;
             this._skill3Time = this._skill3Time < 0 ? 0 : this._skill3Time;
             this._fire._spSkill3.active = this._skill3Time > 0;
-    
-            //射击
-            this.shooting(dt);
     
             //显示铠甲
             this._fire._spArmour.active = this._skill3Time > 0;
@@ -177,7 +175,21 @@ export class Player extends Tank {
         }
         
     }
+    // 炮管始终跟随坦克整体方向
+    _refreshBarrelDir() {
+        this._barrelDir = this._dir;
+    }
 
+    // 右侧按钮抬起时直接发射一发, 不走按住持续发射逻辑
+    fireOnce() {
+        let type = (this._viewMode || this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
+        let attackRadius = this._viewMode ? this._config.AttackRadius * 0.8 :this._config.AttackRadius;
+        Bullet.createBulletEx(type,this.node.position,this._barrelDir,this._fire._lyBarrel.height+20,attackRadius,this._atk,this._camp,this.node.parent,this._map);
+        
+        if (this._viewMode == false && this._map.enemyCount() > 0) {
+            MusicManager.playEffect("shoot");
+        }
+    }
 
     //射击
     shooting(dt){
@@ -187,14 +199,7 @@ export class Player extends Tank {
         if (this._bulletCodeTime >= judgeCD) {
             this._bulletCodeTime = 0;
 
-            //创建子弹
-            let type = (this._viewMode || this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
-            let attackRadius = this._viewMode ? this._config.AttackRadius * 0.8 :this._config.AttackRadius;
-            Bullet.createBulletEx(type,this.node.position,this._barrelDir,this._fire._lyBarrel.height+20,attackRadius,this._atk,this._camp,this.node.parent,this._map);
-            
-            if (this._viewMode == false && this._map.enemyCount() > 0) {
-                MusicManager.playEffect("shoot");
-            }
+            this.fireOnce();
         }
     }
     
