@@ -2,8 +2,14 @@ import {Tank} from "./TankE";
 import {Utils} from "./base/Utils";
 import {Bullet} from "./BulletE";
 import { MusicManager } from "./base/MusicManager";
+import SDKManager from "./sdk/sdk/SDKManager";
 
 const {ccclass, property} = cc._decorator;
+const PLAYER_SHOOT_INTERVAL = 0.35;
+const PLAYER_FREE_BULLET_MAX = 3;
+const PLAYER_FREE_BULLET_RECOVER_DELAY = 0.8;
+const PLAYER_FREE_BULLET_RECOVER_INTERVAL = 0.6;
+const PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 
 @ccclass
 export class Player extends Tank {
@@ -20,6 +26,9 @@ export class Player extends Tank {
 
     _inGame         = false;    //在游戏中中使用
     _viewMode       = false;    //展示模式
+    _freeBulletCount = PLAYER_FREE_BULLET_MAX;  //当前免费子弹数量
+    _stopFireTime = 0;          //停火计时
+    _freeBulletRecoverTime = 0; //免费子弹恢复计时
 
     onLoad () {
         super.onLoad();
@@ -38,6 +47,10 @@ export class Player extends Tank {
     _initVariable() {
         this._camp = "player";  //阵营
         this._radius = this._radius * 2;    //玩家的碰撞检测范围*2
+        this._bulletCodeTime = PLAYER_SHOOT_INTERVAL;
+        this._freeBulletCount = PLAYER_FREE_BULLET_MAX;
+        this._stopFireTime = 0;
+        this._freeBulletRecoverTime = 0;
     }
 
     //设置坦克类型
@@ -56,6 +69,7 @@ export class Player extends Tank {
         this._fire._spArmour.active = false;
         this._fire._spSkill2.active = false;
         this._fire._spSkill3.active = false;
+        this._refreshFreeBulletBar();
     }
 
     //初始化接收事件
@@ -86,7 +100,7 @@ export class Player extends Tank {
     _doShootJoyStick(event) {
         if (this._inGame == false) return;
         if (event.fire === true) {
-            this.fireOnce();
+            this._tryFireOnce();
         }
     }
     
@@ -144,6 +158,8 @@ export class Player extends Tank {
 
         if (this._inGame) {
             if (this._map._pause) return;
+            this._bulletCodeTime += dt;
+            this._updateFreeBulletRecover(dt);
             
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
@@ -189,6 +205,118 @@ export class Player extends Tank {
         if (this._viewMode == false && this._map.enemyCount() > 0) {
             MusicManager.playEffect("shoot");
         }
+    }
+
+    _tryFireOnce() {
+        if (this._bulletCodeTime < PLAYER_SHOOT_INTERVAL) {
+            return;
+        }
+
+        if (this._freeBulletCount <= 0 && this._canNotAffordPaidBullet()) {
+            this._showLowHpShootTip();
+            return;
+        }
+
+        this._bulletCodeTime = 0;
+        this._stopFireTime = 0;
+        this._freeBulletRecoverTime = 0;
+        this.fireOnce();
+
+        if (this._freeBulletCount > 0) {
+            this._freeBulletCount--;
+            this._refreshFreeBulletBar();
+            return;
+        }
+
+        this._consumeHpForPaidBullet();
+    }
+
+    _canNotAffordPaidBullet() {
+        return this._hp <= PLAYER_PAID_SHOT_HP_COST;
+    }
+
+    _showLowHpShootTip() {
+        let channel = SDKManager.getChannel();
+        if (channel && channel.showToast) {
+            channel.showToast("血量过低,无法发射子弹");
+        }
+        else{
+            cc.log("血量过低,无法发射子弹");
+        }
+    }
+
+    _consumeHpForPaidBullet() {
+        this._hp -= PLAYER_PAID_SHOT_HP_COST;
+        if (this._hp < 0) {
+            this._hp = 0;
+        }
+
+        this.refreshHp();
+        if (this._hp <= 0) {
+            this.doDeath();
+        }
+    }
+
+    _updateFreeBulletRecover(dt) {
+        if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
+            this._stopFireTime = 0;
+            this._freeBulletRecoverTime = 0;
+            this._refreshFreeBulletBar();
+            return;
+        }
+
+        this._stopFireTime += dt;
+        if (this._stopFireTime < PLAYER_FREE_BULLET_RECOVER_DELAY) {
+            this._freeBulletRecoverTime = 0;
+            this._refreshFreeBulletBar();
+            return;
+        }
+
+        this._freeBulletRecoverTime += dt;
+        while (this._freeBulletRecoverTime >= PLAYER_FREE_BULLET_RECOVER_INTERVAL
+            && this._freeBulletCount < PLAYER_FREE_BULLET_MAX) {
+            this._freeBulletRecoverTime -= PLAYER_FREE_BULLET_RECOVER_INTERVAL;
+            this._freeBulletCount++;
+        }
+
+        if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
+            this._freeBulletRecoverTime = 0;
+        }
+
+        this._refreshFreeBulletBar();
+    }
+
+    _refreshFreeBulletBar() {
+        let bulletBars = [
+            this._fire._zidanbar1,
+            this._fire._zidanbar2,
+            this._fire._zidanbar3,
+        ];
+        let recoverProgress = 0;
+
+        if (this._freeBulletCount < PLAYER_FREE_BULLET_MAX
+            && this._stopFireTime >= PLAYER_FREE_BULLET_RECOVER_DELAY) {
+            recoverProgress = this._freeBulletRecoverTime / PLAYER_FREE_BULLET_RECOVER_INTERVAL;
+            if (recoverProgress > 1) {
+                recoverProgress = 1;
+            }
+        }
+
+        bulletBars.forEach((barNode, index) => {
+            if (!barNode || !barNode.$ProgressBar) {
+                return;
+            }
+
+            if (index < this._freeBulletCount) {
+                barNode.$ProgressBar.progress = 1;
+            }
+            else if (index == this._freeBulletCount && recoverProgress > 0) {
+                barNode.$ProgressBar.progress = recoverProgress;
+            }
+            else{
+                barNode.$ProgressBar.progress = 0;
+            }
+        });
     }
 
     //射击

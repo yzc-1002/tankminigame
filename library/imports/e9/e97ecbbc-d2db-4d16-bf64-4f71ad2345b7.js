@@ -28,7 +28,13 @@ var TankE_1 = require("./TankE");
 var Utils_1 = require("./base/Utils");
 var BulletE_1 = require("./BulletE");
 var MusicManager_1 = require("./base/MusicManager");
+var SDKManager_1 = require("./sdk/sdk/SDKManager");
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
+var PLAYER_SHOOT_INTERVAL = 0.35;
+var PLAYER_FREE_BULLET_MAX = 3;
+var PLAYER_FREE_BULLET_RECOVER_DELAY = 0.8;
+var PLAYER_FREE_BULLET_RECOVER_INTERVAL = 0.6;
+var PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 var Player = /** @class */ (function (_super) {
     __extends(Player, _super);
     function Player() {
@@ -41,6 +47,9 @@ var Player = /** @class */ (function (_super) {
         _this._skill3Time = 0; //技能3(无敌防御)剩余时间
         _this._inGame = false; //在游戏中中使用
         _this._viewMode = false; //展示模式
+        _this._freeBulletCount = PLAYER_FREE_BULLET_MAX; //当前免费子弹数量
+        _this._stopFireTime = 0; //停火计时
+        _this._freeBulletRecoverTime = 0; //免费子弹恢复计时
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -56,6 +65,10 @@ var Player = /** @class */ (function (_super) {
     Player.prototype._initVariable = function () {
         this._camp = "player"; //阵营
         this._radius = this._radius * 2; //玩家的碰撞检测范围*2
+        this._bulletCodeTime = PLAYER_SHOOT_INTERVAL;
+        this._freeBulletCount = PLAYER_FREE_BULLET_MAX;
+        this._stopFireTime = 0;
+        this._freeBulletRecoverTime = 0;
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -71,6 +84,7 @@ var Player = /** @class */ (function (_super) {
         this._fire._spArmour.active = false;
         this._fire._spSkill2.active = false;
         this._fire._spSkill3.active = false;
+        this._refreshFreeBulletBar();
     };
     //初始化接收事件
     Player.prototype._initEvent = function () {
@@ -97,7 +111,7 @@ var Player = /** @class */ (function (_super) {
         if (this._inGame == false)
             return;
         if (event.fire === true) {
-            this.fireOnce();
+            this._tryFireOnce();
         }
     };
     //触发技能
@@ -149,6 +163,8 @@ var Player = /** @class */ (function (_super) {
         if (this._inGame) {
             if (this._map._pause)
                 return;
+            this._bulletCodeTime += dt;
+            this._updateFreeBulletRecover(dt);
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
             this._refreshBarrelDir();
@@ -185,6 +201,101 @@ var Player = /** @class */ (function (_super) {
         if (this._viewMode == false && this._map.enemyCount() > 0) {
             MusicManager_1.MusicManager.playEffect("shoot");
         }
+    };
+    Player.prototype._tryFireOnce = function () {
+        if (this._bulletCodeTime < PLAYER_SHOOT_INTERVAL) {
+            return;
+        }
+        if (this._freeBulletCount <= 0 && this._canNotAffordPaidBullet()) {
+            this._showLowHpShootTip();
+            return;
+        }
+        this._bulletCodeTime = 0;
+        this._stopFireTime = 0;
+        this._freeBulletRecoverTime = 0;
+        this.fireOnce();
+        if (this._freeBulletCount > 0) {
+            this._freeBulletCount--;
+            this._refreshFreeBulletBar();
+            return;
+        }
+        this._consumeHpForPaidBullet();
+    };
+    Player.prototype._canNotAffordPaidBullet = function () {
+        return this._hp <= PLAYER_PAID_SHOT_HP_COST;
+    };
+    Player.prototype._showLowHpShootTip = function () {
+        var channel = SDKManager_1.default.getChannel();
+        if (channel && channel.showToast) {
+            channel.showToast("血量过低,无法发射子弹");
+        }
+        else {
+            cc.log("血量过低,无法发射子弹");
+        }
+    };
+    Player.prototype._consumeHpForPaidBullet = function () {
+        this._hp -= PLAYER_PAID_SHOT_HP_COST;
+        if (this._hp < 0) {
+            this._hp = 0;
+        }
+        this.refreshHp();
+        if (this._hp <= 0) {
+            this.doDeath();
+        }
+    };
+    Player.prototype._updateFreeBulletRecover = function (dt) {
+        if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
+            this._stopFireTime = 0;
+            this._freeBulletRecoverTime = 0;
+            this._refreshFreeBulletBar();
+            return;
+        }
+        this._stopFireTime += dt;
+        if (this._stopFireTime < PLAYER_FREE_BULLET_RECOVER_DELAY) {
+            this._freeBulletRecoverTime = 0;
+            this._refreshFreeBulletBar();
+            return;
+        }
+        this._freeBulletRecoverTime += dt;
+        while (this._freeBulletRecoverTime >= PLAYER_FREE_BULLET_RECOVER_INTERVAL
+            && this._freeBulletCount < PLAYER_FREE_BULLET_MAX) {
+            this._freeBulletRecoverTime -= PLAYER_FREE_BULLET_RECOVER_INTERVAL;
+            this._freeBulletCount++;
+        }
+        if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
+            this._freeBulletRecoverTime = 0;
+        }
+        this._refreshFreeBulletBar();
+    };
+    Player.prototype._refreshFreeBulletBar = function () {
+        var _this = this;
+        var bulletBars = [
+            this._fire._zidanbar1,
+            this._fire._zidanbar2,
+            this._fire._zidanbar3,
+        ];
+        var recoverProgress = 0;
+        if (this._freeBulletCount < PLAYER_FREE_BULLET_MAX
+            && this._stopFireTime >= PLAYER_FREE_BULLET_RECOVER_DELAY) {
+            recoverProgress = this._freeBulletRecoverTime / PLAYER_FREE_BULLET_RECOVER_INTERVAL;
+            if (recoverProgress > 1) {
+                recoverProgress = 1;
+            }
+        }
+        bulletBars.forEach(function (barNode, index) {
+            if (!barNode || !barNode.$ProgressBar) {
+                return;
+            }
+            if (index < _this._freeBulletCount) {
+                barNode.$ProgressBar.progress = 1;
+            }
+            else if (index == _this._freeBulletCount && recoverProgress > 0) {
+                barNode.$ProgressBar.progress = recoverProgress;
+            }
+            else {
+                barNode.$ProgressBar.progress = 0;
+            }
+        });
     };
     //射击
     Player.prototype.shooting = function (dt) {

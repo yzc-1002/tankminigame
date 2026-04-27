@@ -620,13 +620,13 @@
     "relativePath": "prefab\\skill\\SkillIcon.prefab"
   },
   "dc7df1dc-ce23-4957-bc91-9a2f3a8adc66": {
-    "asset": 1776683591544,
-    "meta": 1776683591546,
+    "asset": 1777277422073,
+    "meta": 1777277422075,
     "relativePath": "prefab\\tank\\Enemy.prefab"
   },
   "3f74484c-3245-4998-936d-db3a2c0a15af": {
-    "asset": 1776683591548,
-    "meta": 1776683591550,
+    "asset": 1777278586246,
+    "meta": 1777278586248,
     "relativePath": "prefab\\tank\\Player.prefab"
   },
   "eb0b5760-61d1-4717-a9ba-ba2cdb03b127": {
@@ -754,11 +754,6 @@
     "meta": 1776683595253,
     "relativePath": "resources\\shader\\material-normal.mtl"
   },
-  "2d2f792f-a40c-49bb-a189-ed176a246e49": {
-    "asset": 1776744171980,
-    "meta": 1776744171987,
-    "relativePath": "scene\\GameScene.fire"
-  },
   "4734c20c-0db8-4eb2-92ea-e692f4d70934": {
     "asset": 1609561796000,
     "meta": 1776683592146,
@@ -798,11 +793,6 @@
     "asset": 1599572150000,
     "meta": 1776683592242,
     "relativePath": "script\\ad\\Analytics.ts"
-  },
-  "1e8b141b-5b9d-48bb-aac6-bbfe073b2e61": {
-    "asset": 1776935955674,
-    "meta": 1776935955677,
-    "relativePath": "scene\\StartScene.fire"
   },
   "95cb79fd-26d8-4e43-8f1d-903022f805af": {
     "asset": 1599570840000,
@@ -1949,14 +1939,24 @@
     "meta": 1777026928611,
     "relativePath": "script\\JoyStick.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777026859995,
-    "meta": 1777026928661,
-    "relativePath": "script\\Player.ts"
-  },
   "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
     "asset": 1777258784011,
     "meta": 1777258785591,
     "relativePath": "map1\\tankMap.tmx"
+  },
+  "1e8b141b-5b9d-48bb-aac6-bbfe073b2e61": {
+    "asset": 1777277837759,
+    "meta": 1777277837764,
+    "relativePath": "scene\\StartScene.fire"
+  },
+  "2d2f792f-a40c-49bb-a189-ed176a246e49": {
+    "asset": 1777277826951,
+    "meta": 1777277831133,
+    "relativePath": "scene\\GameScene.fire"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1777278780540,
+    "meta": 1777278895104,
+    "relativePath": "script\\Player.ts"
   }
 }
