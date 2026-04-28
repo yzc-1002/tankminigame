@@ -49,7 +49,10 @@ export class MusicManager extends cc.Component {
             }
         };
 
-        cc.resources.load("sfx/" + effectKey, cc.AudioClip, onResourceLoaded);
+        let element = yyp.config.Music[effectKey];
+        let path = element && element.Path ? element.Path : effectKey;
+        path = path.replace(/\.[^/.]+$/, "");
+        cc.resources.load("sfx/" + path, cc.AudioClip, onResourceLoaded);
     }
     
 

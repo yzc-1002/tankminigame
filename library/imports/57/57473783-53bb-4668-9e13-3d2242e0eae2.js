@@ -73,7 +73,8 @@ var Bullet = /** @class */ (function (_super) {
     Bullet.prototype._destroyEvent = function () {
     };
     //初始化子弹(方向/射程/伤害值/速度/阵营/当前关卡)
-    Bullet.prototype.initBullet = function (dir, gunshot, atk, speed, camp, levelId) {
+    Bullet.prototype.initBullet = function (dir, gunshot, atk, speed, camp, levelId, bulletType) {
+        if (bulletType === void 0) { bulletType = null; }
         this._dir = dir;
         this._gunshot = gunshot;
         this._speed = speed;
@@ -84,6 +85,10 @@ var Bullet = /** @class */ (function (_super) {
         if (camp == "enemy") {
             this._bulletType = 0;
             this._bulletLevel = levelId;
+        }
+        else if (bulletType != null) {
+            this._bulletType = bulletType;
+            this._bulletLevel = LocalizedData_1.LocalizedData.getIntItem("_bullet_" + this._bulletType + "_", 1);
         }
         else {
             this._bulletType = LocalizedData_1.LocalizedData.getIntItem("_current_bullet_type_", 1);
@@ -98,6 +103,7 @@ var Bullet = /** @class */ (function (_super) {
     Bullet.prototype.setBulletType = function (type) {
         var _this = this;
         this._bulletType = type;
+        this._currenBullet = null;
         //子弹
         this.node.children.forEach(function (child) {
             if (child.name != "_sprBullet" + _this._bulletType) {
@@ -108,10 +114,39 @@ var Bullet = /** @class */ (function (_super) {
                 _this._currenBullet = child;
             }
         });
+        if (this._currenBullet == null) {
+            this._currenBullet = this._createDefaultBullet(type);
+        }
+        if (type == 99 && this._currenBullet) {
+            this._currenBullet.setScale(0.85);
+            this._currenBullet.color = cc.color(255, 90, 60, 255);
+            this._currenBullet.opacity = 255;
+        }
         //调整子弹角度
         if (this._inGame) {
             this.node.angle = Utils_1.Utils.vectorsToDegress(this._dir) - 90;
         }
+    };
+    Bullet.prototype._createDefaultBullet = function (type) {
+        var bullet = new cc.Node("_sprBullet" + type);
+        bullet.parent = this.node;
+        bullet.setContentSize(70, 70);
+        var graphics = bullet.addComponent(cc.Graphics);
+        if (type == 99) {
+            graphics.fillColor = cc.color(255, 55, 35, 240);
+            graphics.circle(0, 0, 28);
+            graphics.fill();
+            graphics.fillColor = cc.color(255, 230, 120, 230);
+            graphics.circle(0, 0, 13);
+            graphics.fill();
+            bullet.scale = 1.4;
+        }
+        else {
+            graphics.fillColor = cc.color(255, 240, 0, 240);
+            graphics.circle(0, 0, 14);
+            graphics.fill();
+        }
+        return bullet;
     };
     //设置tiled map
     Bullet.prototype.setMap = function (map) {
@@ -167,18 +202,20 @@ var Bullet = /** @class */ (function (_super) {
         })));
     };
     //创建子弹
-    Bullet.createBullet = function (pos, dir, gunshot, atk, speed, camp, parentNode, map) {
+    Bullet.createBullet = function (pos, dir, gunshot, atk, speed, camp, parentNode, map, bulletType) {
+        if (bulletType === void 0) { bulletType = null; }
         speed = (camp == "enemy") ? speed * 0.8 : speed;
         var bullet = cc.instantiate(map.bulletPrefab);
         bullet.parent = parentNode;
-        bullet.position = pos;
+        bullet.setPosition(cc.v3(pos));
         bullet.zIndex = 5000;
-        bullet.script.initBullet(dir, gunshot, atk, speed, camp, map._levelId);
+        bullet.script.initBullet(dir, gunshot, atk, speed, camp, map._levelId, bulletType);
         bullet.script.setMap(map);
         return bullet;
     };
     //创建子弹(类型/位置/方向/炮管长度/射程/攻击力/目标阵营)
-    Bullet.createBulletEx = function (bulletType, pos, dir, wipeLen, gunshot, atk, camp, parentNode, map) {
+    Bullet.createBulletEx = function (bulletType, pos, dir, wipeLen, gunshot, atk, camp, parentNode, map, speed) {
+        if (speed === void 0) { speed = 8; }
         gunshot = gunshot - wipeLen;
         var bdir = dir;
         var bpos = pos;
@@ -187,14 +224,14 @@ var Bullet = /** @class */ (function (_super) {
             case 1: {
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, 8, camp, parentNode, map);
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
                 break;
             }
             case 2: {
                 for (var i = 0; i <= 1; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 2.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, 8, camp, parentNode, map);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
                 }
                 break;
             }
@@ -202,7 +239,7 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 2; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, 8, camp, parentNode, map);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
                 }
                 break;
             }
@@ -210,7 +247,7 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 3; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 7.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, 8, camp, parentNode, map);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
                 }
                 break;
             }
@@ -218,8 +255,14 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 5; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 12.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, 8, camp, parentNode, map);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
                 }
+                break;
+            }
+            case 99: {
+                bdir = bdir;
+                bpos = cc.v2(pos).add(bdir.mul(wipeLen));
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType);
                 break;
             }
             case 11: {

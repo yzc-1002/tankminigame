@@ -55,9 +55,9 @@ var MusicManager = /** @class */ (function (_super) {
             MusicManager_1._loadIndex += 1;
             // cc.log("_preload ",effectKey,"finish");
             if (content instanceof cc.AudioClip) {
-                var element = yyp.config.Music[effectKey];
-                element["content"] = content;
-                if (element.PlayOnload == 1) {
+                var element_1 = yyp.config.Music[effectKey];
+                element_1["content"] = content;
+                if (element_1.PlayOnload == 1) {
                     MusicManager_1.playMusic(effectKey);
                 }
             }
@@ -68,7 +68,10 @@ var MusicManager = /** @class */ (function (_super) {
                 MusicManager_1._preload();
             }
         };
-        cc.resources.load("sfx/" + effectKey, cc.AudioClip, onResourceLoaded);
+        var element = yyp.config.Music[effectKey];
+        var path = element && element.Path ? element.Path : effectKey;
+        path = path.replace(/\.[^/.]+$/, "");
+        cc.resources.load("sfx/" + path, cc.AudioClip, onResourceLoaded);
     };
     //播放背景音乐
     MusicManager.playMusic = function (key) {

@@ -53,7 +53,7 @@ export class Bullet extends BaseComponent {
     }
 
     //初始化子弹(方向/射程/伤害值/速度/阵营/当前关卡)
-    initBullet(dir,gunshot,atk,speed,camp,levelId){
+    initBullet(dir,gunshot,atk,speed,camp,levelId,bulletType = null){
         this._dir = dir;
         this._gunshot = gunshot;
         this._speed = speed;
@@ -65,6 +65,10 @@ export class Bullet extends BaseComponent {
         if (camp == "enemy") {
             this._bulletType = 0;
             this._bulletLevel = levelId;
+        }
+        else if (bulletType != null) {
+            this._bulletType = bulletType;
+            this._bulletLevel = LocalizedData.getIntItem(`_bullet_${this._bulletType}_`,1);
         }
         else{
             this._bulletType = LocalizedData.getIntItem("_current_bullet_type_",1);
@@ -81,6 +85,7 @@ export class Bullet extends BaseComponent {
 
     setBulletType(type){
         this._bulletType = type;
+        this._currenBullet = null;
 
         //子弹
         this.node.children.forEach((child) => {
@@ -92,11 +97,45 @@ export class Bullet extends BaseComponent {
                 this._currenBullet = child;
             }
         });
+
+        if (this._currenBullet == null) {
+            this._currenBullet = this._createDefaultBullet(type);
+        }
+
+        if (type == 99 && this._currenBullet) {
+            this._currenBullet.setScale(0.85);
+            this._currenBullet.color = cc.color(255, 90, 60, 255);
+            this._currenBullet.opacity = 255;
+        }
         
         //调整子弹角度
         if (this._inGame){
             this.node.angle = Utils.vectorsToDegress(this._dir)-90;
         }
+    }
+
+    _createDefaultBullet(type) {
+        let bullet = new cc.Node("_sprBullet" + type);
+        bullet.parent = this.node;
+        bullet.setContentSize(70, 70);
+        let graphics = bullet.addComponent(cc.Graphics);
+
+        if (type == 99) {
+            graphics.fillColor = cc.color(255, 55, 35, 240);
+            graphics.circle(0, 0, 28);
+            graphics.fill();
+            graphics.fillColor = cc.color(255, 230, 120, 230);
+            graphics.circle(0, 0, 13);
+            graphics.fill();
+            bullet.scale = 1.4;
+        }
+        else{
+            graphics.fillColor = cc.color(255, 240, 0, 240);
+            graphics.circle(0, 0, 14);
+            graphics.fill();
+        }
+
+        return bullet;
     }
 
     //设置tiled map
@@ -168,14 +207,14 @@ export class Bullet extends BaseComponent {
     
     
     //创建子弹
-    static createBullet(pos,dir,gunshot,atk,speed,camp,parentNode,map){
+    static createBullet(pos,dir,gunshot,atk,speed,camp,parentNode,map,bulletType = null){
         speed = (camp == "enemy") ? speed*0.8 : speed;
 
         let bullet = cc.instantiate(map.bulletPrefab);
         bullet.parent = parentNode;
-        bullet.position = pos;
+        bullet.setPosition(cc.v3(pos));
         bullet.zIndex = 5000;
-        bullet.script.initBullet(dir,gunshot,atk,speed,camp,map._levelId);
+        bullet.script.initBullet(dir,gunshot,atk,speed,camp,map._levelId,bulletType);
         bullet.script.setMap(map);
 
         return bullet;
@@ -183,7 +222,7 @@ export class Bullet extends BaseComponent {
 
 
     //创建子弹(类型/位置/方向/炮管长度/射程/攻击力/目标阵营)
-    static createBulletEx(bulletType,pos,dir,wipeLen,gunshot,atk,camp,parentNode,map){
+    static createBulletEx(bulletType,pos,dir,wipeLen,gunshot,atk,camp,parentNode,map,speed = 8){
         gunshot = gunshot - wipeLen;
         let bdir = dir;
         let bpos = pos;
@@ -193,7 +232,7 @@ export class Bullet extends BaseComponent {
             case 1:{
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,8,camp,parentNode,map);
+                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map);
 
                 break;
             }
@@ -201,7 +240,7 @@ export class Bullet extends BaseComponent {
                 for (let i = 0; i <= 1; i++) {
                     bdir = Utils.vectorsRotateDegress(dir,i*5 - 2.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,8,camp,parentNode,map);
+                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map);
                 }
                 break;
             }
@@ -209,7 +248,7 @@ export class Bullet extends BaseComponent {
                 for (let i = 0; i <= 2; i++) {
                     bdir = Utils.vectorsRotateDegress(dir,i*5 - 5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,8,camp,parentNode,map);
+                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map);
                 }
                 break;
             }
@@ -217,7 +256,7 @@ export class Bullet extends BaseComponent {
                 for (let i = 0; i <= 3; i++) {
                     bdir = Utils.vectorsRotateDegress(dir,i*5 - 7.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,8,camp,parentNode,map);
+                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map);
                 }
                 break;
             }
@@ -225,8 +264,14 @@ export class Bullet extends BaseComponent {
                 for (let i = 0; i <= 5; i++) {
                     bdir = Utils.vectorsRotateDegress(dir,i*5 - 12.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,8,camp,parentNode,map);
+                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map);
                 }
+                break;
+            }
+            case 99:{
+                bdir = bdir;
+                bpos = cc.v2(pos).add(bdir.mul(wipeLen));
+                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType);
                 break;
             }
             case 11:{

@@ -530,8 +530,8 @@
     "relativePath": "prefab\\Boom.prefab"
   },
   "3fc53a6e-3d1c-43fa-afa9-4399c2f68ee3": {
-    "asset": 1776683591475,
-    "meta": 1776683591476,
+    "asset": 1777370730439,
+    "meta": 1777370730441,
     "relativePath": "prefab\\Bullet.prefab"
   },
   "e16bf3a6-0f73-41d9-84b9-2b83608e9fd1": {
@@ -560,8 +560,8 @@
     "relativePath": "prefab\\GameMap.prefab"
   },
   "099f4dde-58f4-4a3e-b662-48642286555d": {
-    "asset": 1777284578747,
-    "meta": 1777284578748,
+    "asset": 1777368619008,
+    "meta": 1777368619010,
     "relativePath": "prefab\\JoyStick.prefab"
   },
   "7aefe2c8-be5c-46a7-a3d9-dae9628bdd2b": {
@@ -904,20 +904,10 @@
     "meta": 1776683592710,
     "relativePath": "script\\base\\LocalizedData.ts"
   },
-  "6a2c7f39-7c62-4541-9369-9a1c92404b15": {
-    "asset": 1597933394000,
-    "meta": 1776683592730,
-    "relativePath": "script\\base\\MusicManager.ts"
-  },
   "cd992ade-adff-4ae5-a96d-def4c7f31e60": {
     "asset": 1597933514000,
     "meta": 1776683592788,
     "relativePath": "script\\base\\Utils.ts"
-  },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1598100812000,
-    "meta": 1776683592836,
-    "relativePath": "script\\BulletE.ts"
   },
   "50e7dd14-ee31-421b-9f6e-141ccfa6c0dd": {
     "asset": 1595857008000,
@@ -944,20 +934,10 @@
     "meta": 1776683592892,
     "relativePath": "script\\config\\ADConfig.ts"
   },
-  "3b29bff1-28ed-4a5c-a0ac-08ee56136f8e": {
-    "asset": 1599899154000,
-    "meta": 1776683592905,
-    "relativePath": "script\\config\\Bullet.ts"
-  },
   "e7af179b-7c2e-4925-9b7e-9f602eac6879": {
     "asset": 1599899154000,
     "meta": 1776683592915,
     "relativePath": "script\\config\\Level.ts"
-  },
-  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
-    "asset": 1599899154000,
-    "meta": 1776683592927,
-    "relativePath": "script\\config\\Music.ts"
   },
   "338d292b-a0b2-48c1-bc72-756e6d01841b": {
     "asset": 1599900826000,
@@ -1869,11 +1849,6 @@
     "meta": 1776742389537,
     "relativePath": "script\\base\\LinkPrefab.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1776746123782,
-    "meta": 1776746158480,
-    "relativePath": "script\\GameMain.ts"
-  },
   "174d1775-6d17-4a2c-aa7e-ba21382e96a6": {
     "asset": 1776940061769,
     "meta": 1777018455904,
@@ -1914,11 +1889,6 @@
     "meta": 1777024911817,
     "relativePath": "texture\\rocker_bg02.png"
   },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1777026837308,
-    "meta": 1777026928611,
-    "relativePath": "script\\JoyStick.ts"
-  },
   "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
     "asset": 1777258784011,
     "meta": 1777258785591,
@@ -1930,8 +1900,8 @@
     "relativePath": "scene\\StartScene.fire"
   },
   "2d2f792f-a40c-49bb-a189-ed176a246e49": {
-    "asset": 1777366098501,
-    "meta": 1777366098504,
+    "asset": 1777368844659,
+    "meta": 1777368844669,
     "relativePath": "scene\\GameScene.fire"
   },
   "a390b105-7508-4780-a6f6-fbd78451b51a": {
@@ -1943,11 +1913,6 @@
     "asset": 1777283081763,
     "meta": 1777283093961,
     "relativePath": "texture\\skillBtn.png"
-  },
-  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
-    "asset": 1777361048520,
-    "meta": 1777361477444,
-    "relativePath": "script\\config\\Tank.ts"
   },
   "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
     "asset": 1777361024338,
@@ -1974,11 +1939,6 @@
     "meta": 1777366014386,
     "relativePath": "script\\GameMap.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777365399230,
-    "meta": 1777366014468,
-    "relativePath": "script\\Player.ts"
-  },
   "a9d1b497-36a8-4cda-8aa1-74dd077f8ab3": {
     "asset": 1777365327049,
     "meta": 1777366014476,
@@ -1988,5 +1948,45 @@
     "asset": 1777365453529,
     "meta": 1777366014490,
     "relativePath": "script\\EnergyItem.ts"
+  },
+  "6a2c7f39-7c62-4541-9369-9a1c92404b15": {
+    "asset": 1777368113020,
+    "meta": 1777368299242,
+    "relativePath": "script\\base\\MusicManager.ts"
+  },
+  "3b29bff1-28ed-4a5c-a0ac-08ee56136f8e": {
+    "asset": 1777368050887,
+    "meta": 1777368299323,
+    "relativePath": "script\\config\\Bullet.ts"
+  },
+  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
+    "asset": 1777368056745,
+    "meta": 1777368299332,
+    "relativePath": "script\\config\\Music.ts"
+  },
+  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
+    "asset": 1777368071449,
+    "meta": 1777368299350,
+    "relativePath": "script\\config\\Tank.ts"
+  },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1777372456286,
+    "meta": 1777372530767,
+    "relativePath": "script\\BulletE.ts"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1777372371839,
+    "meta": 1777372530867,
+    "relativePath": "script\\JoyStick.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1777372417143,
+    "meta": 1777372530961,
+    "relativePath": "script\\Player.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1777372625666,
+    "meta": 1777372631129,
+    "relativePath": "script\\GameMain.ts"
   }
 }

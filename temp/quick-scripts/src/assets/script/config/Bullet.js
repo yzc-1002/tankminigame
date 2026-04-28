@@ -2,6 +2,6 @@
 cc._RF.push(module, '3b29b/xKO1KXKCsCO5WE2+O', 'Bullet');
 // script/config/Bullet.ts
 
-yyp.config.Bullet = { "0": { "Type": 0, "ATK": 0.5, "UnLock": 1, "Coin": 10 }, "1": { "Type": 1, "ATK": 0.5, "UnLock": 1, "Coin": 10 }, "2": { "Type": 2, "ATK": 1, "UnLock": 7, "Coin": 20 }, "3": { "Type": 3, "ATK": 1.5, "UnLock": 14, "Coin": 40 }, "4": { "Type": 4, "ATK": 2, "UnLock": 20, "Coin": 80 } };
+yyp.config.Bullet = { "0": { "Type": 0, "ATK": 0.5, "UnLock": 1, "Coin": 10 }, "1": { "Type": 1, "ATK": 0.5, "UnLock": 1, "Coin": 10 }, "2": { "Type": 2, "ATK": 1, "UnLock": 7, "Coin": 20 }, "3": { "Type": 3, "ATK": 1.5, "UnLock": 14, "Coin": 40 }, "4": { "Type": 4, "ATK": 2, "UnLock": 20, "Coin": 80 }, "99": { "Type": 99, "ATK": 8, "UnLock": 1, "Coin": 0 } };
 
 cc._RF.pop();

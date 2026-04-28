@@ -12,6 +12,7 @@ const PLAYER_FREE_BULLET_RECOVER_INTERVAL = 0.6;
 const PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 const PLAYER_EXP_BASE = 30;
 const PLAYER_EXP_STEP = 15;
+const CHARGE_CANNON_BULLET_TYPE = 99;
 
 @ccclass
 export class Player extends Tank {
@@ -36,6 +37,12 @@ export class Player extends Tank {
     _energyLevel = 1;           //局内能量等级
     _energyExp = 0;             //当前经验
     _energyNeedExp = PLAYER_EXP_BASE; //升级所需经验
+    _chargeCannonTime = 0;      //蓄力炮蓄力时间
+    _chargeCannonCdTime = 0;    //蓄力炮冷却
+    _chargeCannonCooldown = 0;  //蓄力炮冷却总时长
+    _chargeCannonCharging = false;
+    _chargeCannonReady = false;
+    _chargeEffectNode = null;
 
     onLoad () {
         super.onLoad();
@@ -64,6 +71,11 @@ export class Player extends Tank {
         this._energyLevel = 1;
         this._energyExp = 0;
         this._energyNeedExp = this._getEnergyNeedExp();
+        this._chargeCannonTime = 0;
+        this._chargeCannonCdTime = 0;
+        this._chargeCannonCooldown = 0;
+        this._chargeCannonCharging = false;
+        this._chargeCannonReady = false;
     }
 
     //设置坦克类型
@@ -92,6 +104,8 @@ export class Player extends Tank {
     _initEvent() {
         yyp.eventCenter.on('joy-stick',this._doJoyStick,this);      //摇杆事件
         yyp.eventCenter.on('joy-stick-shoot',this._doShootJoyStick,this); //射击摇杆事件
+        yyp.eventCenter.on('charge-cannon-press',this._doChargeCannonPress,this); //蓄力炮按下
+        yyp.eventCenter.on('charge-cannon-release',this._doChargeCannonRelease,this); //蓄力炮松开
         yyp.eventCenter.on('trigger-skill',this._doSkill,this);     //触发技能
     }
        
@@ -99,6 +113,8 @@ export class Player extends Tank {
     _destroyEvent() {
         yyp.eventCenter.off('joy-stick',this._doJoyStick,this);     //摇杆事件
         yyp.eventCenter.off('joy-stick-shoot',this._doShootJoyStick,this); //射击摇杆事件
+        yyp.eventCenter.off('charge-cannon-press',this._doChargeCannonPress,this); //蓄力炮按下
+        yyp.eventCenter.off('charge-cannon-release',this._doChargeCannonRelease,this); //蓄力炮松开
         yyp.eventCenter.off('trigger-skill',this._doSkill,this);    //触发技能
     }
     
@@ -118,6 +134,31 @@ export class Player extends Tank {
         if (event.fire === true) {
             this._tryFireOnce();
         }
+    }
+
+    _doChargeCannonPress(event) {
+        if (this._inGame == false || this._chargeCannonCdTime > 0 || this._chargeCannonCharging) {
+            return;
+        }
+
+        this._chargeCannonTime = 0;
+        this._chargeCannonCharging = true;
+        this._chargeCannonReady = false;
+        this._hideChargeEffect();
+        yyp.eventCenter.emit("charge-cannon-progress", {progress: 0});
+        MusicManager.playEffect("chargeCannon");
+    }
+
+    _doChargeCannonRelease(event) {
+        if (this._inGame == false || this._chargeCannonCharging == false) {
+            return;
+        }
+
+        if (this._chargeCannonReady) {
+            this._fireChargeCannon();
+        }
+
+        this._resetChargeCannon();
     }
     
     //触发技能
@@ -309,6 +350,7 @@ export class Player extends Tank {
             if (this._map._pause) return;
             this._bulletCodeTime += dt;
             this._updateFreeBulletRecover(dt);
+            this._updateChargeCannon(dt);
             
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
@@ -355,6 +397,142 @@ export class Player extends Tank {
         if (this._viewMode == false && this._map.enemyCount() > 0) {
             MusicManager.playEffect("shoot");
         }
+    }
+
+    _updateChargeCannon(dt) {
+        if (this._chargeCannonCdTime > 0) {
+            this._chargeCannonCdTime -= dt;
+            if (this._chargeCannonCdTime < 0) {
+                this._chargeCannonCdTime = 0;
+            }
+
+            if (this._chargeCannonCooldown > 0) {
+                let cooldownProgress = 1 - this._chargeCannonCdTime / this._chargeCannonCooldown;
+                yyp.eventCenter.emit("charge-cannon-cooldown", {progress: cooldownProgress});
+            }
+            if (this._chargeCannonCdTime == 0) {
+                this._chargeCannonCooldown = 0;
+                yyp.eventCenter.emit("charge-cannon-clear", {});
+            }
+        }
+
+        if (this._chargeCannonCharging == false) {
+            return;
+        }
+
+        this._chargeCannonTime += dt;
+        let needTime = this._getChargeConfig("Time", 5);
+        let progress = this._chargeCannonTime / needTime;
+        if (progress > 1) {
+            progress = 1;
+        }
+        yyp.eventCenter.emit("charge-cannon-progress", {progress: progress});
+
+        if (this._chargeCannonReady == false && this._chargeCannonTime >= needTime) {
+            this._chargeCannonReady = true;
+            this._showChargeEffect();
+            yyp.eventCenter.emit("charge-cannon-ready", {});
+        }
+    }
+
+    _fireChargeCannon() {
+        let attackRadius = this._getChargeConfig("AttackRadius", this._config.AttackRadius * 1.4);
+        let atkRatio = this._getChargeConfig("AtkRatio", 3);
+        let speed = this._getChargeConfig("Speed", 12);
+        let wipeLen = this._getBarrelMuzzleDistance(12);
+        Bullet.createBulletEx(CHARGE_CANNON_BULLET_TYPE, this.node.position, this._barrelDir, wipeLen, attackRadius, this._atk * atkRatio, this._camp, this.node.parent, this._map, speed);
+        MusicManager.playEffect("shoot");
+        this._shakeScreen();
+        this._chargeCannonCooldown = this._getChargeConfig("Cooldown", 8);
+        this._chargeCannonCdTime = this._chargeCannonCooldown;
+    }
+
+    _getChargeConfig(key, defaultValue) {
+        let fullKey = "Charge" + key;
+        let value = this._config ? this._config[fullKey] : null;
+        return value == null ? defaultValue : value;
+    }
+
+    _resetChargeCannon() {
+        this._chargeCannonTime = 0;
+        this._chargeCannonCharging = false;
+        this._chargeCannonReady = false;
+        this._hideChargeEffect();
+        if (this._chargeCannonCdTime <= 0) {
+            yyp.eventCenter.emit("charge-cannon-clear", {});
+        }
+    }
+
+    _showChargeEffect() {
+        if (this._chargeEffectNode && cc.isValid(this._chargeEffectNode)) {
+            this._chargeEffectNode.active = true;
+            return;
+        }
+
+        let barrelNode = this._currentBg || this._fire._lyBarrel;
+        let effect = new cc.Node("_chargeMuzzleEffect");
+        effect.parent = barrelNode;
+        effect.setPosition(cc.v3(this._getBarrelMuzzleLocalPosition(4)));
+        effect.zIndex = 100;
+
+        let graphics = effect.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(255, 40, 20, 180);
+        graphics.circle(0, 0, 18);
+        graphics.fill();
+
+        effect.runAction(cc.repeatForever(cc.sequence(
+            cc.scaleTo(0.25, 1.35),
+            cc.scaleTo(0.25, 0.9)
+        )));
+        this._chargeEffectNode = effect;
+    }
+
+    _hideChargeEffect() {
+        if (this._chargeEffectNode && cc.isValid(this._chargeEffectNode)) {
+            this._chargeEffectNode.stopAllActions();
+            this._chargeEffectNode.destroy();
+        }
+        this._chargeEffectNode = null;
+    }
+
+    _shakeScreen() {
+        if (!this._map || !this._map.node) {
+            return;
+        }
+
+        let mapNode = this._map.node;
+        let origin = mapNode.position;
+        mapNode.stopActionByTag(9001);
+        let action = cc.sequence(
+            cc.moveBy(0.03, 4, 0),
+            cc.moveBy(0.03, -8, 0),
+            cc.moveBy(0.03, 4, 3),
+            cc.moveBy(0.03, 0, -3),
+            cc.callFunc(function(){
+                mapNode.setPosition(origin);
+            })
+        );
+        action.setTag(9001);
+        mapNode.runAction(action);
+        Utils.vibrate();
+    }
+
+    _getBarrelMuzzleLocalPosition(extraOffset = 0) {
+        let barrelNode = this._currentBg || this._fire._lyBarrel;
+        let anchorY = barrelNode.anchorY == null ? 0.5 : barrelNode.anchorY;
+        return cc.v2(0, barrelNode.height * (1 - anchorY) + extraOffset);
+    }
+
+    _getBarrelMuzzlePosition(extraOffset = 0) {
+        let barrelNode = this._currentBg || this._fire._lyBarrel;
+        let localPos = this._getBarrelMuzzleLocalPosition(extraOffset);
+        let worldPos = barrelNode.convertToWorldSpaceAR(localPos);
+        return this.node.parent.convertToNodeSpaceAR(worldPos);
+    }
+
+    _getBarrelMuzzleDistance(extraOffset = 0) {
+        let muzzlePos = this._getBarrelMuzzlePosition(extraOffset);
+        return muzzlePos.sub(this.node.position).mag();
     }
 
     _tryFireOnce() {

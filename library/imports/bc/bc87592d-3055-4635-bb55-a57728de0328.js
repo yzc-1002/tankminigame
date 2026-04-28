@@ -36,11 +36,17 @@ var JoyStick = /** @class */ (function (_super) {
         _this._free = true; //自由移动摇杆位置
         _this._moveTouchId = null;
         _this._shootTouchId = null;
+        _this._skillTouchId = null;
         return _this;
     }
     JoyStick.prototype.onLoad = function () {
         this._moveTouchPos = this._fire._sprBg.position.clone();
         this._shootTouchPos = this._fire._sprBg02.position.clone();
+        this._initSkillButton();
+        yyp.eventCenter.on("charge-cannon-progress", this._onChargeProgress, this);
+        yyp.eventCenter.on("charge-cannon-cooldown", this._onChargeCooldown, this);
+        yyp.eventCenter.on("charge-cannon-ready", this._onChargeReady, this);
+        yyp.eventCenter.on("charge-cannon-clear", this._onChargeClear, this);
         this.node.on(cc.Node.EventType.TOUCH_START, this._onTouchStart, this);
         this.node.on(cc.Node.EventType.TOUCH_MOVE, this._onTouchMove, this);
         this.node.on(cc.Node.EventType.TOUCH_END, this._onTouchEnd, this);
@@ -51,11 +57,21 @@ var JoyStick = /** @class */ (function (_super) {
         this.node.off(cc.Node.EventType.TOUCH_MOVE, this._onTouchMove, this);
         this.node.off(cc.Node.EventType.TOUCH_END, this._onTouchEnd, this);
         this.node.off(cc.Node.EventType.TOUCH_CANCEL, this._onTouchEnd, this);
+        yyp.eventCenter.off("charge-cannon-progress", this._onChargeProgress, this);
+        yyp.eventCenter.off("charge-cannon-cooldown", this._onChargeCooldown, this);
+        yyp.eventCenter.off("charge-cannon-ready", this._onChargeReady, this);
+        yyp.eventCenter.off("charge-cannon-clear", this._onChargeClear, this);
     };
     JoyStick.prototype._onTouchStart = function (event) {
         var pos = this.node.convertToNodeSpaceAR(event.getLocation());
         var touchId = event.getID();
         var controlType = this._getControlType(pos);
+        if (controlType == "skill" && this._skillTouchId == null) {
+            this._skillTouchId = touchId;
+            this._refreshChargeProgress(0);
+            yyp.eventCenter.emit("charge-cannon-press", {});
+            return;
+        }
         if (controlType == "move" && this._moveTouchId == null) {
             this._moveTouchId = touchId;
             this._updateMoveStick(pos, true);
@@ -94,6 +110,10 @@ var JoyStick = /** @class */ (function (_super) {
             this._resetShootStick();
             yyp.eventCenter.emit("joy-stick-shoot", { fire: true });
         }
+        else if (touchId == this._skillTouchId) {
+            this._skillTouchId = null;
+            yyp.eventCenter.emit("charge-cannon-release", {});
+        }
     };
     JoyStick.prototype.update = function (dt) {
         var moveRatio = this._limitStickRange(this._fire._sprBg, this._fire._sprJoystick, this._moveTouchPos, this._moveDir);
@@ -104,11 +124,19 @@ var JoyStick = /** @class */ (function (_super) {
     JoyStick.prototype.onDisable = function () {
         this._moveTouchId = null;
         this._shootTouchId = null;
+        this._skillTouchId = null;
         this._resetMoveStick();
         this._resetShootStick();
+        this._refreshChargeProgress(0);
         yyp.eventCenter.emit("joy-stick", { dir: this._moveDir, ratio: 0 });
     };
     JoyStick.prototype._getControlType = function (pos) {
+        if (this._fire._skillBtn) {
+            var skillDistance = pos.sub(this._fire._skillBtn.position).mag();
+            if (skillDistance <= this._fire._skillBtn.width / 2) {
+                return "skill";
+            }
+        }
         var moveDistance = pos.sub(this._fire._sprBg.position).mag();
         var shootDistance = pos.sub(this._fire._sprBg02.position).mag();
         return moveDistance <= shootDistance ? "move" : "shoot";
@@ -145,6 +173,61 @@ var JoyStick = /** @class */ (function (_super) {
             ratio = 1;
         }
         return ratio;
+    };
+    JoyStick.prototype._initSkillButton = function () {
+        if (!this._fire._skillBtn) {
+            return;
+        }
+        var bgNode = new cc.Node("_chargeProgressBg");
+        bgNode.parent = this._fire._skillBtn;
+        bgNode.zIndex = 9;
+        var bgGraphics = bgNode.addComponent(cc.Graphics);
+        var bgRadius = this._fire._skillBtn.width / 2 - 8;
+        bgGraphics.lineWidth = 6;
+        bgGraphics.strokeColor = cc.color(70, 70, 70, 180);
+        bgGraphics.circle(0, 0, bgRadius);
+        bgGraphics.stroke();
+        this._fire._chargeProgressBg = bgNode;
+        var progressNode = new cc.Node("_chargeProgress");
+        progressNode.parent = this._fire._skillBtn;
+        progressNode.zIndex = 10;
+        progressNode.setContentSize(this._fire._skillBtn.getContentSize());
+        var graphics = progressNode.addComponent(cc.Graphics);
+        progressNode["$Graphics"] = graphics;
+        this._fire._chargeProgress = progressNode;
+        this._refreshChargeProgress(0);
+    };
+    JoyStick.prototype._refreshChargeProgress = function (progress, color) {
+        if (color === void 0) { color = cc.color(255, 90, 55, 255); }
+        if (!this._fire._chargeProgress || !this._fire._chargeProgress.$Graphics) {
+            return;
+        }
+        var graphics = this._fire._chargeProgress.$Graphics;
+        var radius = this._fire._skillBtn.width / 2 - 6;
+        graphics.clear();
+        if (progress <= 0) {
+            return;
+        }
+        graphics.lineWidth = 8;
+        graphics.strokeColor = color;
+        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
+        graphics.stroke();
+        graphics.lineWidth = 3;
+        graphics.strokeColor = cc.color(255, 220, 200, 180);
+        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
+        graphics.stroke();
+    };
+    JoyStick.prototype._onChargeProgress = function (event) {
+        this._refreshChargeProgress(event.progress || 0, cc.color(255, 90, 55, 255));
+    };
+    JoyStick.prototype._onChargeCooldown = function (event) {
+        this._refreshChargeProgress(event.progress || 0, cc.color(120, 160, 255, 220));
+    };
+    JoyStick.prototype._onChargeReady = function () {
+        this._refreshChargeProgress(1, cc.color(255, 40, 25, 255));
+    };
+    JoyStick.prototype._onChargeClear = function () {
+        this._refreshChargeProgress(0);
     };
     JoyStick = __decorate([
         ccclass

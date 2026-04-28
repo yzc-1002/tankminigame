@@ -52,7 +52,7 @@
                 "width": 1097.4625244140625
               },
               {
-                "active": 1,
+                "active": 0,
                 "children": [
                   "console",
                   "timeline",
@@ -81,14 +81,15 @@
         "timeline",
         "game-window"
       ]
-    }
+    },
+    "window-1777368833876": {}
   },
   "panels": {
     "project-settings": {
       "x": 732,
       "y": 268,
-      "width": 603,
-      "height": 567
+      "width": 604,
+      "height": 568
     },
     "sprite-editor": {
       "x": 712,
