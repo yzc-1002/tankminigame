@@ -27,6 +27,7 @@ exports.GameMap = void 0;
 var BaseComponent_1 = require("./base/BaseComponent");
 var Utils_1 = require("./base/Utils");
 var LocalizedData_1 = require("./base/LocalizedData");
+var EnergyItem_1 = require("./EnergyItem");
 //电子邮件puhalskijsemen@gmail.com
 //源码网站 开vpn全局模式打开 http://web3incubators.com/
 //电报https://t.me/gamecode999
@@ -48,6 +49,7 @@ var GameMap = /** @class */ (function (_super) {
         _this.enemyPrefab = null;
         _this.playerPrefab = null;
         _this.skillPrefab = null;
+        _this.energyPrefab = null;
         //内部变量
         _this._tiledMap = null; //Tiled Map
         _this._tmGroup = null; //普通层
@@ -68,6 +70,8 @@ var GameMap = /** @class */ (function (_super) {
         _this._maxEnemyCount = 0; //最大敌人数量
         _this._timeMaxEnemyCount = 0; //同屏最大敌人数量
         _this._skills = []; //随机生成的技能
+        _this._energys = []; //地图上的能量
+        _this._energyCdTime = 0; //能量生成间隔时间
         _this._pause = false; //是否处于暂停状态
         _this._gaming = false; //是否处于游戏中 
         _this._levelId = 1; //当前关卡id
@@ -273,6 +277,65 @@ var GameMap = /** @class */ (function (_super) {
             skill.zIndex = this.judgezIndex(skill.y);
             this._skills.push(skill);
         }
+    };
+    GameMap.prototype._getEnergyConfig = function (key, defaultValue) {
+        var config = yyp.config.Energy || {};
+        var value = config[key];
+        return value == null ? defaultValue : value;
+    };
+    //随机生成一个能量
+    GameMap.prototype.createEnergy = function () {
+        var tile = this._getRandomPassableTile();
+        if (tile == null) {
+            return;
+        }
+        var energy = this.energyPrefab ? cc.instantiate(this.energyPrefab) : this._createDefaultEnergy();
+        energy.parent = this._fire._tmLayerObstacle;
+        energy.position = cc.v3(this.tileToGamePos(tile));
+        energy.zIndex = this.judgezIndex(energy.y);
+        var energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        var value = this._getEnergyConfig("Value", 10);
+        var lifeTime = this._getEnergyConfig("LifeTime", 12);
+        energyScript.init(value, lifeTime);
+        this._energys.push(energy);
+    };
+    GameMap.prototype._createDefaultEnergy = function () {
+        var energy = new cc.Node("EnergyItem");
+        energy.addComponent(EnergyItem_1.EnergyItem);
+        return energy;
+    };
+    GameMap.prototype._getRandomPassableTile = function () {
+        var keys = Object.keys(this._checkList);
+        if (keys.length == 0) {
+            return null;
+        }
+        for (var i = 0; i < 20; i++) {
+            var item = this._checkList[keys[Math.floor(Math.random() * keys.length)]];
+            if (item && this._isEnergyTileEmpty(item)) {
+                return cc.v2(item.x, item.y);
+            }
+        }
+        return null;
+    };
+    GameMap.prototype._isEnergyTileEmpty = function (tile) {
+        var pos = this.tileToGamePos(tile);
+        var minDistance = this._getEnergyConfig("MinDistance", 120);
+        if (this._player && cc.isValid(this._player)) {
+            var playerLen = pos.sub(this._player.position).mag();
+            if (playerLen < minDistance) {
+                return false;
+            }
+        }
+        for (var i = 0; i < this._energys.length; i++) {
+            var energy = this._energys[i];
+            if (cc.isValid(energy)) {
+                var len = pos.sub(energy.position).mag();
+                if (len < minDistance) {
+                    return false;
+                }
+            }
+        }
+        return true;
     };
     //获取最近的敌人
     GameMap.prototype.getNearEnemy = function () {
@@ -522,6 +585,7 @@ var GameMap = /** @class */ (function (_super) {
             }
             //地图滚动
             this.rollMap();
+            this._updateEnergy(dt);
             if (this._player && cc.isValid(this._player)) {
                 this._playerLastPos = this._player.position;
             }
@@ -677,6 +741,42 @@ var GameMap = /** @class */ (function (_super) {
                 this._skills.splice(i, 1);
             }
         }
+        this.playerEnergyCollisionTest();
+    };
+    //玩家和能量,碰撞检测
+    GameMap.prototype.playerEnergyCollisionTest = function () {
+        for (var i = 0; i < this._energys.length; i++) {
+            var energy = this._energys[i];
+            if (cc.isValid(energy)) {
+                var energyScript = energy.getComponent(EnergyItem_1.EnergyItem);
+                if (!energyScript) {
+                    this._energys.splice(i, 1);
+                    energy.destroy();
+                    return;
+                }
+                var playerRect = this._player.script.getPlayerBoundingBox();
+                var energyRect = energyScript.getEnergyBoundingBox();
+                if (cc.Intersection.rectRect(playerRect, energyRect)) {
+                    this._player.script.addEnergy(energyScript.getValue());
+                    this._energys.splice(i, 1);
+                    energy.destroy();
+                    return;
+                }
+            }
+            else {
+                this._energys.splice(i, 1);
+            }
+        }
+    };
+    GameMap.prototype._updateEnergy = function (dt) {
+        this._energyCdTime += dt;
+        var interval = this._getEnergyConfig("BornInterval", 4);
+        var maxCount = this._getEnergyConfig("MaxCount", 6);
+        if (this._energyCdTime < interval || this._energys.length >= maxCount) {
+            return;
+        }
+        this._energyCdTime = 0;
+        this.createEnergy();
     };
     //计算zIndex
     GameMap.prototype.judgezIndex = function (y) {
@@ -722,10 +822,18 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
         this._skills = [];
+        for (var i = 0; i < this._energys.length; i++) {
+            var energy = this._energys[i];
+            if (cc.isValid(energy)) {
+                energy.destroy();
+            }
+        }
+        this._energys = [];
         this._bornEnemyCount = 0;
         this._deathEnemyCount = 0;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
+        this._energyCdTime = 0;
         this._roamFlg = true;
     };
     GameMap.prototype.isMap = function () {
@@ -773,6 +881,9 @@ var GameMap = /** @class */ (function (_super) {
     __decorate([
         property(cc.Prefab)
     ], GameMap.prototype, "skillPrefab", void 0);
+    __decorate([
+        property(cc.Prefab)
+    ], GameMap.prototype, "energyPrefab", void 0);
     GameMap = __decorate([
         ccclass
     ], GameMap);

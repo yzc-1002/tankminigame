@@ -35,6 +35,8 @@ var PLAYER_FREE_BULLET_MAX = 3;
 var PLAYER_FREE_BULLET_RECOVER_DELAY = 0.8;
 var PLAYER_FREE_BULLET_RECOVER_INTERVAL = 0.6;
 var PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
+var PLAYER_EXP_BASE = 30;
+var PLAYER_EXP_STEP = 15;
 var Player = /** @class */ (function (_super) {
     __extends(Player, _super);
     function Player() {
@@ -52,6 +54,9 @@ var Player = /** @class */ (function (_super) {
         _this._freeBulletRecoverTime = 0; //免费子弹恢复计时
         _this._moveInputDir = cc.v2(1, 0); //移动摇杆目标方向
         _this._moveInputRatio = 0; //移动摇杆目标速率
+        _this._energyLevel = 1; //局内能量等级
+        _this._energyExp = 0; //当前经验
+        _this._energyNeedExp = PLAYER_EXP_BASE; //升级所需经验
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -74,6 +79,9 @@ var Player = /** @class */ (function (_super) {
         this._currentSpeed = 0;
         this._moveInputDir = this._dir;
         this._moveInputRatio = 0;
+        this._energyLevel = 1;
+        this._energyExp = 0;
+        this._energyNeedExp = this._getEnergyNeedExp();
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -82,6 +90,7 @@ var Player = /** @class */ (function (_super) {
         this._level = playerLevel;
         this._hp = this._maxHp = this._config.HP * (this._level + 1);
         this._atk = this._config.ATK * (this._level + 1);
+        this._refreshEnergyUI();
     };
     //初始化UI
     Player.prototype._initUI = function () {
@@ -90,6 +99,8 @@ var Player = /** @class */ (function (_super) {
         this._fire._spSkill2.active = false;
         this._fire._spSkill3.active = false;
         this._refreshFreeBulletBar();
+        this._initEnergyUI();
+        this._refreshEnergyUI();
     };
     //初始化接收事件
     Player.prototype._initEvent = function () {
@@ -129,11 +140,7 @@ var Player = /** @class */ (function (_super) {
                 yyp.eventCenter.emit('add-coin', { count: this._config.Coin / 10, position: Utils_1.Utils.getWorldPosition(this.node) });
             }
             else if (skillId == 1) {
-                this._hp += this._maxHp / 2;
-                if (this._hp > this._maxHp) {
-                    this._hp == this._maxHp;
-                }
-                this.refreshHp();
+                this.addEnergy(this._maxHp / 2);
             }
             else if (skillId == 2) {
                 this._skill2Time += 15;
@@ -187,6 +194,100 @@ var Player = /** @class */ (function (_super) {
             if (this._currentSpeed < targetSpeed) {
                 this._currentSpeed = targetSpeed;
             }
+        }
+    };
+    Player.prototype.addEnergy = function (value) {
+        if (value <= 0) {
+            return;
+        }
+        var recoverHp = this._maxHp - this._hp;
+        if (recoverHp > 0) {
+            var addHp = Math.min(recoverHp, value);
+            this._hp += addHp;
+            value -= addHp;
+            this.refreshHp();
+        }
+        if (value > 0) {
+            this._addEnergyExp(value);
+        }
+        this._refreshEnergyUI();
+    };
+    Player.prototype._addEnergyExp = function (exp) {
+        this._energyExp += exp;
+        while (this._energyExp >= this._energyNeedExp) {
+            this._energyExp -= this._energyNeedExp;
+            this._energyLevel++;
+            this._energyNeedExp = this._getEnergyNeedExp();
+            this._levelUpByEnergy();
+        }
+    };
+    Player.prototype._getEnergyNeedExp = function () {
+        var config = yyp.config.Energy || {};
+        var base = config.ExpBase == null ? PLAYER_EXP_BASE : config.ExpBase;
+        var step = config.ExpStep == null ? PLAYER_EXP_STEP : config.ExpStep;
+        return base + (this._energyLevel - 1) * step;
+    };
+    Player.prototype._levelUpByEnergy = function () {
+        var config = yyp.config.Energy || {};
+        var hpAdd = config.LevelHpAdd == null ? Math.max(1, Math.floor(this._config.HP * 0.3)) : config.LevelHpAdd;
+        var atkAdd = config.LevelAtkAdd == null ? this._config.ATK * 0.2 : config.LevelAtkAdd;
+        this._maxHp += hpAdd;
+        this._hp = this._maxHp;
+        this._atk += atkAdd;
+        this.refreshHp();
+    };
+    Player.prototype._initEnergyUI = function () {
+        if (!this._fire._lifebar || this._fire._lbHpLevel) {
+            return;
+        }
+        var levelNode = new cc.Node("_lbHpLevel");
+        levelNode.parent = this._fire._lifebar;
+        levelNode.setPosition(-34, 0);
+        levelNode.setContentSize(36, 24);
+        levelNode.zIndex = 10;
+        var levelLabel = levelNode.addComponent(cc.Label);
+        levelLabel.fontSize = 18;
+        levelLabel.lineHeight = 20;
+        levelLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        levelLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        levelNode["$Label"] = levelLabel;
+        this._fire._lbHpLevel = levelNode;
+        var expNode = new cc.Node("_expBar");
+        expNode.parent = this._fire._lifebar;
+        expNode.setPosition(-34, 0);
+        expNode.setContentSize(44, 44);
+        expNode.zIndex = 0;
+        var bg = new cc.Node("_expBg");
+        bg.parent = expNode;
+        var bgGraphics = bg.addComponent(cc.Graphics);
+        bgGraphics.lineWidth = 5;
+        bgGraphics.strokeColor = cc.color(50, 68, 75, 220);
+        bgGraphics.circle(0, 0, 18);
+        bgGraphics.stroke();
+        var bar = new cc.Node("_expProgress");
+        bar.parent = expNode;
+        var barGraphics = bar.addComponent(cc.Graphics);
+        barGraphics.lineWidth = 5;
+        barGraphics.strokeColor = cc.color(90, 255, 140, 255);
+        this._fire._expBar = expNode;
+        this._fire._expProgress = bar;
+        bar["$Graphics"] = barGraphics;
+    };
+    Player.prototype._refreshEnergyUI = function () {
+        if (this._fire._lbHpLevel && this._fire._lbHpLevel.$Label) {
+            this._fire._lbHpLevel.$Label.string = this._energyLevel.toString();
+        }
+        if (this._fire._expProgress && this._fire._expProgress.$Graphics) {
+            var progress = this._energyNeedExp > 0 ? this._energyExp / this._energyNeedExp : 0;
+            var graphics = this._fire._expProgress.$Graphics;
+            graphics.clear();
+            graphics.lineWidth = 5;
+            graphics.strokeColor = cc.color(90, 255, 140, 255);
+            graphics.arc(0, 0, 18, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
+            graphics.stroke();
+        }
+        else if (this._fire._expBar && this._fire._expBar.$ProgressBar) {
+            this._fire._expBar.$ProgressBar.progress = this._energyNeedExp > 0 ? this._energyExp / this._energyNeedExp : 0;
         }
     };
     Player.prototype.update = function (dt) {

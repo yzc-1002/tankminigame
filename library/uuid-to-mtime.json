@@ -615,8 +615,8 @@
     "relativePath": "prefab\\tank"
   },
   "a764c1c6-00c9-4f63-b136-bdf247b9cd15": {
-    "asset": 1776683591538,
-    "meta": 1776683591539,
+    "asset": 1777366083764,
+    "meta": 1777366083765,
     "relativePath": "prefab\\skill\\SkillIcon.prefab"
   },
   "dc7df1dc-ce23-4957-bc91-9a2f3a8adc66": {
@@ -1904,11 +1904,6 @@
     "meta": 1776938535610,
     "relativePath": "map1\\tankSprite.tsx"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777022207549,
-    "meta": 1777022407176,
-    "relativePath": "script\\GameMap.ts"
-  },
   "0344b5f3-0daf-44ae-86ba-94c09643ba1b": {
     "asset": 1777024881695,
     "meta": 1777024918867,
@@ -1935,8 +1930,8 @@
     "relativePath": "scene\\StartScene.fire"
   },
   "2d2f792f-a40c-49bb-a189-ed176a246e49": {
-    "asset": 1777282619838,
-    "meta": 1777282619842,
+    "asset": 1777366098501,
+    "meta": 1777366098504,
     "relativePath": "scene\\GameScene.fire"
   },
   "a390b105-7508-4780-a6f6-fbd78451b51a": {
@@ -1954,14 +1949,44 @@
     "meta": 1777361477444,
     "relativePath": "script\\config\\Tank.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777361035918,
-    "meta": 1777361477524,
-    "relativePath": "script\\Player.ts"
-  },
   "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
     "asset": 1777361024338,
     "meta": 1777361477572,
     "relativePath": "script\\TankE.ts"
+  },
+  "ce150c3a-bc4d-4d1e-ba8f-bffdc7462430": {
+    "asset": 1777364820217,
+    "meta": 1777364820258,
+    "relativePath": "texture\\ui\\barrelRed_side.png"
+  },
+  "6cf484e9-0877-40d3-88ac-435112f83938": {
+    "asset": 1777364820217,
+    "meta": 1777364820260,
+    "relativePath": "texture\\ui\\barrelGreen_side.png"
+  },
+  "3702e84b-88f5-4424-a6e6-a2d897d9c848": {
+    "asset": 1777364820219,
+    "meta": 1777364820274,
+    "relativePath": "texture\\ui\\barrelBlack_side.png"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1777365430807,
+    "meta": 1777366014386,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1777365399230,
+    "meta": 1777366014468,
+    "relativePath": "script\\Player.ts"
+  },
+  "a9d1b497-36a8-4cda-8aa1-74dd077f8ab3": {
+    "asset": 1777365327049,
+    "meta": 1777366014476,
+    "relativePath": "script\\config\\Energy.ts"
+  },
+  "06b91696-719b-4d17-a055-1cd51b512f6b": {
+    "asset": 1777365453529,
+    "meta": 1777366014490,
+    "relativePath": "script\\EnergyItem.ts"
   }
 }
