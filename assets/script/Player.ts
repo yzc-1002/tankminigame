@@ -29,6 +29,8 @@ export class Player extends Tank {
     _freeBulletCount = PLAYER_FREE_BULLET_MAX;  //当前免费子弹数量
     _stopFireTime = 0;          //停火计时
     _freeBulletRecoverTime = 0; //免费子弹恢复计时
+    _moveInputDir = cc.v2(1, 0); //移动摇杆目标方向
+    _moveInputRatio = 0;        //移动摇杆目标速率
 
     onLoad () {
         super.onLoad();
@@ -51,6 +53,9 @@ export class Player extends Tank {
         this._freeBulletCount = PLAYER_FREE_BULLET_MAX;
         this._stopFireTime = 0;
         this._freeBulletRecoverTime = 0;
+        this._currentSpeed = 0;
+        this._moveInputDir = this._dir;
+        this._moveInputRatio = 0;
     }
 
     //设置坦克类型
@@ -89,10 +94,10 @@ export class Player extends Tank {
     //摇杆事件
     _doJoyStick(event) {
         if (this._inGame) {
-            this._dir = event.dir;      //方向
-            this._ratio = event.ratio;  //速率
-    
-            this._refreshPosition();
+            if (event.dir && event.dir.magSqr() > 0) {
+                this._moveInputDir = event.dir;      //方向
+            }
+            this._moveInputRatio = event.ratio;  //速率
         }
     }
 
@@ -134,24 +139,52 @@ export class Player extends Tank {
     }
 
     //刷新玩家位置
-    _refreshPosition() {
+    _refreshPosition(dt) {
+        this._refreshMoveSpeed(dt);
+        if (this._currentSpeed <= 0) {
+            return;
+        }
+
+        if (this._moveInputRatio > 0) {
+            this._turnDirTo(this._moveInputDir, dt);
+        }
+
         let currPosition = this.node.position;
 
         //碰撞测试
-        let willPosition = this._getWillPosition(currPosition, this._dir, this._ratio);
+        let willPosition = this._getWillPosition(currPosition, this._dir, this._currentSpeed);
         let colliderItems = this._map.testColliders(willPosition, this._radius);
         if (colliderItems.length > 0){
             let testDir = this._getTestDir(currPosition, this._radius, this._dir, colliderItems);
             if (testDir) {
-                willPosition = this._getWillPosition(currPosition, testDir, this._ratio);
+                willPosition = this._getWillPosition(currPosition, testDir, this._currentSpeed);
             }
             else{
+                this._currentSpeed = 0;
                 return;
             }
         }
 
         willPosition = this._map.clampMapInnerPosition(willPosition, this._radius);
         this.node.setPosition(willPosition);
+    }
+
+    _refreshMoveSpeed(dt) {
+        let maxSpeed = this._getConfigValue("Speed", 0);
+        let targetSpeed = this._moveInputRatio > 0 ? maxSpeed * this._moveInputRatio : 0;
+
+        if (this._currentSpeed < targetSpeed) {
+            this._currentSpeed += this._getFrameValue("Acceleration", maxSpeed, dt);
+            if (this._currentSpeed > targetSpeed) {
+                this._currentSpeed = targetSpeed;
+            }
+        }
+        else if (this._currentSpeed > targetSpeed) {
+            this._currentSpeed -= this._getFrameValue("Deceleration", maxSpeed, dt);
+            if (this._currentSpeed < targetSpeed) {
+                this._currentSpeed = targetSpeed;
+            }
+        }
     }
 
     update(dt){
@@ -164,8 +197,9 @@ export class Player extends Tank {
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
 
+            this._refreshPosition(dt);
             this._refreshBarrelDir();
-            this._refreshAngle();
+            this._refreshAngle(dt, false);
     
             // 技能2(超级子弹)
             this._skill2Time -= dt;

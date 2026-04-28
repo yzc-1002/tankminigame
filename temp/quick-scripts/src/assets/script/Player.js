@@ -50,6 +50,8 @@ var Player = /** @class */ (function (_super) {
         _this._freeBulletCount = PLAYER_FREE_BULLET_MAX; //当前免费子弹数量
         _this._stopFireTime = 0; //停火计时
         _this._freeBulletRecoverTime = 0; //免费子弹恢复计时
+        _this._moveInputDir = cc.v2(1, 0); //移动摇杆目标方向
+        _this._moveInputRatio = 0; //移动摇杆目标速率
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -69,6 +71,9 @@ var Player = /** @class */ (function (_super) {
         this._freeBulletCount = PLAYER_FREE_BULLET_MAX;
         this._stopFireTime = 0;
         this._freeBulletRecoverTime = 0;
+        this._currentSpeed = 0;
+        this._moveInputDir = this._dir;
+        this._moveInputRatio = 0;
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -101,9 +106,10 @@ var Player = /** @class */ (function (_super) {
     //摇杆事件
     Player.prototype._doJoyStick = function (event) {
         if (this._inGame) {
-            this._dir = event.dir; //方向
-            this._ratio = event.ratio; //速率
-            this._refreshPosition();
+            if (event.dir && event.dir.magSqr() > 0) {
+                this._moveInputDir = event.dir; //方向
+            }
+            this._moveInputRatio = event.ratio; //速率
         }
     };
     //射击摇杆事件
@@ -142,22 +148,46 @@ var Player = /** @class */ (function (_super) {
         this._destroyEvent();
     };
     //刷新玩家位置
-    Player.prototype._refreshPosition = function () {
+    Player.prototype._refreshPosition = function (dt) {
+        this._refreshMoveSpeed(dt);
+        if (this._currentSpeed <= 0) {
+            return;
+        }
+        if (this._moveInputRatio > 0) {
+            this._turnDirTo(this._moveInputDir, dt);
+        }
         var currPosition = this.node.position;
         //碰撞测试
-        var willPosition = this._getWillPosition(currPosition, this._dir, this._ratio);
+        var willPosition = this._getWillPosition(currPosition, this._dir, this._currentSpeed);
         var colliderItems = this._map.testColliders(willPosition, this._radius);
         if (colliderItems.length > 0) {
             var testDir = this._getTestDir(currPosition, this._radius, this._dir, colliderItems);
             if (testDir) {
-                willPosition = this._getWillPosition(currPosition, testDir, this._ratio);
+                willPosition = this._getWillPosition(currPosition, testDir, this._currentSpeed);
             }
             else {
+                this._currentSpeed = 0;
                 return;
             }
         }
         willPosition = this._map.clampMapInnerPosition(willPosition, this._radius);
         this.node.setPosition(willPosition);
+    };
+    Player.prototype._refreshMoveSpeed = function (dt) {
+        var maxSpeed = this._getConfigValue("Speed", 0);
+        var targetSpeed = this._moveInputRatio > 0 ? maxSpeed * this._moveInputRatio : 0;
+        if (this._currentSpeed < targetSpeed) {
+            this._currentSpeed += this._getFrameValue("Acceleration", maxSpeed, dt);
+            if (this._currentSpeed > targetSpeed) {
+                this._currentSpeed = targetSpeed;
+            }
+        }
+        else if (this._currentSpeed > targetSpeed) {
+            this._currentSpeed -= this._getFrameValue("Deceleration", maxSpeed, dt);
+            if (this._currentSpeed < targetSpeed) {
+                this._currentSpeed = targetSpeed;
+            }
+        }
     };
     Player.prototype.update = function (dt) {
         if (this._inGame) {
@@ -167,8 +197,9 @@ var Player = /** @class */ (function (_super) {
             this._updateFreeBulletRecover(dt);
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
+            this._refreshPosition(dt);
             this._refreshBarrelDir();
-            this._refreshAngle();
+            this._refreshAngle(dt, false);
             // 技能2(超级子弹)
             this._skill2Time -= dt;
             this._skill2Time = this._skill2Time < 0 ? 0 : this._skill2Time;

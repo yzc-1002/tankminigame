@@ -22,6 +22,7 @@ export class Tank extends BaseComponent {
     _dir        = cc.v2(1,0);   //当前行进方向
     _barrelDir  = cc.v2(1,0);   //炮管方向
     _ratio      = 0;            //当前速率
+    _currentSpeed = 0;          //当前移动速度
     _map        = null;         //tile map 节点
 
     _hp         = 0;            //当前血量
@@ -48,6 +49,7 @@ export class Tank extends BaseComponent {
     setTankType(tankType) {
         this._tankType = tankType;
         this._config = yyp.config.Tank[this._tankType];
+        console.log("this._config",this._config)
 
         //炮身
         this._fire._lyBg.children.forEach((child) => {
@@ -77,9 +79,46 @@ export class Tank extends BaseComponent {
     }
 
     //获取玩家的新位置
-    _getWillPosition(currPosition, dir, ratio) {
-        let dis = dir.mul(ratio * this._config.Speed);
+    _getWillPosition(currPosition, dir, speed) {
+        let dis = dir.mul(speed);
         return currPosition.add(dis);
+    }
+
+    _getConfigValue(key, defaultValue) {
+        let value = this._config ? this._config[key] : null;
+        return value == null ? defaultValue : value;
+    }
+
+    _getFrameValue(key, defaultValue, dt) {
+        return this._getConfigValue(key, defaultValue) * dt * 60;
+    }
+
+    _turnDirTo(targetDir, dt) {
+        if (!targetDir || targetDir.magSqr() <= 0) {
+            return;
+        }
+
+        let fromAngle = Utils.vectorsToDegress(this._dir);
+        let toAngle = Utils.vectorsToDegress(targetDir);
+        let disAngle = toAngle - fromAngle;
+
+        if (disAngle > 180) {
+            fromAngle = fromAngle + 360;
+            disAngle = toAngle - fromAngle;
+        }
+        else if (disAngle < -180) {
+            fromAngle = fromAngle - 360;
+            disAngle = toAngle - fromAngle;
+        }
+
+        let maxTurnAngle = this._getFrameValue("AngularSpeed", 10, dt);
+        if (maxTurnAngle <= 0 || Math.abs(disAngle) <= maxTurnAngle) {
+            this._dir = targetDir.normalize();
+            return;
+        }
+
+        let nextAngle = fromAngle + (disAngle > 0 ? maxTurnAngle : -maxTurnAngle);
+        this._dir = Utils.degressToVectors(Utils.correctionAngle(nextAngle));
     }
     
     // 获取碰撞后的尝试方向
@@ -194,7 +233,7 @@ export class Tank extends BaseComponent {
     }
 
     //刷新玩家角度
-    _refreshAngle(){
+    _refreshAngle(dt = 1 / 60, smoothBody = true){
         //动态修改player角度
         let fromAngle = this._fire._lyBg.angle;
         let toAngle = Utils.vectorsToDegress(this._dir);
@@ -210,12 +249,15 @@ export class Tank extends BaseComponent {
             disAngle = toAngle - fromAngle;
         }
 
-        //每帧最多只向目标角度旋转10度
-        if (disAngle > 10) {
-            this._fire._lyBg.angle = this._fire._lyBg.angle+10;
+        let maxTurnAngle = this._getFrameValue("AngularSpeed", 10, dt);
+        if (smoothBody == false || maxTurnAngle <= 0) {
+            this._fire._lyBg.angle = toAngle;
         }
-        else if (disAngle < -10) {
-            this._fire._lyBg.angle = this._fire._lyBg.angle-10;
+        else if (disAngle > maxTurnAngle) {
+            this._fire._lyBg.angle = this._fire._lyBg.angle + maxTurnAngle;
+        }
+        else if (disAngle < -maxTurnAngle) {
+            this._fire._lyBg.angle = this._fire._lyBg.angle - maxTurnAngle;
         }
         else{
             this._fire._lyBg.angle = toAngle;

@@ -1939,29 +1939,29 @@
     "meta": 1777282619842,
     "relativePath": "scene\\GameScene.fire"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777278780540,
-    "meta": 1777278895104,
-    "relativePath": "script\\Player.ts"
-  },
   "a390b105-7508-4780-a6f6-fbd78451b51a": {
     "asset": 1777281515225,
     "meta": 1777281686852,
     "relativePath": "script\\Enemy.ts"
   },
-  "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
-    "asset": 1777282496016,
-    "meta": 1777282497637,
-    "relativePath": "script\\TankE.ts"
-  },
-  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
-    "asset": 1777282837967,
-    "meta": 1777282839838,
-    "relativePath": "script\\config\\Tank.ts"
-  },
   "5806deda-365d-4894-85af-1b8fa8c177d4": {
     "asset": 1777283081763,
     "meta": 1777283093961,
     "relativePath": "texture\\skillBtn.png"
+  },
+  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
+    "asset": 1777361048520,
+    "meta": 1777361477444,
+    "relativePath": "script\\config\\Tank.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1777361035918,
+    "meta": 1777361477524,
+    "relativePath": "script\\Player.ts"
+  },
+  "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
+    "asset": 1777361024338,
+    "meta": 1777361477572,
+    "relativePath": "script\\TankE.ts"
   }
 }

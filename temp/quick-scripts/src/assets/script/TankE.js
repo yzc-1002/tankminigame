@@ -44,6 +44,7 @@ var Tank = /** @class */ (function (_super) {
         _this._dir = cc.v2(1, 0); //当前行进方向
         _this._barrelDir = cc.v2(1, 0); //炮管方向
         _this._ratio = 0; //当前速率
+        _this._currentSpeed = 0; //当前移动速度
         _this._map = null; //tile map 节点
         _this._hp = 0; //当前血量
         _this._maxHp = 0; //最大血量血量
@@ -94,9 +95,39 @@ var Tank = /** @class */ (function (_super) {
         return this._radius;
     };
     //获取玩家的新位置
-    Tank.prototype._getWillPosition = function (currPosition, dir, ratio) {
-        var dis = dir.mul(ratio * this._config.Speed);
+    Tank.prototype._getWillPosition = function (currPosition, dir, speed) {
+        var dis = dir.mul(speed);
         return currPosition.add(dis);
+    };
+    Tank.prototype._getConfigValue = function (key, defaultValue) {
+        var value = this._config ? this._config[key] : null;
+        return value == null ? defaultValue : value;
+    };
+    Tank.prototype._getFrameValue = function (key, defaultValue, dt) {
+        return this._getConfigValue(key, defaultValue) * dt * 60;
+    };
+    Tank.prototype._turnDirTo = function (targetDir, dt) {
+        if (!targetDir || targetDir.magSqr() <= 0) {
+            return;
+        }
+        var fromAngle = Utils_1.Utils.vectorsToDegress(this._dir);
+        var toAngle = Utils_1.Utils.vectorsToDegress(targetDir);
+        var disAngle = toAngle - fromAngle;
+        if (disAngle > 180) {
+            fromAngle = fromAngle + 360;
+            disAngle = toAngle - fromAngle;
+        }
+        else if (disAngle < -180) {
+            fromAngle = fromAngle - 360;
+            disAngle = toAngle - fromAngle;
+        }
+        var maxTurnAngle = this._getFrameValue("AngularSpeed", 10, dt);
+        if (maxTurnAngle <= 0 || Math.abs(disAngle) <= maxTurnAngle) {
+            this._dir = targetDir.normalize();
+            return;
+        }
+        var nextAngle = fromAngle + (disAngle > 0 ? maxTurnAngle : -maxTurnAngle);
+        this._dir = Utils_1.Utils.degressToVectors(Utils_1.Utils.correctionAngle(nextAngle));
     };
     // 获取碰撞后的尝试方向
     Tank.prototype._getTestDir = function (P, radius, dir, colliderItems) {
@@ -195,7 +226,9 @@ var Tank = /** @class */ (function (_super) {
         return null;
     };
     //刷新玩家角度
-    Tank.prototype._refreshAngle = function () {
+    Tank.prototype._refreshAngle = function (dt, smoothBody) {
+        if (dt === void 0) { dt = 1 / 60; }
+        if (smoothBody === void 0) { smoothBody = true; }
         //动态修改player角度
         var fromAngle = this._fire._lyBg.angle;
         var toAngle = Utils_1.Utils.vectorsToDegress(this._dir);
@@ -209,12 +242,15 @@ var Tank = /** @class */ (function (_super) {
             fromAngle = fromAngle - 360;
             disAngle = toAngle - fromAngle;
         }
-        //每帧最多只向目标角度旋转10度
-        if (disAngle > 10) {
-            this._fire._lyBg.angle = this._fire._lyBg.angle + 10;
+        var maxTurnAngle = this._getFrameValue("AngularSpeed", 10, dt);
+        if (smoothBody == false || maxTurnAngle <= 0) {
+            this._fire._lyBg.angle = toAngle;
         }
-        else if (disAngle < -10) {
-            this._fire._lyBg.angle = this._fire._lyBg.angle - 10;
+        else if (disAngle > maxTurnAngle) {
+            this._fire._lyBg.angle = this._fire._lyBg.angle + maxTurnAngle;
+        }
+        else if (disAngle < -maxTurnAngle) {
+            this._fire._lyBg.angle = this._fire._lyBg.angle - maxTurnAngle;
         }
         else {
             this._fire._lyBg.angle = toAngle;
