@@ -1904,11 +1904,6 @@
     "meta": 1777368844669,
     "relativePath": "scene\\GameScene.fire"
   },
-  "a390b105-7508-4780-a6f6-fbd78451b51a": {
-    "asset": 1777281515225,
-    "meta": 1777281686852,
-    "relativePath": "script\\Enemy.ts"
-  },
   "5806deda-365d-4894-85af-1b8fa8c177d4": {
     "asset": 1777283081763,
     "meta": 1777283093961,
@@ -1933,11 +1928,6 @@
     "asset": 1777364820219,
     "meta": 1777364820274,
     "relativePath": "texture\\ui\\barrelBlack_side.png"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777365430807,
-    "meta": 1777366014386,
-    "relativePath": "script\\GameMap.ts"
   },
   "a9d1b497-36a8-4cda-8aa1-74dd077f8ab3": {
     "asset": 1777365327049,
@@ -1984,9 +1974,19 @@
     "meta": 1777372530961,
     "relativePath": "script\\Player.ts"
   },
+  "a390b105-7508-4780-a6f6-fbd78451b51a": {
+    "asset": 1777373497103,
+    "meta": 1777373804887,
+    "relativePath": "script\\Enemy.ts"
+  },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1777372625666,
-    "meta": 1777372631129,
+    "asset": 1777373789360,
+    "meta": 1777373804939,
     "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1777373548635,
+    "meta": 1777373805085,
+    "relativePath": "script\\GameMap.ts"
   }
 }

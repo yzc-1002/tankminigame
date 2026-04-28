@@ -28,6 +28,7 @@ var BaseComponent_1 = require("./base/BaseComponent");
 var Utils_1 = require("./base/Utils");
 var LocalizedData_1 = require("./base/LocalizedData");
 var EnergyItem_1 = require("./EnergyItem");
+var MusicManager_1 = require("./base/MusicManager");
 //电子邮件puhalskijsemen@gmail.com
 //源码网站 开vpn全局模式打开 http://web3incubators.com/
 //电报https://t.me/gamecode999
@@ -74,6 +75,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._energyCdTime = 0; //能量生成间隔时间
         _this._pause = false; //是否处于暂停状态
         _this._gaming = false; //是否处于游戏中 
+        _this._killEffectTestMode = false; //击杀效果测试模式
         _this._levelId = 1; //当前关卡id
         _this._levelConfig = null; //当前关卡配置
         _this._roamFlg = false; //漫游标记
@@ -250,11 +252,34 @@ var GameMap = /** @class */ (function (_super) {
         enemy.script.setEnemyType(ememyType, this._levelId);
         this._enemys.push(enemy);
     };
+    //生成一个残血测试敌人
+    GameMap.prototype.createKillEffectTestEnemy = function () {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        var enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        var pos = cc.v2(this._player.position).add(cc.v2(260, 0));
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 80));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._hp = 1;
+        enemy.script.refreshHp();
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+    };
     //生成一个敌人
     GameMap.prototype.deleteEnemy = function (delEnemy) {
         for (var i = 0; i < this._enemys.length; i++) {
             var enemy = this._enemys[i];
             if (enemy == delEnemy) {
+                if (this._killEffectTestMode) {
+                    this._deathEnemyCount += 1;
+                    this._enemys.splice(i, 1);
+                    yyp.eventCenter.emit("current-enemycount", { enemycount: 0 });
+                    break;
+                }
                 this.createSkillIcon(delEnemy.position);
                 this._deathEnemyCount += 1;
                 yyp.eventCenter.emit("current-enemycount", { enemycount: this._maxEnemyCount - this._deathEnemyCount });
@@ -298,6 +323,16 @@ var GameMap = /** @class */ (function (_super) {
         var lifeTime = this._getEnergyConfig("LifeTime", 12);
         energyScript.init(value, lifeTime);
         this._energys.push(energy);
+    };
+    GameMap.prototype.createEnergyAt = function (pos) {
+        var energy = this.energyPrefab ? cc.instantiate(this.energyPrefab) : this._createDefaultEnergy();
+        energy.parent = this._fire._tmLayerObstacle;
+        energy.position = cc.v3(pos);
+        energy.zIndex = this.judgezIndex(energy.y);
+        var energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        energyScript.init(this._getEnergyConfig("Value", 10), this._getEnergyConfig("LifeTime", 12));
+        this._energys.push(energy);
+        return energy;
     };
     GameMap.prototype._createDefaultEnergy = function () {
         var energy = new cc.Node("EnergyItem");
@@ -576,7 +611,8 @@ var GameMap = /** @class */ (function (_super) {
             return;
         if (this._gaming) {
             this._bornCdTime += dt;
-            if (this._bornCdTime > 1 &&
+            if (this._killEffectTestMode == false &&
+                this._bornCdTime > 1 &&
                 this._enemys.length < this._timeMaxEnemyCount &&
                 this._bornEnemyCount < this._maxEnemyCount) {
                 this._bornCdTime = 0;
@@ -585,7 +621,9 @@ var GameMap = /** @class */ (function (_super) {
             }
             //地图滚动
             this.rollMap();
-            this._updateEnergy(dt);
+            if (this._killEffectTestMode == false) {
+                this._updateEnergy(dt);
+            }
             if (this._player && cc.isValid(this._player)) {
                 this._playerLastPos = this._player.position;
             }
@@ -787,6 +825,7 @@ var GameMap = /** @class */ (function (_super) {
         //获取关卡数据
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._killEffectTestMode = false;
         this._maxEnemyCount = this._levelConfig.EnemyCount * this._levelId;
         this._timeMaxEnemyCount = this._levelConfig.Max + Math.floor(this._levelId / 5);
         yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
@@ -801,11 +840,129 @@ var GameMap = /** @class */ (function (_super) {
         })));
         Analytics_1.Analytics.getInstance().eventEx('start_game', { "level": this._levelId });
     };
+    GameMap.prototype.startKillEffectTestGame = function (func) {
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._killEffectTestMode = true;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
+        yyp.eventCenter.emit("current-enemycount", { enemycount: 1 });
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            self.createPlayer();
+            self.createKillEffectTestEnemy();
+            self._gaming = true;
+            func();
+        })));
+    };
+    GameMap.prototype.isKillEffectTestMode = function () {
+        return this._killEffectTestMode;
+    };
+    GameMap.prototype.handleKillEffectTestEnemyDeath = function (enemyNode) {
+        if (!enemyNode || !cc.isValid(enemyNode)) {
+            return;
+        }
+        var deathPos = cc.v2(enemyNode.position);
+        this.deleteEnemy(enemyNode);
+        if (enemyNode.script) {
+            enemyNode.script.enabled = false;
+        }
+        enemyNode.stopAllActions();
+        this._showKillSkull(deathPos);
+        this._showPlayerBubble("就这？");
+        var self = this;
+        this.node.runAction(cc.sequence(cc.delayTime(0.5), cc.callFunc(function () {
+            self._showKillExplosion(deathPos);
+            self._shakeMap();
+            self._dropTestEnergy(deathPos);
+            if (cc.isValid(enemyNode)) {
+                enemyNode.destroy();
+            }
+        })));
+    };
+    GameMap.prototype._showKillSkull = function (pos) {
+        var skull = new cc.Node("_killSkull");
+        skull.parent = this._fire._tmLayerObstacle;
+        skull.setPosition(cc.v3(pos.x, pos.y + 85, 0));
+        skull.zIndex = 6000;
+        var label = skull.addComponent(cc.Label);
+        label.string = "💀";
+        label.fontSize = 48;
+        label.lineHeight = 52;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        skull.runAction(cc.sequence(cc.spawn(cc.moveBy(0.35, 0, 55), cc.fadeTo(0.35, 255), cc.scaleTo(0.35, 1.25)), cc.fadeOut(0.2), cc.removeSelf()));
+    };
+    GameMap.prototype._showKillExplosion = function (pos) {
+        var boom = cc.instantiate(this._player.script.boomPrefab);
+        boom.parent = this._fire._tmLayerObstacle;
+        boom.position = cc.v3(pos);
+        boom.zIndex = 6000;
+        var ani = boom.getComponent(cc.Animation);
+        if (ani) {
+            ani.play("boom2");
+        }
+        boom.runAction(cc.sequence(cc.delayTime(0.8), cc.removeSelf()));
+        MusicManager_1.MusicManager.playEffect("boom");
+        Utils_1.Utils.vibrate();
+    };
+    GameMap.prototype._dropTestEnergy = function (pos) {
+        var fromPos = cc.v2(pos);
+        var toPos = this.clampMapInnerPosition(fromPos.add(cc.v2(70, 35)), 40);
+        var energy = this.createEnergyAt(fromPos);
+        energy.scale = 0.2;
+        energy.runAction(cc.spawn(cc.scaleTo(0.28, 1), cc.jumpTo(0.35, toPos, 42, 1)));
+    };
+    GameMap.prototype._showPlayerBubble = function (text) {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        var bubble = new cc.Node("_killBubble");
+        bubble.parent = this._fire._tmLayerObstacle;
+        bubble.setPosition(cc.v3(this._player.x, this._player.y + 105, 0));
+        bubble.zIndex = 6000;
+        var bg = bubble.addComponent(cc.Graphics);
+        bg.fillColor = cc.color(255, 255, 255, 235);
+        bg.roundRect(-58, -24, 116, 48, 12);
+        bg.fill();
+        bg.strokeColor = cc.color(40, 40, 40, 240);
+        bg.lineWidth = 2;
+        bg.roundRect(-58, -24, 116, 48, 12);
+        bg.stroke();
+        var labelNode = new cc.Node("_lbBubble");
+        labelNode.parent = bubble;
+        labelNode.setContentSize(116, 48);
+        var label = labelNode.addComponent(cc.Label);
+        label.string = text;
+        label.fontSize = 24;
+        label.lineHeight = 28;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        labelNode.color = cc.color(20, 20, 20);
+        bubble.runAction(cc.sequence(cc.spawn(cc.moveBy(0.15, 0, 12), cc.fadeIn(0.15)), cc.delayTime(1), cc.fadeOut(0.25), cc.removeSelf()));
+    };
+    GameMap.prototype._shakeMap = function () {
+        var _this = this;
+        var origin = cc.v3(this.node.position);
+        this.node.stopActionByTag(9101);
+        var action = cc.sequence(cc.moveBy(0.03, 4, 0), cc.moveBy(0.03, -8, 0), cc.moveBy(0.03, 4, 3), cc.moveBy(0.03, 0, -3), cc.callFunc(function () {
+            _this.node.setPosition(origin);
+        }));
+        action.setTag(9101);
+        this.node.runAction(action);
+    };
     //设置结束
     GameMap.prototype.setFinish = function () {
         this._gaming = false;
     };
     GameMap.prototype.cleanMap = function () {
+        this._killEffectTestMode = false;
         if (this._player && cc.isValid(this._player)) {
             this._player.destroy();
             this._player = null;

@@ -376,6 +376,11 @@ export class Enemy extends Tank {
 
     //执行死亡
     doDeath(){
+        if (this._map && this._map.isKillEffectTestMode && this._map.isKillEffectTestMode()) {
+            this._map.handleKillEffectTestEnemyDeath(this.node);
+            return;
+        }
+
         super.doDeath();
         
         yyp.eventCenter.emit('add-coin',{count:this._config.Coin,position:Utils.getWorldPosition(this.node)});
