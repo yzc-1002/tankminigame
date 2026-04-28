@@ -68,6 +68,7 @@ var Tank = /** @class */ (function (_super) {
         var _this = this;
         this._tankType = tankType;
         this._config = yyp.config.Tank[this._tankType];
+        console.log("this._config", this._config);
         //炮身
         this._fire._lyBg.children.forEach(function (child) {
             if (child.name != "_sprBg" + _this._tankType) {

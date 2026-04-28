@@ -3,6 +3,9 @@ import {Utils} from "./base/Utils";
 import {Bullet} from "./BulletE";
 
 const {ccclass, property} = cc._decorator;
+const DAMAGE_FLOAT_FADE_IN_TIME = 0.18;
+const DAMAGE_FLOAT_HOLD_TIME = 0.5;
+const DAMAGE_FLOAT_FADE_OUT_TIME = 0.2;
 
 @ccclass
 export class Enemy extends Tank {
@@ -37,6 +40,9 @@ export class Enemy extends Tank {
       
     //初始化UI
     _initUI(){
+        if (this._fire._hpLab) {
+            this._fire._hpLab.active = false;
+        }
     }
 
     //设置敌人类型
@@ -289,6 +295,83 @@ export class Enemy extends Tank {
             //创建子弹
             Bullet.createBulletEx(this._config.BType1,this.node.position,this._barrelDir,this._fire._lyBarrel.height,this._config.AttackRadius,this._atk,this._camp,this.node.parent,this._map);
         }
+    }
+
+    //被攻击到
+    beHit(damage, damageType = "normal"){
+        let finalDamage = damage - this._def;
+        if (finalDamage < 0) {
+            finalDamage = 0;
+        }
+
+        let showDamage = finalDamage;
+        if (showDamage > this._hp) {
+            showDamage = this._hp;
+        }
+
+        this._hp -= finalDamage;
+        if (this._hp < 0) {
+            this._hp = 0;
+        }
+
+        this.refreshHp();
+        if (showDamage > 0) {
+            this._showDamageFloat(showDamage, damageType);
+        }
+
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    }
+
+    _showDamageFloat(damage, damageType){
+        if (!this._fire._hpLab || !this._fire._hpLab.$Label) {
+            return;
+        }
+
+        let hpLab = cc.instantiate(this._fire._hpLab);
+        hpLab.parent = this.node;
+        hpLab.active = true;
+        hpLab.opacity = 0;
+        hpLab.scale = 0.4;
+        hpLab.angle = 0;
+        hpLab.position = this._fire._hpLab.position.add(cc.v3((Math.random() - 0.5) * 24, 0, 0));
+        hpLab.zIndex = 200;
+
+        let label = hpLab.$Label || hpLab.getComponent(cc.Label);
+        let damageText = this._formatDamageText(damage);
+        let isCrit = damageType == "crit";
+        label.string = isCrit ? "暴击-" + damageText : "-" + damageText;
+        label.fontSize = isCrit ? 46 : 40;
+        label.lineHeight = isCrit ? 46 : 40;
+        hpLab.color = isCrit ? cc.color(255, 210, 60) : cc.color(255, 80, 80);
+
+        hpLab.runAction(
+            cc.sequence(
+                cc.spawn(
+                    cc.fadeTo(DAMAGE_FLOAT_FADE_IN_TIME, 255),
+                    cc.scaleTo(DAMAGE_FLOAT_FADE_IN_TIME, isCrit ? 1.25 : 1),
+                    cc.moveBy(DAMAGE_FLOAT_FADE_IN_TIME, cc.v2(0, 18))
+                ),
+                cc.delayTime(DAMAGE_FLOAT_HOLD_TIME),
+                cc.spawn(
+                    cc.fadeTo(DAMAGE_FLOAT_FADE_OUT_TIME, 0),
+                    cc.scaleTo(DAMAGE_FLOAT_FADE_OUT_TIME, 0.65),
+                    cc.moveBy(DAMAGE_FLOAT_FADE_OUT_TIME, cc.v2(0, 12))
+                ),
+                cc.callFunc(function(){
+                    hpLab.destroy();
+                })
+            )
+        );
+    }
+
+    _formatDamageText(damage){
+        let value = Math.round(damage * 10) / 10;
+        if (Math.abs(value - Math.round(value)) < 0.001) {
+            return "" + Math.round(value);
+        }
+        return value.toFixed(1);
     }
 
     //执行死亡

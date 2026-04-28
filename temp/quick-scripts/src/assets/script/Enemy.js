@@ -28,6 +28,9 @@ var TankE_1 = require("./TankE");
 var Utils_1 = require("./base/Utils");
 var BulletE_1 = require("./BulletE");
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
+var DAMAGE_FLOAT_FADE_IN_TIME = 0.18;
+var DAMAGE_FLOAT_HOLD_TIME = 0.5;
+var DAMAGE_FLOAT_FADE_OUT_TIME = 0.2;
 var Enemy = /** @class */ (function (_super) {
     __extends(Enemy, _super);
     function Enemy() {
@@ -57,6 +60,9 @@ var Enemy = /** @class */ (function (_super) {
     };
     //初始化UI
     Enemy.prototype._initUI = function () {
+        if (this._fire._hpLab) {
+            this._fire._hpLab.active = false;
+        }
     };
     //设置敌人类型
     Enemy.prototype.setEnemyType = function (tankType, levleId) {
@@ -265,6 +271,59 @@ var Enemy = /** @class */ (function (_super) {
             //创建子弹
             BulletE_1.Bullet.createBulletEx(this._config.BType1, this.node.position, this._barrelDir, this._fire._lyBarrel.height, this._config.AttackRadius, this._atk, this._camp, this.node.parent, this._map);
         }
+    };
+    //被攻击到
+    Enemy.prototype.beHit = function (damage, damageType) {
+        if (damageType === void 0) { damageType = "normal"; }
+        var finalDamage = damage - this._def;
+        if (finalDamage < 0) {
+            finalDamage = 0;
+        }
+        var showDamage = finalDamage;
+        if (showDamage > this._hp) {
+            showDamage = this._hp;
+        }
+        this._hp -= finalDamage;
+        if (this._hp < 0) {
+            this._hp = 0;
+        }
+        this.refreshHp();
+        if (showDamage > 0) {
+            this._showDamageFloat(showDamage, damageType);
+        }
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    };
+    Enemy.prototype._showDamageFloat = function (damage, damageType) {
+        if (!this._fire._hpLab || !this._fire._hpLab.$Label) {
+            return;
+        }
+        var hpLab = cc.instantiate(this._fire._hpLab);
+        hpLab.parent = this.node;
+        hpLab.active = true;
+        hpLab.opacity = 0;
+        hpLab.scale = 0.4;
+        hpLab.angle = 0;
+        hpLab.position = this._fire._hpLab.position.add(cc.v3((Math.random() - 0.5) * 24, 0, 0));
+        hpLab.zIndex = 200;
+        var label = hpLab.$Label || hpLab.getComponent(cc.Label);
+        var damageText = this._formatDamageText(damage);
+        var isCrit = damageType == "crit";
+        label.string = isCrit ? "暴击-" + damageText : "-" + damageText;
+        label.fontSize = isCrit ? 46 : 40;
+        label.lineHeight = isCrit ? 46 : 40;
+        hpLab.color = isCrit ? cc.color(255, 210, 60) : cc.color(255, 80, 80);
+        hpLab.runAction(cc.sequence(cc.spawn(cc.fadeTo(DAMAGE_FLOAT_FADE_IN_TIME, 255), cc.scaleTo(DAMAGE_FLOAT_FADE_IN_TIME, isCrit ? 1.25 : 1), cc.moveBy(DAMAGE_FLOAT_FADE_IN_TIME, cc.v2(0, 18))), cc.delayTime(DAMAGE_FLOAT_HOLD_TIME), cc.spawn(cc.fadeTo(DAMAGE_FLOAT_FADE_OUT_TIME, 0), cc.scaleTo(DAMAGE_FLOAT_FADE_OUT_TIME, 0.65), cc.moveBy(DAMAGE_FLOAT_FADE_OUT_TIME, cc.v2(0, 12))), cc.callFunc(function () {
+            hpLab.destroy();
+        })));
+    };
+    Enemy.prototype._formatDamageText = function (damage) {
+        var value = Math.round(damage * 10) / 10;
+        if (Math.abs(value - Math.round(value)) < 0.001) {
+            return "" + Math.round(value);
+        }
+        return value.toFixed(1);
     };
     //执行死亡
     Enemy.prototype.doDeath = function () {
