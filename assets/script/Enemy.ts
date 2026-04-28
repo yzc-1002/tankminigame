@@ -315,6 +315,7 @@ export class Enemy extends Tank {
         }
 
         this.refreshHp();
+        this._showEnemyHitEffect();
         if (showDamage > 0) {
             this._showDamageFloat(showDamage, damageType);
         }
@@ -322,6 +323,33 @@ export class Enemy extends Tank {
         if (this._hp == 0) {
             this.doDeath();
         }
+    }
+
+    _showEnemyHitEffect() {
+        let effect = new cc.Node("_enemyHitEffect");
+        effect.parent = this.node;
+        effect.setPosition(0, 0);
+        effect.zIndex = 300;
+
+        let graphics = effect.addComponent(cc.Graphics);
+        graphics.lineWidth = 8;
+        graphics.strokeColor = cc.color(255, 80, 60, 230);
+        graphics.circle(0, 0, this._radius + 16);
+        graphics.stroke();
+        graphics.fillColor = cc.color(255, 60, 40, 55);
+        graphics.circle(0, 0, this._radius + 10);
+        graphics.fill();
+
+        effect.opacity = 255;
+        effect.scale = 0.65;
+        effect.runAction(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(0.18, 1.25),
+                cc.fadeTo(0.18, 60)
+            ),
+            cc.fadeOut(0.1),
+            cc.removeSelf()
+        ));
     }
 
     _showDamageFloat(damage, damageType){

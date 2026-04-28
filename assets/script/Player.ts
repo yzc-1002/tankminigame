@@ -585,6 +585,78 @@ export class Player extends Tank {
         }
     }
 
+    //玩家受击不飘伤害数字, 用区别于敌人的蓝色闪光表现
+    beHit(damage){
+        damage = damage - this._def;
+        if (damage < 0) {
+            damage = 0;
+        }
+
+        this._hp -= damage;
+        if (this._hp < 0) {
+            this._hp = 0;
+        }
+
+        this.refreshHp();
+        this._showPlayerHitEffect();
+        this._shakeHitScreen();
+        MusicManager.playEffect("playerHit");
+
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    }
+
+    _showPlayerHitEffect() {
+        let effect = new cc.Node("_playerHitEffect");
+        effect.parent = this.node;
+        effect.setPosition(0, 0);
+        effect.zIndex = 300;
+
+        let graphics = effect.addComponent(cc.Graphics);
+        graphics.lineWidth = 8;
+        graphics.strokeColor = cc.color(80, 210, 255, 230);
+        graphics.circle(0, 0, this._radius + 16);
+        graphics.stroke();
+        graphics.fillColor = cc.color(70, 170, 255, 55);
+        graphics.circle(0, 0, this._radius + 10);
+        graphics.fill();
+
+        effect.opacity = 255;
+        effect.scale = 0.65;
+        effect.runAction(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(0.18, 1.25),
+                cc.fadeTo(0.18, 60)
+            ),
+            cc.fadeOut(0.1),
+            cc.removeSelf()
+        ));
+    }
+
+    _shakeHitScreen() {
+        if (!this._map || !this._map.node) {
+            Utils.vibrate();
+            return;
+        }
+
+        let mapNode = this._map.node;
+        let origin = cc.v3(mapNode.position);
+        mapNode.stopActionByTag(9002);
+        let action = cc.sequence(
+            cc.moveBy(0.025, 2, 0),
+            cc.moveBy(0.025, -4, 0),
+            cc.moveBy(0.025, 2, 1),
+            cc.moveBy(0.025, 0, -1),
+            cc.callFunc(function(){
+                mapNode.setPosition(origin);
+            })
+        );
+        action.setTag(9002);
+        mapNode.runAction(action);
+        Utils.vibrate();
+    }
+
     _updateFreeBulletRecover(dt) {
         if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
             this._stopFireTime = 0;

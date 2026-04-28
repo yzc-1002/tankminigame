@@ -524,6 +524,56 @@ var Player = /** @class */ (function (_super) {
             this.doDeath();
         }
     };
+    //玩家受击不飘伤害数字, 用区别于敌人的蓝色闪光表现
+    Player.prototype.beHit = function (damage) {
+        damage = damage - this._def;
+        if (damage < 0) {
+            damage = 0;
+        }
+        this._hp -= damage;
+        if (this._hp < 0) {
+            this._hp = 0;
+        }
+        this.refreshHp();
+        this._showPlayerHitEffect();
+        this._shakeHitScreen();
+        MusicManager_1.MusicManager.playEffect("playerHit");
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    };
+    Player.prototype._showPlayerHitEffect = function () {
+        var effect = new cc.Node("_playerHitEffect");
+        effect.parent = this.node;
+        effect.setPosition(0, 0);
+        effect.zIndex = 300;
+        var graphics = effect.addComponent(cc.Graphics);
+        graphics.lineWidth = 8;
+        graphics.strokeColor = cc.color(80, 210, 255, 230);
+        graphics.circle(0, 0, this._radius + 16);
+        graphics.stroke();
+        graphics.fillColor = cc.color(70, 170, 255, 55);
+        graphics.circle(0, 0, this._radius + 10);
+        graphics.fill();
+        effect.opacity = 255;
+        effect.scale = 0.65;
+        effect.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.18, 1.25), cc.fadeTo(0.18, 60)), cc.fadeOut(0.1), cc.removeSelf()));
+    };
+    Player.prototype._shakeHitScreen = function () {
+        if (!this._map || !this._map.node) {
+            Utils_1.Utils.vibrate();
+            return;
+        }
+        var mapNode = this._map.node;
+        var origin = cc.v3(mapNode.position);
+        mapNode.stopActionByTag(9002);
+        var action = cc.sequence(cc.moveBy(0.025, 2, 0), cc.moveBy(0.025, -4, 0), cc.moveBy(0.025, 2, 1), cc.moveBy(0.025, 0, -1), cc.callFunc(function () {
+            mapNode.setPosition(origin);
+        }));
+        action.setTag(9002);
+        mapNode.runAction(action);
+        Utils_1.Utils.vibrate();
+    };
     Player.prototype._updateFreeBulletRecover = function (dt) {
         if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
             this._stopFireTime = 0;

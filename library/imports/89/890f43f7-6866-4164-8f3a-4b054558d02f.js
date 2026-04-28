@@ -43,6 +43,7 @@ var GameMain = /** @class */ (function (_super) {
         _this._levelId = 1; //当前关卡
         _this._startCount = 0;
         _this._killTestBtn = null;
+        _this._hitTestBtn = null;
         return _this;
     }
     GameMain.prototype.onLoad = function () {
@@ -102,6 +103,9 @@ var GameMain = /** @class */ (function (_super) {
         if (this._killTestBtn) {
             this._killTestBtn.off(cc.Node.EventType.TOUCH_END, this._onKillTestClick, this);
         }
+        if (this._hitTestBtn) {
+            this._hitTestBtn.off(cc.Node.EventType.TOUCH_END, this._onHitTestClick, this);
+        }
     };
     GameMain.prototype.onDestroy = function () {
         //销毁事件
@@ -115,7 +119,7 @@ var GameMain = /** @class */ (function (_super) {
     // 敌人数量
     GameMain.prototype._updateEnemyCount = function (event) {
         this._fire._lbEnemy.$Label.string = event.enemycount;
-        if (this._fire._tiled.script.isKillEffectTestMode && this._fire._tiled.script.isKillEffectTestMode()) {
+        if (this._fire._tiled.script.isTestMode && this._fire._tiled.script.isTestMode()) {
             return;
         }
         if (event.enemycount == 0) {
@@ -233,33 +237,42 @@ var GameMain = /** @class */ (function (_super) {
         Utils_1.Utils.showDialogs(this.wishPrefab);
     };
     GameMain.prototype._initKillTestButton = function () {
-        if (!this._fire._lyStart || this._killTestBtn) {
+        if (!this._fire._lyStart) {
             return;
         }
-        var btn = new cc.Node("_btnKillEffectTest");
+        if (!this._killTestBtn) {
+            this._killTestBtn = this._createTestButton("_btnKillEffectTest", "击杀效果", cc.v2(0, -210), cc.color(255, 90, 70, 255));
+            this._killTestBtn.on(cc.Node.EventType.TOUCH_END, this._onKillTestClick, this);
+        }
+        if (!this._hitTestBtn) {
+            this._hitTestBtn = this._createTestButton("_btnHitTest", "受击", cc.v2(0, -280), cc.color(80, 180, 255, 255));
+            this._hitTestBtn.on(cc.Node.EventType.TOUCH_END, this._onHitTestClick, this);
+        }
+    };
+    GameMain.prototype._createTestButton = function (name, text, pos, strokeColor) {
+        var btn = new cc.Node(name);
         btn.parent = this._fire._lyStart;
         btn.setContentSize(220, 58);
-        btn.setPosition(0, -210);
+        btn.setPosition(pos);
         btn.zIndex = 100;
         var graphics = btn.addComponent(cc.Graphics);
         graphics.fillColor = cc.color(48, 48, 55, 230);
         graphics.roundRect(-110, -29, 220, 58, 12);
         graphics.fill();
         graphics.lineWidth = 3;
-        graphics.strokeColor = cc.color(255, 90, 70, 255);
+        graphics.strokeColor = strokeColor;
         graphics.roundRect(-110, -29, 220, 58, 12);
         graphics.stroke();
-        var labelNode = new cc.Node("_lbKillEffectTest");
+        var labelNode = new cc.Node(name + "Label");
         labelNode.parent = btn;
         labelNode.setContentSize(220, 58);
         var label = labelNode.addComponent(cc.Label);
-        label.string = "击杀效果";
+        label.string = text;
         label.fontSize = 30;
         label.lineHeight = 34;
         label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
         label.verticalAlign = cc.Label.VerticalAlign.CENTER;
-        btn.on(cc.Node.EventType.TOUCH_END, this._onKillTestClick, this);
-        this._killTestBtn = btn;
+        return btn;
     };
     GameMain.prototype._onKillTestClick = function (event) {
         if (event && event.stopPropagation) {
@@ -273,6 +286,22 @@ var GameMain = /** @class */ (function (_super) {
         this._fire._nUpdate.active = false;
         var self = this;
         this._fire._tiled.script.startKillEffectTestGame(function () {
+            self._fire._joystick.active = true;
+            self._fire._ui.active = true;
+        });
+    };
+    GameMain.prototype._onHitTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        MusicManager_1.MusicManager.playEffect("btn");
+        this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
+        this._fire._lyStart.active = false;
+        this._fire._joystick.active = false;
+        this._fire._ui.active = false;
+        this._fire._nUpdate.active = false;
+        var self = this;
+        this._fire._tiled.script.startPlayerHitTestGame(function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
         });
