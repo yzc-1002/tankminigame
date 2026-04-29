@@ -1894,11 +1894,6 @@
     "meta": 1777283093961,
     "relativePath": "texture\\skillBtn.png"
   },
-  "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
-    "asset": 1777361024338,
-    "meta": 1777361477572,
-    "relativePath": "script\\TankE.ts"
-  },
   "ce150c3a-bc4d-4d1e-ba8f-bffdc7462430": {
     "asset": 1777364820217,
     "meta": 1777364820258,
@@ -1959,11 +1954,6 @@
     "meta": 1777375011927,
     "relativePath": "resources\\sfx\\move.mp3"
   },
-  "32bfb649-a5af-4f26-a13b-c856b5355c35": {
-    "asset": 1777375022182,
-    "meta": 1777375022183,
-    "relativePath": "resources\\sfx\\new"
-  },
   "81619e9a-ed9c-48c8-b3bd-d46f0fe2fa77": {
     "asset": 1777375170787,
     "meta": 1777375174603,
@@ -1999,11 +1989,6 @@
     "meta": 1777431135061,
     "relativePath": "resources\\sfx\\chargeCannon.mp3"
   },
-  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
-    "asset": 1777431145100,
-    "meta": 1777431146292,
-    "relativePath": "script\\config\\Music.ts"
-  },
   "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
     "asset": 1777431986086,
     "meta": 1777431991147,
@@ -2024,19 +2009,34 @@
     "meta": 1777450606792,
     "relativePath": "script\\Enemy.ts"
   },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1777450923811,
+    "meta": 1777451296281,
+    "relativePath": "script\\BulletE.ts"
+  },
+  "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
+    "asset": 1777451383912,
+    "meta": 1777451451630,
+    "relativePath": "script\\TankE.ts"
+  },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777450029517,
-    "meta": 1777450606953,
+    "asset": 1777451906357,
+    "meta": 1777451925431,
     "relativePath": "script\\GameMap.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777450034528,
-    "meta": 1777450607028,
-    "relativePath": "script\\Player.ts"
+  "f36d749b-573e-4e8e-841e-8e150a30225a": {
+    "asset": 1777452275024,
+    "meta": 1777452280826,
+    "relativePath": "resources\\sfx\\chargeShoot.mp3"
   },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1777450842591,
-    "meta": 1777450843495,
-    "relativePath": "script\\BulletE.ts"
+  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
+    "asset": 1777452731231,
+    "meta": 1777452731784,
+    "relativePath": "script\\config\\Music.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1777452808658,
+    "meta": 1777452810038,
+    "relativePath": "script\\Player.ts"
   }
 }

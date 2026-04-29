@@ -470,7 +470,7 @@ export class Player extends Tank {
         let speed = this._getChargeConfig("Speed", 12);
         let wipeLen = this._getBarrelMuzzleDistance(12);
         Bullet.createBulletEx(CHARGE_CANNON_BULLET_TYPE, this.node.position, this._barrelDir, wipeLen, attackRadius, this._atk * atkRatio, this._camp, this.node.parent, this._map, speed);
-        MusicManager.playEffect("shoot");
+        MusicManager.playEffect("chargeShoot");
         this._shakeScreen();
         this._chargeCannonCooldown = this._getChargeConfig("Cooldown", 8);
         this._chargeCannonCdTime = this._chargeCannonCooldown;

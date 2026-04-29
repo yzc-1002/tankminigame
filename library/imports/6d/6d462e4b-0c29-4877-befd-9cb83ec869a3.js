@@ -302,6 +302,9 @@ var Tank = /** @class */ (function (_super) {
         ani.play("boom2");
         MusicManager_1.MusicManager.playEffect("boom");
         Utils_1.Utils.vibrate();
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
     };
     __decorate([
         property(cc.Prefab)

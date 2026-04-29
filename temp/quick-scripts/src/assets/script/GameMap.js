@@ -915,6 +915,7 @@ var GameMap = /** @class */ (function (_super) {
         return this._killEffectTestMode;
     };
     GameMap.prototype.handleKillEffectTestEnemyDeath = function (enemyNode) {
+        var _this = this;
         if (!enemyNode || !cc.isValid(enemyNode)) {
             return;
         }
@@ -925,11 +926,12 @@ var GameMap = /** @class */ (function (_super) {
         }
         enemyNode.stopAllActions();
         this._showKillSkull(deathPos);
-        this._showPlayerBubble("就这？");
+        this.node.runAction(cc.sequence(cc.delayTime(1), cc.callFunc(function () {
+            _this._showPlayerBubble("就这？");
+        })));
         var self = this;
-        this.node.runAction(cc.sequence(cc.delayTime(0.5), cc.callFunc(function () {
+        this.node.runAction(cc.sequence(cc.delayTime(0.15), cc.callFunc(function () {
             self._showKillExplosion(deathPos);
-            self._shakeMap();
             self._dropTestEnergy(deathPos);
             if (cc.isValid(enemyNode)) {
                 enemyNode.destroy();
@@ -941,13 +943,15 @@ var GameMap = /** @class */ (function (_super) {
         skull.parent = this._fire._tmLayerObstacle;
         skull.setPosition(cc.v3(pos.x, pos.y + 85, 0));
         skull.zIndex = 6000;
+        skull.opacity = 0;
+        skull.scale = 1;
         var label = skull.addComponent(cc.Label);
         label.string = "💀";
         label.fontSize = 48;
         label.lineHeight = 52;
         label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
         label.verticalAlign = cc.Label.VerticalAlign.CENTER;
-        skull.runAction(cc.sequence(cc.spawn(cc.moveBy(0.35, 0, 55), cc.fadeTo(0.35, 255), cc.scaleTo(0.35, 1.25)), cc.fadeOut(0.2), cc.removeSelf()));
+        skull.runAction(cc.sequence(cc.spawn(cc.moveBy(0.1, 0, 34), cc.fadeTo(0.1, 255), cc.scaleTo(0.1, 0.5)), cc.delayTime(0.3), cc.fadeOut(0.1), cc.removeSelf()));
     };
     GameMap.prototype._showKillExplosion = function (pos) {
         var boom = cc.instantiate(this._player.script.boomPrefab);
@@ -960,7 +964,7 @@ var GameMap = /** @class */ (function (_super) {
         }
         boom.runAction(cc.sequence(cc.delayTime(0.8), cc.removeSelf()));
         MusicManager_1.MusicManager.playEffect("boom");
-        Utils_1.Utils.vibrate();
+        this.playLightScreenShake();
     };
     GameMap.prototype._dropTestEnergy = function (pos) {
         var fromPos = cc.v2(pos);
@@ -1015,6 +1019,16 @@ var GameMap = /** @class */ (function (_super) {
             _this.node.setPosition(origin);
         }));
         action.setTag(9102);
+        this.node.runAction(action);
+    };
+    GameMap.prototype.playLightScreenShake = function () {
+        var _this = this;
+        var origin = cc.v3(this.node.position);
+        this.node.stopActionByTag(9103);
+        var action = cc.sequence(cc.moveBy(0.02, 2, 0), cc.moveBy(0.02, -4, 0), cc.moveBy(0.02, 2, 1), cc.moveBy(0.02, 0, -1), cc.callFunc(function () {
+            _this.node.setPosition(origin);
+        }));
+        action.setTag(9103);
         this.node.runAction(action);
     };
     //设置结束

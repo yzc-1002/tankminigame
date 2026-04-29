@@ -1071,14 +1071,18 @@ export class GameMap extends BaseComponent {
         }
         enemyNode.stopAllActions();
         this._showKillSkull(deathPos);
-        this._showPlayerBubble("就这？");
+        this.node.runAction(cc.sequence(
+            cc.delayTime(1),
+            cc.callFunc(() => {
+                this._showPlayerBubble("就这？");
+            })
+        ));
 
         let self = this;
         this.node.runAction(cc.sequence(
-            cc.delayTime(0.5),
+            cc.delayTime(0.15),
             cc.callFunc(function(){
                 self._showKillExplosion(deathPos);
-                self._shakeMap();
                 self._dropTestEnergy(deathPos);
                 if (cc.isValid(enemyNode)) {
                     enemyNode.destroy();
@@ -1092,6 +1096,8 @@ export class GameMap extends BaseComponent {
         skull.parent = this._fire._tmLayerObstacle;
         skull.setPosition(cc.v3(pos.x, pos.y + 85, 0));
         skull.zIndex = 6000;
+        skull.opacity = 0;
+        skull.scale = 1;
         let label = skull.addComponent(cc.Label);
         label.string = "💀";
         label.fontSize = 48;
@@ -1100,11 +1106,12 @@ export class GameMap extends BaseComponent {
         label.verticalAlign = cc.Label.VerticalAlign.CENTER;
         skull.runAction(cc.sequence(
             cc.spawn(
-                cc.moveBy(0.35, 0, 55),
-                cc.fadeTo(0.35, 255),
-                cc.scaleTo(0.35, 1.25)
+                cc.moveBy(0.1, 0, 34),
+                cc.fadeTo(0.1, 255),
+                cc.scaleTo(0.1, 0.5)
             ),
-            cc.fadeOut(0.2),
+            cc.delayTime(0.3),
+            cc.fadeOut(0.1),
             cc.removeSelf()
         ));
     }
@@ -1120,7 +1127,7 @@ export class GameMap extends BaseComponent {
         }
         boom.runAction(cc.sequence(cc.delayTime(0.8), cc.removeSelf()));
         MusicManager.playEffect("boom");
-        Utils.vibrate();
+        this.playLightScreenShake();
     }
 
     _dropTestEnergy(pos) {
@@ -1201,6 +1208,22 @@ export class GameMap extends BaseComponent {
             })
         );
         action.setTag(9102);
+        this.node.runAction(action);
+    }
+
+    playLightScreenShake() {
+        let origin = cc.v3(this.node.position);
+        this.node.stopActionByTag(9103);
+        let action = cc.sequence(
+            cc.moveBy(0.02, 2, 0),
+            cc.moveBy(0.02, -4, 0),
+            cc.moveBy(0.02, 2, 1),
+            cc.moveBy(0.02, 0, -1),
+            cc.callFunc(() => {
+                this.node.setPosition(origin);
+            })
+        );
+        action.setTag(9103);
         this.node.runAction(action);
     }
 

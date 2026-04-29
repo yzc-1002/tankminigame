@@ -96,10 +96,10 @@ var Bullet = /** @class */ (function (_super) {
             this._bulletType = LocalizedData_1.LocalizedData.getIntItem("_current_bullet_type_", 1);
             this._bulletLevel = LocalizedData_1.LocalizedData.getIntItem("_bullet_" + this._bulletType + "_", 1);
         }
-        //子弹杀害加成
+        //子弹杀害加成（暴击概率）
         var config = yyp.config.Bullet[this._bulletType];
         this._damage += config.ATK * (this._bulletLevel + 1);
-        if (this._camp == "player" && Math.random() < 0.5) {
+        if (this._camp == "player" && Math.random() < 0.1) {
             this._damage *= 2;
             this._damageType = "crit";
         }

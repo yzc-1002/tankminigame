@@ -434,7 +434,7 @@ var Player = /** @class */ (function (_super) {
         var speed = this._getChargeConfig("Speed", 12);
         var wipeLen = this._getBarrelMuzzleDistance(12);
         BulletE_1.Bullet.createBulletEx(CHARGE_CANNON_BULLET_TYPE, this.node.position, this._barrelDir, wipeLen, attackRadius, this._atk * atkRatio, this._camp, this.node.parent, this._map, speed);
-        MusicManager_1.MusicManager.playEffect("shoot");
+        MusicManager_1.MusicManager.playEffect("chargeShoot");
         this._shakeScreen();
         this._chargeCannonCooldown = this._getChargeConfig("Cooldown", 8);
         this._chargeCannonCdTime = this._chargeCannonCooldown;

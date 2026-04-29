@@ -317,5 +317,8 @@ export class Tank extends BaseComponent {
         ani.play("boom2");
         MusicManager.playEffect("boom");
         Utils.vibrate();
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
     }
 }
