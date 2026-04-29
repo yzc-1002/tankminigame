@@ -853,6 +853,10 @@ export class GameMap extends BaseComponent {
 
     //子弹,障碍物碰撞检测
     bulletObstacleCollisionTest(P,P1){
+        return this.getBulletObstacleCollisionSegment(P, P1) != null;
+    }
+
+    getBulletObstacleCollisionSegment(P, P1) {
         //获取碰撞区
         let currArea = null;
         for (let i = 0; i < this._logicArea.length; i++) {
@@ -868,7 +872,7 @@ export class GameMap extends BaseComponent {
                 let A = currArea[i].A;
                 let B = currArea[i].B;
                 if (cc.Intersection.lineLine(P,P1,A,B)) {
-                    return true;
+                    return {A: A, B: B};
                 }
             }
         }
@@ -876,7 +880,7 @@ export class GameMap extends BaseComponent {
             // cc.log("未找到碰撞分区")
         }
         
-        return false;
+        return null;
     }
 
     
@@ -1315,7 +1319,8 @@ export class GameMap extends BaseComponent {
             "EnergyItem": true,
             "_killSkull": true,
             "_killBubble": true,
-            "_upgradeFloat": true
+            "_upgradeFloat": true,
+            "_bulletMutationMedal": true
         };
         let children = this._fire._tmLayerObstacle.children.slice();
         for (let i = 0; i < children.length; i++) {

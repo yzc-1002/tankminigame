@@ -739,6 +739,9 @@ var GameMap = /** @class */ (function (_super) {
     };
     //子弹,障碍物碰撞检测
     GameMap.prototype.bulletObstacleCollisionTest = function (P, P1) {
+        return this.getBulletObstacleCollisionSegment(P, P1) != null;
+    };
+    GameMap.prototype.getBulletObstacleCollisionSegment = function (P, P1) {
         //获取碰撞区
         var currArea = null;
         for (var i = 0; i < this._logicArea.length; i++) {
@@ -753,14 +756,14 @@ var GameMap = /** @class */ (function (_super) {
                 var A = currArea[i].A;
                 var B = currArea[i].B;
                 if (cc.Intersection.lineLine(P, P1, A, B)) {
-                    return true;
+                    return { A: A, B: B };
                 }
             }
         }
         else {
             // cc.log("未找到碰撞分区")
         }
-        return false;
+        return null;
     };
     //子弹,碰撞检测
     GameMap.prototype.bulletEnemyCollisionTest = function (P, camp) {
@@ -1108,7 +1111,8 @@ var GameMap = /** @class */ (function (_super) {
             "EnergyItem": true,
             "_killSkull": true,
             "_killBubble": true,
-            "_upgradeFloat": true
+            "_upgradeFloat": true,
+            "_bulletMutationMedal": true
         };
         var children = this._fire._tmLayerObstacle.children.slice();
         for (var i = 0; i < children.length; i++) {

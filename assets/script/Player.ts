@@ -44,6 +44,9 @@ export class Player extends Tank {
     _chargeCannonCharging = false;
     _chargeCannonReady = false;
     _chargeEffectNode = null;
+    _bulletMutationType = "";
+    _bulletMutationData = null;
+    _bulletMutationEffectNode = null;
     _moveEffectId = -1;
 
     onLoad () {
@@ -79,6 +82,9 @@ export class Player extends Tank {
         this._chargeCannonCooldown = 0;
         this._chargeCannonCharging = false;
         this._chargeCannonReady = false;
+        this._bulletMutationType = "";
+        this._bulletMutationData = null;
+        this._bulletMutationEffectNode = null;
         this._moveEffectId = -1;
     }
 
@@ -189,6 +195,7 @@ export class Player extends Tank {
         //销毁事件
         this._destroyEvent();
         this._stopMoveEffect();
+        this._hideBulletMutationEffect();
     }
 
     //刷新玩家位置
@@ -433,6 +440,42 @@ export class Player extends Tank {
         ];
     }
 
+    getTestBulletMutationChoices() {
+        return [
+            {
+                id: "bounce",
+                title: "反弹子弹",
+                desc: "碰墙后自动反弹1次",
+                shortLabel: "反",
+                valueText: "x1",
+                bounceCount: 1,
+                color: cc.color(90, 180, 255, 255),
+                effectColor: cc.color(90, 180, 255, 210),
+            },
+            {
+                id: "penetrate",
+                title: "穿透子弹",
+                desc: "连续穿透3个目标后消失",
+                shortLabel: "穿",
+                valueText: "x3",
+                penetrateCount: 3,
+                color: cc.color(255, 92, 92, 255),
+                effectColor: cc.color(255, 92, 92, 210),
+            },
+            {
+                id: "heavy",
+                title: "重炮子弹",
+                desc: "伤害提升60%, 子弹更大",
+                shortLabel: "重",
+                valueText: "+60%",
+                damageRatio: 1.6,
+                scale: 1.35,
+                color: cc.color(255, 210, 90, 255),
+                effectColor: cc.color(255, 210, 90, 210),
+            },
+        ];
+    }
+
     applyTestUpgradeChoice(choice) {
         if (!choice || !choice.id) {
             return;
@@ -452,6 +495,41 @@ export class Player extends Tank {
 
         this._showUpgradeFloat(choice);
         this._playUpgradeSelectFeedback(choice);
+    }
+
+    applyTestBulletMutationChoice(choice) {
+        if (!choice || !choice.id) {
+            return;
+        }
+
+        this._bulletMutationType = choice.id;
+        this._bulletMutationData = {
+            id: choice.id,
+            title: choice.title,
+            shortLabel: choice.shortLabel,
+            valueText: choice.valueText,
+            bounceCount: choice.bounceCount || 0,
+            penetrateCount: choice.penetrateCount || 0,
+            damageRatio: choice.damageRatio || 1,
+            scale: choice.scale || 1,
+            color: choice.color,
+            effectColor: choice.effectColor || choice.color,
+        };
+
+        this._showBulletMutationMedal(this._bulletMutationData);
+        this._refreshBulletMutationEffect();
+        this._playUpgradeSelectFeedback(this._bulletMutationData);
+    }
+
+    _getCurrentBulletMutationData() {
+        if (!this._bulletMutationData) {
+            return null;
+        }
+
+        let data = Object.assign({}, this._bulletMutationData);
+        data.color = this._bulletMutationData.color;
+        data.effectColor = this._bulletMutationData.effectColor;
+        return data;
     }
 
     _showUpgradeFloat(choice) {
@@ -581,6 +659,113 @@ export class Player extends Tank {
         }
     }
 
+    _showBulletMutationMedal(choice) {
+        if (!this.node.parent || !cc.isValid(this.node.parent)) {
+            return;
+        }
+
+        let medal = new cc.Node("_bulletMutationMedal");
+        medal.parent = this.node.parent;
+        medal.setPosition(cc.v3(this.node.x, this.node.y + 112, 0));
+        medal.zIndex = 6600;
+        medal.opacity = 0;
+        medal.scale = 0.88;
+
+        let badge = new cc.Node("_medalBadge");
+        badge.parent = medal;
+        let badgeGraphics = badge.addComponent(cc.Graphics);
+        badgeGraphics.fillColor = choice.color;
+        badgeGraphics.circle(0, 0, 28);
+        badgeGraphics.fill();
+        badgeGraphics.lineWidth = 3;
+        badgeGraphics.strokeColor = cc.color(255, 255, 255, 220);
+        badgeGraphics.circle(0, 0, 28);
+        badgeGraphics.stroke();
+
+        let badgeLabelNode = new cc.Node("_medalBadgeLabel");
+        badgeLabelNode.parent = badge;
+        badgeLabelNode.setContentSize(52, 32);
+        let badgeLabel = badgeLabelNode.addComponent(cc.Label);
+        badgeLabel.string = choice.shortLabel;
+        badgeLabel.fontSize = 22;
+        badgeLabel.lineHeight = 26;
+        badgeLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        badgeLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        let titleNode = new cc.Node("_medalTitle");
+        titleNode.parent = medal;
+        titleNode.setPosition(0, -48);
+        titleNode.color = cc.color(255, 255, 255, 235);
+        titleNode.setContentSize(220, 32);
+        let titleLabel = titleNode.addComponent(cc.Label);
+        titleLabel.string = choice.title;
+        titleLabel.fontSize = 22;
+        titleLabel.lineHeight = 26;
+        titleLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        medal.runAction(cc.sequence(
+            cc.spawn(
+                cc.fadeIn(0.12),
+                cc.scaleTo(0.12, 1.02),
+                cc.moveBy(0.12, 0, 16)
+            ),
+            cc.delayTime(1.88),
+            cc.spawn(
+                cc.fadeOut(0.35),
+                cc.moveBy(0.35, 0, 34)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
+    _refreshBulletMutationEffect() {
+        this._hideBulletMutationEffect();
+        if (!this._bulletMutationData) {
+            return;
+        }
+
+        let barrelNode = this._currentBg || this._fire._lyBarrel;
+        let effect = new cc.Node("_bulletMutationMuzzleEffect");
+        effect.parent = barrelNode;
+        effect.setPosition(cc.v3(this._getBarrelMuzzleLocalPosition(-2)));
+        effect.zIndex = 96;
+        this._bulletMutationEffectNode = effect;
+
+        let outer = new cc.Node("_muzzleOuter");
+        outer.parent = effect;
+        let outerGraphics = outer.addComponent(cc.Graphics);
+        outerGraphics.fillColor = cc.color(this._bulletMutationData.effectColor.r, this._bulletMutationData.effectColor.g, this._bulletMutationData.effectColor.b, 90);
+        outerGraphics.circle(0, 0, 16);
+        outerGraphics.fill();
+
+        let inner = new cc.Node("_muzzleInner");
+        inner.parent = effect;
+        let innerGraphics = inner.addComponent(cc.Graphics);
+        innerGraphics.fillColor = this._bulletMutationData.effectColor;
+        innerGraphics.circle(0, 0, 8);
+        innerGraphics.fill();
+
+        effect.runAction(cc.repeatForever(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(0.22, 1.22),
+                cc.fadeTo(0.22, 220)
+            ),
+            cc.spawn(
+                cc.scaleTo(0.22, 0.9),
+                cc.fadeTo(0.22, 150)
+            )
+        )));
+    }
+
+    _hideBulletMutationEffect() {
+        if (this._bulletMutationEffectNode && cc.isValid(this._bulletMutationEffectNode)) {
+            this._bulletMutationEffectNode.stopAllActions();
+            this._bulletMutationEffectNode.destroy();
+        }
+        this._bulletMutationEffectNode = null;
+    }
+
     _refreshMoveEffect() {
         if (this._currentSpeed > 0) {
             if (this._moveEffectId < 0) {
@@ -607,9 +792,11 @@ export class Player extends Tank {
     fireOnce() {
         let type = (this._viewMode || this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
         let attackRadius = this._viewMode ? this._config.AttackRadius * 0.8 :this._config.AttackRadius;
-        Bullet.createBulletEx(type,this.node.position,this._barrelDir,this._fire._lyBarrel.height+20,attackRadius,this._atk,this._camp,this.node.parent,this._map);
+        let mutationData = this._viewMode ? null : this._getCurrentBulletMutationData();
+        Bullet.createBulletEx(type,this.node.position,this._barrelDir,this._fire._lyBarrel.height+20,attackRadius,this._atk,this._camp,this.node.parent,this._map,8,mutationData);
         
-        if (this._viewMode == false && this._map.enemyCount() > 0) {
+        // if (this._viewMode == false && this._map.enemyCount() > 0) {
+        if (this._viewMode == false) {
             MusicManager.playEffect("shoot");
         }
     }

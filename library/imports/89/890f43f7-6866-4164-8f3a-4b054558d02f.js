@@ -44,6 +44,7 @@ var GameMain = /** @class */ (function (_super) {
         _this._startCount = 0;
         _this._testPanel = null;
         _this._upgradeChoicePanel = null;
+        _this._upgradeChoiceMode = "upgrade";
         return _this;
     }
     GameMain.prototype.onLoad = function () {
@@ -277,15 +278,15 @@ var GameMain = /** @class */ (function (_super) {
         mask.on(cc.Node.EventType.TOUCH_END, this._hideTestPanel, this);
         var dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(460, 400);
+        dialog.setContentSize(460, 470);
         dialog.zIndex = 1;
         var dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-230, -200, 460, 400, 18);
+        dialogGraphics.roundRect(-230, -235, 460, 470, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-230, -200, 460, 400, 18);
+        dialogGraphics.roundRect(-230, -235, 460, 470, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function (event) {
             if (event && event.stopPropagation) {
@@ -297,7 +298,8 @@ var GameMain = /** @class */ (function (_super) {
         this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(0, 44), cc.color(255, 90, 70, 255), this._onKillTestClick);
         this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(0, -24), cc.color(80, 180, 255, 255), this._onHitTestClick);
         this._createTestButton(dialog, "_btnUpgradeTest", "升级测试", cc.v2(0, -92), cc.color(115, 255, 170, 255), this._onUpgradeTestClick);
-        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -160), cc.color(180, 180, 190, 255), this._hideTestPanel, 160, 46, 24);
+        this._createTestButton(dialog, "_btnMutationTest", "子弹质变测试", cc.v2(0, -160), cc.color(255, 120, 210, 255), this._onBulletMutationTestClick);
+        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -218), cc.color(180, 180, 190, 255), this._hideTestPanel, 160, 46, 24);
     };
     GameMain.prototype._createTestLabel = function (parent, name, text, pos, fontSize, color) {
         var labelNode = new cc.Node(name);
@@ -360,6 +362,12 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._startTestGame("upgrade");
     };
+    GameMain.prototype._onBulletMutationTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("mutation");
+    };
     GameMain.prototype._startTestGame = function (type) {
         MusicManager_1.MusicManager.playEffect("btn");
         this._hideTestPanel();
@@ -376,7 +384,13 @@ var GameMain = /** @class */ (function (_super) {
         else if (type == "upgrade") {
             this._fire._tiled.script.startUpgradeTestGame(function () {
                 complete();
-                self._showUpgradeChoicePanel();
+                self._showUpgradeChoicePanel("upgrade");
+            });
+        }
+        else if (type == "mutation") {
+            this._fire._tiled.script.startUpgradeTestGame(function () {
+                complete();
+                self._showUpgradeChoicePanel("mutation");
             });
         }
         else {
@@ -418,12 +432,14 @@ var GameMain = /** @class */ (function (_super) {
         }
         return tiled.script._player;
     };
-    GameMain.prototype._showUpgradeChoicePanel = function () {
+    GameMain.prototype._showUpgradeChoicePanel = function (mode) {
+        if (mode === void 0) { mode = "upgrade"; }
         var player = this._getCurrentPlayer();
         if (!player) {
             return;
         }
         this._destroyUpgradeChoicePanel();
+        this._upgradeChoiceMode = mode;
         yyp.eventCenter.emit("game-pause", {});
         var panel = new cc.Node("_upgradeChoicePanel");
         panel.parent = this.node;
@@ -455,9 +471,13 @@ var GameMain = /** @class */ (function (_super) {
                 event.stopPropagation();
             }
         }, this);
-        this._createUpgradePanelLabel(dialog, "_lbUpgradeTitle", "选择一项升级", cc.v2(0, 160), 36, cc.color(255, 255, 255, 255));
-        this._createUpgradePanelLabel(dialog, "_lbUpgradeTips", "3选1，立即生效", cc.v2(0, 118), 22, cc.color(200, 210, 225, 255));
-        var choices = player.script.getTestUpgradeChoices();
+        var title = mode == "mutation" ? "选择一种子弹质变" : "选择一项升级";
+        var tips = mode == "mutation" ? "3选1，选中后立刻替换当前子弹" : "3选1，立即生效";
+        this._createUpgradePanelLabel(dialog, "_lbUpgradeTitle", title, cc.v2(0, 160), 36, cc.color(255, 255, 255, 255));
+        this._createUpgradePanelLabel(dialog, "_lbUpgradeTips", tips, cc.v2(0, 118), 22, cc.color(200, 210, 225, 255));
+        var choices = mode == "mutation"
+            ? player.script.getTestBulletMutationChoices()
+            : player.script.getTestUpgradeChoices();
         var startX = -280;
         for (var i = 0; i < choices.length; i++) {
             var card = this._createUpgradeChoiceCard(dialog, choices[i], cc.v2(startX + i * 280, -10));
@@ -550,7 +570,12 @@ var GameMain = /** @class */ (function (_super) {
         }
         MusicManager_1.MusicManager.playEffect("btnLUp");
         this._hideUpgradeChoicePanel();
-        player.script.applyTestUpgradeChoice(choice);
+        if (this._upgradeChoiceMode == "mutation" && player.script.applyTestBulletMutationChoice) {
+            player.script.applyTestBulletMutationChoice(choice);
+        }
+        else {
+            player.script.applyTestUpgradeChoice(choice);
+        }
     };
     GameMain.prototype._hideUpgradeChoicePanel = function (resumeGame) {
         if (resumeGame === void 0) { resumeGame = true; }
@@ -567,6 +592,7 @@ var GameMain = /** @class */ (function (_super) {
             this._upgradeChoicePanel.destroy();
         }
         this._upgradeChoicePanel = null;
+        this._upgradeChoiceMode = "upgrade";
     };
     __decorate([
         property(cc.Prefab)

@@ -45,6 +45,11 @@ var Bullet = /** @class */ (function (_super) {
         _this._camp = ""; //阵营(player/enemy)
         _this._inGame = false;
         _this._damageType = "normal"; //伤害类型(normal/crit)
+        _this._mutationType = "";
+        _this._mutationData = null;
+        _this._bounceLeft = 0;
+        _this._penetrateLeft = 0;
+        _this._hitTargetIds = {};
         _this._currenBullet = null;
         _this._isStop = false;
         return _this;
@@ -74,8 +79,9 @@ var Bullet = /** @class */ (function (_super) {
     Bullet.prototype._destroyEvent = function () {
     };
     //初始化子弹(方向/射程/伤害值/速度/阵营/当前关卡)
-    Bullet.prototype.initBullet = function (dir, gunshot, atk, speed, camp, levelId, bulletType) {
+    Bullet.prototype.initBullet = function (dir, gunshot, atk, speed, camp, levelId, bulletType, mutationData) {
         if (bulletType === void 0) { bulletType = null; }
+        if (mutationData === void 0) { mutationData = null; }
         this._dir = dir;
         this._gunshot = gunshot;
         this._speed = speed;
@@ -83,6 +89,11 @@ var Bullet = /** @class */ (function (_super) {
         this._camp = camp;
         this._damageType = "normal";
         this._destroyTime = this._gunshot / this._speed / 60;
+        this._mutationType = "";
+        this._mutationData = null;
+        this._bounceLeft = 0;
+        this._penetrateLeft = 0;
+        this._hitTargetIds = {};
         //子弹类型
         if (camp == "enemy") {
             this._bulletType = 0;
@@ -105,6 +116,7 @@ var Bullet = /** @class */ (function (_super) {
         }
         this._inGame = true;
         this.setBulletType(this._bulletType);
+        this._applyMutationData(mutationData);
     };
     Bullet.prototype.setBulletType = function (type) {
         var _this = this;
@@ -131,6 +143,30 @@ var Bullet = /** @class */ (function (_super) {
         //调整子弹角度
         if (this._inGame) {
             this.node.angle = Utils_1.Utils.vectorsToDegress(this._dir) - 90;
+        }
+    };
+    Bullet.prototype._applyMutationData = function (mutationData) {
+        if (this._camp != "player" || !mutationData || !mutationData.id) {
+            return;
+        }
+        this._mutationType = mutationData.id;
+        this._mutationData = mutationData;
+        this._bounceLeft = mutationData.bounceCount || 0;
+        this._penetrateLeft = mutationData.penetrateCount || 0;
+        if (mutationData.damageRatio && mutationData.damageRatio != 1) {
+            this._damage *= mutationData.damageRatio;
+        }
+        this._refreshMutationVisual();
+    };
+    Bullet.prototype._refreshMutationVisual = function () {
+        if (!this._currenBullet || !this._mutationData) {
+            return;
+        }
+        var scale = this._mutationData.scale || 1;
+        this._currenBullet.scaleX = Math.abs(this._currenBullet.scaleX) * scale;
+        this._currenBullet.scaleY = Math.abs(this._currenBullet.scaleY) * scale;
+        if (this._mutationData.color) {
+            this._currenBullet.color = this._mutationData.color;
         }
     };
     Bullet.prototype._createDefaultBullet = function (type) {
@@ -178,20 +214,15 @@ var Bullet = /** @class */ (function (_super) {
                         //子弹和坦克检测
                         var hitTank = this._map.bulletEnemyCollisionTest(willPosition, this._camp);
                         if (hitTank) {
-                            //击中坦克
-                            hitTank.script.beHit(this._damage, this._damageType);
-                            if (this._camp == "player" && this._damageType == "crit"
-                                && this._map.playPlayerCritFeedback) {
-                                this._map.playPlayerCritFeedback();
-                            }
-                            //销毁
-                            this.doDestroy();
+                            this._handleHitTank(hitTank);
                         }
                         else {
                             //子弹和障碍物检测
-                            if (this._map.bulletObstacleCollisionTest(currPosition, willPosition)) {
-                                //销毁
-                                this.doDestroy();
+                            var colliderSegment = this._map.getBulletObstacleCollisionSegment
+                                ? this._map.getBulletObstacleCollisionSegment(currPosition, willPosition)
+                                : (this._map.bulletObstacleCollisionTest(currPosition, willPosition) ? {} : null);
+                            if (colliderSegment) {
+                                this._handleObstacleCollision(currPosition, colliderSegment);
                             }
                         }
                     }
@@ -202,7 +233,9 @@ var Bullet = /** @class */ (function (_super) {
     //销毁
     Bullet.prototype.doDestroy = function () {
         this._isStop = true;
-        this._currenBullet.active = false;
+        if (this._currenBullet) {
+            this._currenBullet.active = false;
+        }
         this._fire._sprBoom.active = true;
         //爆炸动画
         var self = this;
@@ -211,21 +244,62 @@ var Bullet = /** @class */ (function (_super) {
             self.node.destroy();
         })));
     };
+    Bullet.prototype._handleHitTank = function (hitTank) {
+        var targetId = hitTank.uuid || hitTank["_id"] || hitTank.name;
+        if (this._mutationType == "penetrate" && this._hitTargetIds[targetId]) {
+            return;
+        }
+        hitTank.script.beHit(this._damage, this._damageType);
+        if (this._camp == "player" && this._damageType == "crit"
+            && this._map.playPlayerCritFeedback) {
+            this._map.playPlayerCritFeedback();
+        }
+        if (this._mutationType == "penetrate" && this._penetrateLeft > 0) {
+            this._hitTargetIds[targetId] = true;
+            this._penetrateLeft--;
+            if (this._penetrateLeft > 0) {
+                return;
+            }
+        }
+        this.doDestroy();
+    };
+    Bullet.prototype._handleObstacleCollision = function (currPosition, colliderSegment) {
+        if (this._mutationType == "bounce" && this._bounceLeft > 0 && colliderSegment && colliderSegment.A && colliderSegment.B) {
+            this._bounceLeft--;
+            this._dir = this._reflectDirectionBySegment(this._dir, colliderSegment.A, colliderSegment.B);
+            this.node.angle = Utils_1.Utils.vectorsToDegress(this._dir) - 90;
+            this.node.setPosition(currPosition.add(cc.v3(this._dir.mul(Math.max(6, this._speed * 0.75)))));
+            return;
+        }
+        this.doDestroy();
+    };
+    Bullet.prototype._reflectDirectionBySegment = function (dir, A, B) {
+        var wallDir = B.sub(A).normalize();
+        var normal = cc.v2(-wallDir.y, wallDir.x).normalize();
+        var dot = dir.dot(normal);
+        var reflectDir = dir.sub(normal.mul(2 * dot));
+        if (reflectDir.magSqr() <= 0) {
+            return dir.mul(-1);
+        }
+        return reflectDir.normalize();
+    };
     //创建子弹
-    Bullet.createBullet = function (pos, dir, gunshot, atk, speed, camp, parentNode, map, bulletType) {
+    Bullet.createBullet = function (pos, dir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData) {
         if (bulletType === void 0) { bulletType = null; }
+        if (mutationData === void 0) { mutationData = null; }
         speed = (camp == "enemy") ? speed * 0.8 : speed;
         var bullet = cc.instantiate(map.bulletPrefab);
         bullet.parent = parentNode;
         bullet.setPosition(cc.v3(pos));
         bullet.zIndex = 5000;
-        bullet.script.initBullet(dir, gunshot, atk, speed, camp, map._levelId, bulletType);
+        bullet.script.initBullet(dir, gunshot, atk, speed, camp, map._levelId, bulletType, mutationData);
         bullet.script.setMap(map);
         return bullet;
     };
     //创建子弹(类型/位置/方向/炮管长度/射程/攻击力/目标阵营)
-    Bullet.createBulletEx = function (bulletType, pos, dir, wipeLen, gunshot, atk, camp, parentNode, map, speed) {
+    Bullet.createBulletEx = function (bulletType, pos, dir, wipeLen, gunshot, atk, camp, parentNode, map, speed, mutationData) {
         if (speed === void 0) { speed = 8; }
+        if (mutationData === void 0) { mutationData = null; }
         gunshot = gunshot - wipeLen;
         var bdir = dir;
         var bpos = pos;
@@ -234,14 +308,14 @@ var Bullet = /** @class */ (function (_super) {
             case 1: {
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
                 break;
             }
             case 2: {
                 for (var i = 0; i <= 1; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 2.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
                 }
                 break;
             }
@@ -249,7 +323,7 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 2; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
                 }
                 break;
             }
@@ -257,7 +331,7 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 3; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 7.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
                 }
                 break;
             }
@@ -265,14 +339,14 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 5; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 12.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
                 }
                 break;
             }
             case 99: {
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType);
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData);
                 break;
             }
             case 11: {
