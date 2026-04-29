@@ -549,11 +549,6 @@
     "meta": 1776754824964,
     "relativePath": "prefab\\Finish.prefab"
   },
-  "9eb8f898-f012-4150-bd35-1b087a918955": {
-    "asset": 1777021330570,
-    "meta": 1777021330572,
-    "relativePath": "prefab\\GameMain.prefab"
-  },
   "a7976efa-dcd2-4d89-9b42-43c437d4e6f4": {
     "asset": 1777022409740,
     "meta": 1777022409741,
@@ -1944,16 +1939,6 @@
     "meta": 1777372530867,
     "relativePath": "script\\JoyStick.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1777374244391,
-    "meta": 1777374453361,
-    "relativePath": "script\\GameMain.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777374274997,
-    "meta": 1777374453535,
-    "relativePath": "script\\GameMap.ts"
-  },
   "a390b105-7508-4780-a6f6-fbd78451b51a": {
     "asset": 1777374558559,
     "meta": 1777374595771,
@@ -2038,5 +2023,20 @@
     "asset": 1777431986086,
     "meta": 1777431991147,
     "relativePath": "script\\config\\Tank.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1777447871862,
+    "meta": 1777448074404,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1777447875143,
+    "meta": 1777448074576,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "9eb8f898-f012-4150-bd35-1b087a918955": {
+    "asset": 1777448146721,
+    "meta": 1777448146722,
+    "relativePath": "prefab\\GameMain.prefab"
   }
 }

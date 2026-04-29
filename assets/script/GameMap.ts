@@ -1194,6 +1194,9 @@ export class GameMap extends BaseComponent {
     }
 
     cleanMap(){
+        this.node.stopAllActions();
+        this._gaming = false;
+        this._pause = false;
         this._killEffectTestMode = false;
         this._playerHitTestMode = false;
         if (this._player && cc.isValid(this._player)){
@@ -1229,6 +1232,27 @@ export class GameMap extends BaseComponent {
         this._timeMaxEnemyCount = 0;
         this._energyCdTime = 0;
         this._roamFlg = true;
+        this._clearRuntimeMapNodes();
+    }
+
+    _clearRuntimeMapNodes(){
+        let runtimeNames = {
+            "Player": true,
+            "Enemy": true,
+            "Bullet": true,
+            "Boom": true,
+            "SkillIcon": true,
+            "EnergyItem": true,
+            "_killSkull": true,
+            "_killBubble": true
+        };
+        let children = this._fire._tmLayerObstacle.children.slice();
+        for (let i = 0; i < children.length; i++) {
+            let child = children[i];
+            if (cc.isValid(child) && runtimeNames[child.name]) {
+                child.destroy();
+            }
+        }
     }
     
     isMap(){
