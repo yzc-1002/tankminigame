@@ -369,9 +369,9 @@ export class Enemy extends Tank {
         let label = hpLab.$Label || hpLab.getComponent(cc.Label);
         let damageText = this._formatDamageText(damage);
         let isCrit = damageType == "crit";
-        label.string = isCrit ? "暴击-" + damageText : "-" + damageText;
-        label.fontSize = isCrit ? 46 : 40;
-        label.lineHeight = isCrit ? 46 : 40;
+        label.string = isCrit ? "🔥暴击-" + damageText : "-" + damageText;
+        label.fontSize = isCrit ? 54 : 40;
+        label.lineHeight = isCrit ? 58 : 40;
         hpLab.color = isCrit ? cc.color(255, 210, 60) : cc.color(255, 80, 80);
 
         hpLab.runAction(

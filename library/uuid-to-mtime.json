@@ -1929,20 +1929,10 @@
     "meta": 1777368299323,
     "relativePath": "script\\config\\Bullet.ts"
   },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1777372456286,
-    "meta": 1777372530767,
-    "relativePath": "script\\BulletE.ts"
-  },
   "bc87592d-3055-4635-bb55-a57728de0328": {
     "asset": 1777372371839,
     "meta": 1777372530867,
     "relativePath": "script\\JoyStick.ts"
-  },
-  "a390b105-7508-4780-a6f6-fbd78451b51a": {
-    "asset": 1777374558559,
-    "meta": 1777374595771,
-    "relativePath": "script\\Enemy.ts"
   },
   "619e5825-d4d3-4057-96c4-d47592d96f58": {
     "asset": 1777375011420,
@@ -2004,11 +1994,6 @@
     "meta": 1777425545774,
     "relativePath": "script\\base\\MusicManager.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777424512035,
-    "meta": 1777425545937,
-    "relativePath": "script\\Player.ts"
-  },
   "9e5ff7c4-3037-4fce-b446-56ad4ff18c05": {
     "asset": 1777431134172,
     "meta": 1777431135061,
@@ -2029,14 +2014,29 @@
     "meta": 1777448074404,
     "relativePath": "script\\GameMain.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777447875143,
-    "meta": 1777448074576,
-    "relativePath": "script\\GameMap.ts"
-  },
   "9eb8f898-f012-4150-bd35-1b087a918955": {
     "asset": 1777448146721,
     "meta": 1777448146722,
     "relativePath": "prefab\\GameMain.prefab"
+  },
+  "a390b105-7508-4780-a6f6-fbd78451b51a": {
+    "asset": 1777450025183,
+    "meta": 1777450606792,
+    "relativePath": "script\\Enemy.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1777450029517,
+    "meta": 1777450606953,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1777450034528,
+    "meta": 1777450607028,
+    "relativePath": "script\\Player.ts"
+  },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1777450842591,
+    "meta": 1777450843495,
+    "relativePath": "script\\BulletE.ts"
   }
 }

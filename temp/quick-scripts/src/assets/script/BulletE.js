@@ -44,6 +44,7 @@ var Bullet = /** @class */ (function (_super) {
         _this._destroyTime = -1; //销毁时间
         _this._camp = ""; //阵营(player/enemy)
         _this._inGame = false;
+        _this._damageType = "normal"; //伤害类型(normal/crit)
         _this._currenBullet = null;
         _this._isStop = false;
         return _this;
@@ -80,6 +81,7 @@ var Bullet = /** @class */ (function (_super) {
         this._speed = speed;
         this._damage = atk;
         this._camp = camp;
+        this._damageType = "normal";
         this._destroyTime = this._gunshot / this._speed / 60;
         //子弹类型
         if (camp == "enemy") {
@@ -97,6 +99,10 @@ var Bullet = /** @class */ (function (_super) {
         //子弹杀害加成
         var config = yyp.config.Bullet[this._bulletType];
         this._damage += config.ATK * (this._bulletLevel + 1);
+        if (this._camp == "player" && Math.random() < 0.5) {
+            this._damage *= 2;
+            this._damageType = "crit";
+        }
         this._inGame = true;
         this.setBulletType(this._bulletType);
     };
@@ -173,7 +179,11 @@ var Bullet = /** @class */ (function (_super) {
                         var hitTank = this._map.bulletEnemyCollisionTest(willPosition, this._camp);
                         if (hitTank) {
                             //击中坦克
-                            hitTank.script.beHit(this._damage);
+                            hitTank.script.beHit(this._damage, this._damageType);
+                            if (this._camp == "player" && this._damageType == "crit"
+                                && this._map.playPlayerCritFeedback) {
+                                this._map.playPlayerCritFeedback();
+                            }
                             //销毁
                             this.doDestroy();
                         }

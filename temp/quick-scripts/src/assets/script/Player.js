@@ -562,7 +562,7 @@ var Player = /** @class */ (function (_super) {
         }
         this.refreshHp();
         this._showPlayerHitEffect();
-        this._shakeHitScreen();
+        Utils_1.Utils.vibrate();
         MusicManager_1.MusicManager.playEffect("playerHit");
         if (this._hp == 0) {
             this.doDeath();
@@ -584,21 +584,6 @@ var Player = /** @class */ (function (_super) {
         effect.opacity = 255;
         effect.scale = 0.65;
         effect.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.18, 1.25), cc.fadeTo(0.18, 60)), cc.fadeOut(0.1), cc.removeSelf()));
-    };
-    Player.prototype._shakeHitScreen = function () {
-        if (!this._map || !this._map.node) {
-            Utils_1.Utils.vibrate();
-            return;
-        }
-        var mapNode = this._map.node;
-        var origin = cc.v3(mapNode.position);
-        mapNode.stopActionByTag(9002);
-        var action = cc.sequence(cc.moveBy(0.025, 2, 0), cc.moveBy(0.025, -4, 0), cc.moveBy(0.025, 2, 1), cc.moveBy(0.025, 0, -1), cc.callFunc(function () {
-            mapNode.setPosition(origin);
-        }));
-        action.setTag(9002);
-        mapNode.runAction(action);
-        Utils_1.Utils.vibrate();
     };
     Player.prototype._updateFreeBulletRecover = function (dt) {
         if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {

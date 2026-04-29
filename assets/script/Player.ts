@@ -628,7 +628,7 @@ export class Player extends Tank {
 
         this.refreshHp();
         this._showPlayerHitEffect();
-        this._shakeHitScreen();
+        Utils.vibrate();
         MusicManager.playEffect("playerHit");
 
         if (this._hp == 0) {
@@ -661,29 +661,6 @@ export class Player extends Tank {
             cc.fadeOut(0.1),
             cc.removeSelf()
         ));
-    }
-
-    _shakeHitScreen() {
-        if (!this._map || !this._map.node) {
-            Utils.vibrate();
-            return;
-        }
-
-        let mapNode = this._map.node;
-        let origin = cc.v3(mapNode.position);
-        mapNode.stopActionByTag(9002);
-        let action = cc.sequence(
-            cc.moveBy(0.025, 2, 0),
-            cc.moveBy(0.025, -4, 0),
-            cc.moveBy(0.025, 2, 1),
-            cc.moveBy(0.025, 0, -1),
-            cc.callFunc(function(){
-                mapNode.setPosition(origin);
-            })
-        );
-        action.setTag(9002);
-        mapNode.runAction(action);
-        Utils.vibrate();
     }
 
     _updateFreeBulletRecover(dt) {

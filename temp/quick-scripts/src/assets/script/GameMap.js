@@ -1007,6 +1007,16 @@ var GameMap = /** @class */ (function (_super) {
         action.setTag(9101);
         this.node.runAction(action);
     };
+    GameMap.prototype.playPlayerCritFeedback = function () {
+        var _this = this;
+        var origin = cc.v3(this.node.position);
+        this.node.stopActionByTag(9102);
+        var action = cc.sequence(cc.moveBy(0.02, 2, 0), cc.moveBy(0.02, -4, 0), cc.moveBy(0.02, 2, 1), cc.moveBy(0.02, 0, -1), cc.callFunc(function () {
+            _this.node.setPosition(origin);
+        }));
+        action.setTag(9102);
+        this.node.runAction(action);
+    };
     //设置结束
     GameMap.prototype.setFinish = function () {
         this._gaming = false;

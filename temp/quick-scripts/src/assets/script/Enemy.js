@@ -328,9 +328,9 @@ var Enemy = /** @class */ (function (_super) {
         var label = hpLab.$Label || hpLab.getComponent(cc.Label);
         var damageText = this._formatDamageText(damage);
         var isCrit = damageType == "crit";
-        label.string = isCrit ? "暴击-" + damageText : "-" + damageText;
-        label.fontSize = isCrit ? 46 : 40;
-        label.lineHeight = isCrit ? 46 : 40;
+        label.string = isCrit ? "🔥暴击-" + damageText : "-" + damageText;
+        label.fontSize = isCrit ? 54 : 40;
+        label.lineHeight = isCrit ? 58 : 40;
         hpLab.color = isCrit ? cc.color(255, 210, 60) : cc.color(255, 80, 80);
         hpLab.runAction(cc.sequence(cc.spawn(cc.fadeTo(DAMAGE_FLOAT_FADE_IN_TIME, 255), cc.scaleTo(DAMAGE_FLOAT_FADE_IN_TIME, isCrit ? 1.25 : 1), cc.moveBy(DAMAGE_FLOAT_FADE_IN_TIME, cc.v2(0, 18))), cc.delayTime(DAMAGE_FLOAT_HOLD_TIME), cc.spawn(cc.fadeTo(DAMAGE_FLOAT_FADE_OUT_TIME, 0), cc.scaleTo(DAMAGE_FLOAT_FADE_OUT_TIME, 0.65), cc.moveBy(DAMAGE_FLOAT_FADE_OUT_TIME, cc.v2(0, 12))), cc.callFunc(function () {
             hpLab.destroy();

@@ -19,6 +19,7 @@ export class Bullet extends BaseComponent {
     _destroyTime    = -1;           //销毁时间
     _camp           = "";           //阵营(player/enemy)
     _inGame         = false;
+    _damageType     = "normal";     //伤害类型(normal/crit)
 
     _currenBullet   = null;
     _isStop         = false;
@@ -59,6 +60,7 @@ export class Bullet extends BaseComponent {
         this._speed = speed;
         this._damage = atk;
         this._camp = camp;
+        this._damageType = "normal";
         this._destroyTime = this._gunshot/this._speed/60;
         
         //子弹类型
@@ -75,9 +77,14 @@ export class Bullet extends BaseComponent {
             this._bulletLevel = LocalizedData.getIntItem(`_bullet_${this._bulletType}_`,1);
         }
 
-        //子弹杀害加成
+        //子弹杀害加成（暴击概率）
         let config = yyp.config.Bullet[this._bulletType];
         this._damage += config.ATK*(this._bulletLevel+1);
+
+        if (this._camp == "player" && Math.random() < 0.1) {
+            this._damage *= 2;
+            this._damageType = "crit";
+        }
 
         this._inGame = true;
         this.setBulletType(this._bulletType);
@@ -168,7 +175,11 @@ export class Bullet extends BaseComponent {
                         let hitTank = this._map.bulletEnemyCollisionTest(willPosition,this._camp);
                         if (hitTank) {
                             //击中坦克
-                            hitTank.script.beHit(this._damage);
+                            hitTank.script.beHit(this._damage, this._damageType);
+                            if (this._camp == "player" && this._damageType == "crit"
+                                && this._map.playPlayerCritFeedback) {
+                                this._map.playPlayerCritFeedback();
+                            }
                             //销毁
                             this.doDestroy();
                         }
