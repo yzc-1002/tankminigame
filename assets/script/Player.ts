@@ -43,6 +43,7 @@ export class Player extends Tank {
     _chargeCannonCharging = false;
     _chargeCannonReady = false;
     _chargeEffectNode = null;
+    _moveEffectId = -1;
 
     onLoad () {
         super.onLoad();
@@ -76,6 +77,7 @@ export class Player extends Tank {
         this._chargeCannonCooldown = 0;
         this._chargeCannonCharging = false;
         this._chargeCannonReady = false;
+        this._moveEffectId = -1;
     }
 
     //设置坦克类型
@@ -184,6 +186,7 @@ export class Player extends Tank {
     onDestroy() {
         //销毁事件
         this._destroyEvent();
+        this._stopMoveEffect();
     }
 
     //刷新玩家位置
@@ -347,7 +350,10 @@ export class Player extends Tank {
     update(dt){
 
         if (this._inGame) {
-            if (this._map._pause) return;
+            if (this._map._pause) {
+                this._stopMoveEffect();
+                return;
+            }
             this._bulletCodeTime += dt;
             this._updateFreeBulletRecover(dt);
             this._updateChargeCannon(dt);
@@ -356,6 +362,7 @@ export class Player extends Tank {
             this._map.playerSkillIconCollisionTest();
 
             this._refreshPosition(dt);
+            this._refreshMoveEffect();
             this._refreshBarrelDir();
             this._refreshAngle(dt, false);
     
@@ -376,12 +383,34 @@ export class Player extends Tank {
             this.node.zIndex = this._map.judgezIndex(this.node.y);
         }
         else if(this._viewMode){
+            this._stopMoveEffect();
             this._dir = Utils.vectorsRotateDegress(this._dir,-0.5);
             this.node.angle = Utils.vectorsToDegress(this._dir);
             this._barrelDir = this._dir;
             this.shooting(dt);
         }
+        else{
+            this._stopMoveEffect();
+        }
         
+    }
+
+    _refreshMoveEffect() {
+        if (this._currentSpeed > 0) {
+            if (this._moveEffectId < 0) {
+                this._moveEffectId = MusicManager.playLoopEffect("tankMove");
+            }
+        }
+        else{
+            this._stopMoveEffect();
+        }
+    }
+
+    _stopMoveEffect() {
+        if (this._moveEffectId >= 0) {
+            MusicManager.stopEffect(this._moveEffectId);
+            this._moveEffectId = -1;
+        }
     }
     // 炮管始终跟随坦克整体方向
     _refreshBarrelDir() {
@@ -733,6 +762,7 @@ export class Player extends Tank {
     
     //执行死亡
     doDeath(){
+        this._stopMoveEffect();
         super.doDeath();
         
         yyp.eventCenter.emit("player-death",{});

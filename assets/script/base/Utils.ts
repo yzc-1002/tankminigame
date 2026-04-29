@@ -1,5 +1,6 @@
 
 import {LocalizedData} from "./LocalizedData";
+import { MusicManager } from "./MusicManager";
 
 const {ccclass, property} = cc._decorator;
 
@@ -53,7 +54,7 @@ export class Utils extends cc.Component {
         let _musicFlg = LocalizedData.getIntItem("_music_flg_",1);
         let _effectFlg = LocalizedData.getIntItem("_effect_flg_",1);
 
-        cc.audioEngine.setMusicVolume(_musicFlg);
+        MusicManager.refreshMusicVolume();
         cc.audioEngine.setEffectsVolume(_effectFlg);
     }
 

@@ -24,7 +24,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MusicManager = void 0;
+var LocalizedData_1 = require("./LocalizedData");
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
+var BG_MUSIC_VOLUME = 0.35;
 var MusicManager = /** @class */ (function (_super) {
     __extends(MusicManager, _super);
     function MusicManager() {
@@ -78,13 +80,30 @@ var MusicManager = /** @class */ (function (_super) {
         var element = yyp.config.Music[key];
         if (element && element["content"]) {
             cc.audioEngine.playMusic(element["content"], true);
+            MusicManager_1.refreshMusicVolume();
         }
+    };
+    MusicManager.refreshMusicVolume = function () {
+        var musicFlg = LocalizedData_1.LocalizedData.getIntItem("_music_flg_", 1);
+        cc.audioEngine.setMusicVolume(musicFlg == 1 ? BG_MUSIC_VOLUME : 0);
     };
     //播放音效
     MusicManager.playEffect = function (key) {
         var element = yyp.config.Music[key];
         if (element && element["content"]) {
             cc.audioEngine.playEffect(element["content"], false);
+        }
+    };
+    MusicManager.playLoopEffect = function (key) {
+        var element = yyp.config.Music[key];
+        if (element && element["content"]) {
+            return cc.audioEngine.playEffect(element["content"], true);
+        }
+        return -1;
+    };
+    MusicManager.stopEffect = function (audioId) {
+        if (audioId != null && audioId >= 0) {
+            cc.audioEngine.stopEffect(audioId);
         }
     };
     var MusicManager_1;

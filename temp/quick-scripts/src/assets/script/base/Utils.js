@@ -25,6 +25,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Utils = void 0;
 var LocalizedData_1 = require("./LocalizedData");
+var MusicManager_1 = require("./MusicManager");
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
 var Utils = /** @class */ (function (_super) {
     __extends(Utils, _super);
@@ -69,7 +70,7 @@ var Utils = /** @class */ (function (_super) {
     Utils.initMusicEffect = function () {
         var _musicFlg = LocalizedData_1.LocalizedData.getIntItem("_music_flg_", 1);
         var _effectFlg = LocalizedData_1.LocalizedData.getIntItem("_effect_flg_", 1);
-        cc.audioEngine.setMusicVolume(_musicFlg);
+        MusicManager_1.MusicManager.refreshMusicVolume();
         cc.audioEngine.setEffectsVolume(_effectFlg);
     };
     /**

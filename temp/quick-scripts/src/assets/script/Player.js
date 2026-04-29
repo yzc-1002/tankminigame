@@ -64,6 +64,7 @@ var Player = /** @class */ (function (_super) {
         _this._chargeCannonCharging = false;
         _this._chargeCannonReady = false;
         _this._chargeEffectNode = null;
+        _this._moveEffectId = -1;
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -94,6 +95,7 @@ var Player = /** @class */ (function (_super) {
         this._chargeCannonCooldown = 0;
         this._chargeCannonCharging = false;
         this._chargeCannonReady = false;
+        this._moveEffectId = -1;
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -189,6 +191,7 @@ var Player = /** @class */ (function (_super) {
     Player.prototype.onDestroy = function () {
         //销毁事件
         this._destroyEvent();
+        this._stopMoveEffect();
     };
     //刷新玩家位置
     Player.prototype._refreshPosition = function (dt) {
@@ -328,14 +331,17 @@ var Player = /** @class */ (function (_super) {
     };
     Player.prototype.update = function (dt) {
         if (this._inGame) {
-            if (this._map._pause)
+            if (this._map._pause) {
+                this._stopMoveEffect();
                 return;
+            }
             this._bulletCodeTime += dt;
             this._updateFreeBulletRecover(dt);
             this._updateChargeCannon(dt);
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
             this._refreshPosition(dt);
+            this._refreshMoveEffect();
             this._refreshBarrelDir();
             this._refreshAngle(dt, false);
             // 技能2(超级子弹)
@@ -352,10 +358,30 @@ var Player = /** @class */ (function (_super) {
             this.node.zIndex = this._map.judgezIndex(this.node.y);
         }
         else if (this._viewMode) {
+            this._stopMoveEffect();
             this._dir = Utils_1.Utils.vectorsRotateDegress(this._dir, -0.5);
             this.node.angle = Utils_1.Utils.vectorsToDegress(this._dir);
             this._barrelDir = this._dir;
             this.shooting(dt);
+        }
+        else {
+            this._stopMoveEffect();
+        }
+    };
+    Player.prototype._refreshMoveEffect = function () {
+        if (this._currentSpeed > 0) {
+            if (this._moveEffectId < 0) {
+                this._moveEffectId = MusicManager_1.MusicManager.playLoopEffect("tankMove");
+            }
+        }
+        else {
+            this._stopMoveEffect();
+        }
+    };
+    Player.prototype._stopMoveEffect = function () {
+        if (this._moveEffectId >= 0) {
+            MusicManager_1.MusicManager.stopEffect(this._moveEffectId);
+            this._moveEffectId = -1;
         }
     };
     // 炮管始终跟随坦克整体方向
@@ -639,6 +665,7 @@ var Player = /** @class */ (function (_super) {
     };
     //执行死亡
     Player.prototype.doDeath = function () {
+        this._stopMoveEffect();
         _super.prototype.doDeath.call(this);
         yyp.eventCenter.emit("player-death", {});
         this.node.destroy();

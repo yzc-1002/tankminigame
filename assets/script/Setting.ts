@@ -1,6 +1,7 @@
 import {BaseComponent} from "./base/BaseComponent";
 import {Dialogs} from "./base/Dialogs";
 import {LocalizedData} from "./base/LocalizedData";
+import { MusicManager } from "./base/MusicManager";
 
 const {ccclass, property} = cc._decorator;
 //电子邮件puhalskijsemen@gmail.com
@@ -74,7 +75,7 @@ export class Setting extends Dialogs {
         LocalizedData.setIntItem("_effect_flg_",this._effectFlg);
         LocalizedData.setIntItem("_shake_flg_",this._shakeFlg);
         
-        cc.audioEngine.setMusicVolume(this._musicFlg);
+        MusicManager.refreshMusicVolume();
         cc.audioEngine.setEffectsVolume(this._effectFlg);
     }
 

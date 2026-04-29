@@ -530,8 +530,8 @@
     "relativePath": "prefab\\Boom.prefab"
   },
   "3fc53a6e-3d1c-43fa-afa9-4399c2f68ee3": {
-    "asset": 1777370730439,
-    "meta": 1777370730441,
+    "asset": 1777375661865,
+    "meta": 1777375661866,
     "relativePath": "prefab\\Bullet.prefab"
   },
   "e16bf3a6-0f73-41d9-84b9-2b83608e9fd1": {
@@ -625,8 +625,8 @@
     "relativePath": "prefab\\tank\\Enemy.prefab"
   },
   "3f74484c-3245-4998-936d-db3a2c0a15af": {
-    "asset": 1777278586246,
-    "meta": 1777278586248,
+    "asset": 1777425582805,
+    "meta": 1777425582806,
     "relativePath": "prefab\\tank\\Player.prefab"
   },
   "eb0b5760-61d1-4717-a9ba-ba2cdb03b127": {
@@ -903,11 +903,6 @@
     "asset": 1598176696000,
     "meta": 1776683592710,
     "relativePath": "script\\base\\LocalizedData.ts"
-  },
-  "cd992ade-adff-4ae5-a96d-def4c7f31e60": {
-    "asset": 1597933514000,
-    "meta": 1776683592788,
-    "relativePath": "script\\base\\Utils.ts"
   },
   "50e7dd14-ee31-421b-9f6e-141ccfa6c0dd": {
     "asset": 1595857008000,
@@ -1429,11 +1424,6 @@
     "meta": 1776683594508,
     "relativePath": "script\\sdk\\test\\NativeView.ts"
   },
-  "679e8691-724f-4458-bfad-083b068c568c": {
-    "asset": 1729690708818,
-    "meta": 1776683594530,
-    "relativePath": "script\\Setting.ts"
-  },
   "cfc3b4ca-f5b3-4933-9644-5a3fce1a333e": {
     "asset": 1599900682000,
     "meta": 1776683594555,
@@ -1939,20 +1929,10 @@
     "meta": 1777366014490,
     "relativePath": "script\\EnergyItem.ts"
   },
-  "6a2c7f39-7c62-4541-9369-9a1c92404b15": {
-    "asset": 1777368113020,
-    "meta": 1777368299242,
-    "relativePath": "script\\base\\MusicManager.ts"
-  },
   "3b29bff1-28ed-4a5c-a0ac-08ee56136f8e": {
     "asset": 1777368050887,
     "meta": 1777368299323,
     "relativePath": "script\\config\\Bullet.ts"
-  },
-  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
-    "asset": 1777368071449,
-    "meta": 1777368299350,
-    "relativePath": "script\\config\\Tank.ts"
   },
   "57473783-53bb-4668-9e13-3d2242e0eae2": {
     "asset": 1777372456286,
@@ -1964,11 +1944,6 @@
     "meta": 1777372530867,
     "relativePath": "script\\JoyStick.ts"
   },
-  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
-    "asset": 1777374302525,
-    "meta": 1777374453294,
-    "relativePath": "script\\config\\Music.ts"
-  },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
     "asset": 1777374244391,
     "meta": 1777374453361,
@@ -1979,14 +1954,89 @@
     "meta": 1777374453535,
     "relativePath": "script\\GameMap.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777374292582,
-    "meta": 1777374453608,
-    "relativePath": "script\\Player.ts"
-  },
   "a390b105-7508-4780-a6f6-fbd78451b51a": {
     "asset": 1777374558559,
     "meta": 1777374595771,
     "relativePath": "script\\Enemy.ts"
+  },
+  "619e5825-d4d3-4057-96c4-d47592d96f58": {
+    "asset": 1777375011420,
+    "meta": 1777375011898,
+    "relativePath": "resources\\sfx\\sfx_hurt.ogg"
+  },
+  "e1abbc95-26b9-4831-aa0e-54706997c868": {
+    "asset": 1777375011420,
+    "meta": 1777375011902,
+    "relativePath": "resources\\sfx\\bomb.mp3"
+  },
+  "b684c41c-f243-4d9d-bd64-f548bcbf08f8": {
+    "asset": 1777375011421,
+    "meta": 1777375198951,
+    "relativePath": "resources\\sfx\\fashe.aac"
+  },
+  "fb1083d1-c0c6-493f-b799-a0158da5e62d": {
+    "asset": 1777375011422,
+    "meta": 1777375213248,
+    "relativePath": "resources\\sfx\\Hitemey.aac"
+  },
+  "7768d748-bcfe-4014-a500-4026117df382": {
+    "asset": 1777375011424,
+    "meta": 1777375011927,
+    "relativePath": "resources\\sfx\\move.mp3"
+  },
+  "32bfb649-a5af-4f26-a13b-c856b5355c35": {
+    "asset": 1777375022182,
+    "meta": 1777375022183,
+    "relativePath": "resources\\sfx\\new"
+  },
+  "81619e9a-ed9c-48c8-b3bd-d46f0fe2fa77": {
+    "asset": 1777375170787,
+    "meta": 1777375174603,
+    "relativePath": "resources\\sfx\\bgm.wav"
+  },
+  "cd992ade-adff-4ae5-a96d-def4c7f31e60": {
+    "asset": 1777375795500,
+    "meta": 1777375844281,
+    "relativePath": "script\\base\\Utils.ts"
+  },
+  "679e8691-724f-4458-bfad-083b068c568c": {
+    "asset": 1777375798698,
+    "meta": 1777375844303,
+    "relativePath": "script\\Setting.ts"
+  },
+  "23be0847-22d5-4882-92d8-624da3315378": {
+    "asset": 1777376067763,
+    "meta": 1777376067801,
+    "relativePath": "texture\\tank_own_01_01.png"
+  },
+  "b1671593-82bc-4edd-894f-37c279903c4b": {
+    "asset": 1777376067763,
+    "meta": 1777376067803,
+    "relativePath": "texture\\tank_own_01_02.png"
+  },
+  "6a2c7f39-7c62-4541-9369-9a1c92404b15": {
+    "asset": 1777424504690,
+    "meta": 1777425545774,
+    "relativePath": "script\\base\\MusicManager.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1777424512035,
+    "meta": 1777425545937,
+    "relativePath": "script\\Player.ts"
+  },
+  "9e5ff7c4-3037-4fce-b446-56ad4ff18c05": {
+    "asset": 1777431134172,
+    "meta": 1777431135061,
+    "relativePath": "resources\\sfx\\chargeCannon.mp3"
+  },
+  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
+    "asset": 1777431145100,
+    "meta": 1777431146292,
+    "relativePath": "script\\config\\Music.ts"
+  },
+  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
+    "asset": 1777431986086,
+    "meta": 1777431991147,
+    "relativePath": "script\\config\\Tank.ts"
   }
 }

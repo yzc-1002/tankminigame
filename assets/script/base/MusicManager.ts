@@ -1,4 +1,7 @@
+import {LocalizedData} from "./LocalizedData";
+
 const {ccclass, property} = cc._decorator;
+const BG_MUSIC_VOLUME = 0.35;
 
 @ccclass
 export class MusicManager extends cc.Component {
@@ -61,7 +64,13 @@ export class MusicManager extends cc.Component {
         const element = yyp.config.Music[key];
         if (element && element["content"]) {
             cc.audioEngine.playMusic(element["content"], true);
+            MusicManager.refreshMusicVolume();
         }
+    }
+
+    static refreshMusicVolume() {
+        let musicFlg = LocalizedData.getIntItem("_music_flg_",1);
+        cc.audioEngine.setMusicVolume(musicFlg == 1 ? BG_MUSIC_VOLUME : 0);
     }
     
     //播放音效
@@ -69,6 +78,20 @@ export class MusicManager extends cc.Component {
         const element = yyp.config.Music[key];
         if (element && element["content"]) {
             cc.audioEngine.playEffect(element["content"], false);
+        }
+    }
+
+    static playLoopEffect(key) {
+        const element = yyp.config.Music[key];
+        if (element && element["content"]) {
+            return cc.audioEngine.playEffect(element["content"], true);
+        }
+        return -1;
+    }
+
+    static stopEffect(audioId) {
+        if (audioId != null && audioId >= 0) {
+            cc.audioEngine.stopEffect(audioId);
         }
     }
 }

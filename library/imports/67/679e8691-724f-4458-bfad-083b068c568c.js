@@ -26,6 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Setting = void 0;
 var Dialogs_1 = require("./base/Dialogs");
 var LocalizedData_1 = require("./base/LocalizedData");
+var MusicManager_1 = require("./base/MusicManager");
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
 //电子邮件puhalskijsemen@gmail.com
 //源码网站 开vpn全局模式打开 http://web3incubators.com/
@@ -87,7 +88,7 @@ var Setting = /** @class */ (function (_super) {
         LocalizedData_1.LocalizedData.setIntItem("_music_flg_", this._musicFlg);
         LocalizedData_1.LocalizedData.setIntItem("_effect_flg_", this._effectFlg);
         LocalizedData_1.LocalizedData.setIntItem("_shake_flg_", this._shakeFlg);
-        cc.audioEngine.setMusicVolume(this._musicFlg);
+        MusicManager_1.MusicManager.refreshMusicVolume();
         cc.audioEngine.setEffectsVolume(this._effectFlg);
     };
     Setting.prototype.onMusicToggleClick = function (event) {
