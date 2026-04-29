@@ -43,6 +43,7 @@ var GameMain = /** @class */ (function (_super) {
         _this._levelId = 1; //当前关卡
         _this._startCount = 0;
         _this._testPanel = null;
+        _this._upgradeChoicePanel = null;
         return _this;
     }
     GameMain.prototype.onLoad = function () {
@@ -104,6 +105,7 @@ var GameMain = /** @class */ (function (_super) {
         yyp.eventCenter.off("game-resume", this._gameResume, this); //恢复
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
+        this._destroyUpgradeChoicePanel();
     };
     GameMain.prototype.onDestroy = function () {
         //销毁事件
@@ -275,26 +277,27 @@ var GameMain = /** @class */ (function (_super) {
         mask.on(cc.Node.EventType.TOUCH_END, this._hideTestPanel, this);
         var dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(460, 330);
+        dialog.setContentSize(460, 400);
         dialog.zIndex = 1;
         var dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-230, -165, 460, 330, 18);
+        dialogGraphics.roundRect(-230, -200, 460, 400, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-230, -165, 460, 330, 18);
+        dialogGraphics.roundRect(-230, -200, 460, 400, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function (event) {
             if (event && event.stopPropagation) {
                 event.stopPropagation();
             }
         }, this);
-        this._createTestLabel(dialog, "_lbTestTitle", "测试面板", cc.v2(0, 112), 34, cc.color(255, 255, 255, 255));
-        this._createTestLabel(dialog, "_lbTestTips", "会先重置当前游戏状态，再进入测试场景", cc.v2(0, 70), 22, cc.color(210, 210, 220, 255));
-        this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(0, 18), cc.color(255, 90, 70, 255), this._onKillTestClick);
-        this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(0, -62), cc.color(80, 180, 255, 255), this._onHitTestClick);
-        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -130), cc.color(180, 180, 190, 255), this._hideTestPanel, 160, 46, 24);
+        this._createTestLabel(dialog, "_lbTestTitle", "测试面板", cc.v2(0, 148), 34, cc.color(255, 255, 255, 255));
+        this._createTestLabel(dialog, "_lbTestTips", "会先重置当前游戏状态，再进入测试场景", cc.v2(0, 108), 22, cc.color(210, 210, 220, 255));
+        this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(0, 44), cc.color(255, 90, 70, 255), this._onKillTestClick);
+        this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(0, -24), cc.color(80, 180, 255, 255), this._onHitTestClick);
+        this._createTestButton(dialog, "_btnUpgradeTest", "升级测试", cc.v2(0, -92), cc.color(115, 255, 170, 255), this._onUpgradeTestClick);
+        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -160), cc.color(180, 180, 190, 255), this._hideTestPanel, 160, 46, 24);
     };
     GameMain.prototype._createTestLabel = function (parent, name, text, pos, fontSize, color) {
         var labelNode = new cc.Node(name);
@@ -351,9 +354,16 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._startTestGame("hit");
     };
+    GameMain.prototype._onUpgradeTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("upgrade");
+    };
     GameMain.prototype._startTestGame = function (type) {
         MusicManager_1.MusicManager.playEffect("btn");
         this._hideTestPanel();
+        this._hideUpgradeChoicePanel(false);
         this._resetGameBeforeTest();
         var self = this;
         var complete = function () {
@@ -362,6 +372,12 @@ var GameMain = /** @class */ (function (_super) {
         };
         if (type == "kill") {
             this._fire._tiled.script.startKillEffectTestGame(complete);
+        }
+        else if (type == "upgrade") {
+            this._fire._tiled.script.startUpgradeTestGame(function () {
+                complete();
+                self._showUpgradeChoicePanel();
+            });
         }
         else {
             this._fire._tiled.script.startPlayerHitTestGame(complete);
@@ -394,6 +410,163 @@ var GameMain = /** @class */ (function (_super) {
             this._testPanel.destroy();
         }
         this._testPanel = null;
+    };
+    GameMain.prototype._getCurrentPlayer = function () {
+        var tiled = this._fire._tiled;
+        if (!tiled || !tiled.script || !tiled.script._player || !cc.isValid(tiled.script._player)) {
+            return null;
+        }
+        return tiled.script._player;
+    };
+    GameMain.prototype._showUpgradeChoicePanel = function () {
+        var player = this._getCurrentPlayer();
+        if (!player) {
+            return;
+        }
+        this._destroyUpgradeChoicePanel();
+        yyp.eventCenter.emit("game-pause", {});
+        var panel = new cc.Node("_upgradeChoicePanel");
+        panel.parent = this.node;
+        panel.setContentSize(1280, 720);
+        panel.zIndex = 2100;
+        panel.addComponent(cc.BlockInputEvents);
+        this._upgradeChoicePanel = panel;
+        var mask = new cc.Node("_upgradeChoiceMask");
+        mask.parent = panel;
+        mask.setContentSize(1280, 720);
+        var maskGraphics = mask.addComponent(cc.Graphics);
+        maskGraphics.fillColor = cc.color(0, 0, 0, 168);
+        maskGraphics.rect(-640, -360, 1280, 720);
+        maskGraphics.fill();
+        var dialog = new cc.Node("_upgradeChoiceDialog");
+        dialog.parent = panel;
+        dialog.setContentSize(980, 430);
+        dialog.zIndex = 1;
+        var dialogGraphics = dialog.addComponent(cc.Graphics);
+        dialogGraphics.fillColor = cc.color(22, 26, 38, 245);
+        dialogGraphics.roundRect(-490, -215, 980, 430, 24);
+        dialogGraphics.fill();
+        dialogGraphics.lineWidth = 3;
+        dialogGraphics.strokeColor = cc.color(255, 255, 255, 120);
+        dialogGraphics.roundRect(-490, -215, 980, 430, 24);
+        dialogGraphics.stroke();
+        dialog.on(cc.Node.EventType.TOUCH_END, function (event) {
+            if (event && event.stopPropagation) {
+                event.stopPropagation();
+            }
+        }, this);
+        this._createUpgradePanelLabel(dialog, "_lbUpgradeTitle", "选择一项升级", cc.v2(0, 160), 36, cc.color(255, 255, 255, 255));
+        this._createUpgradePanelLabel(dialog, "_lbUpgradeTips", "3选1，立即生效", cc.v2(0, 118), 22, cc.color(200, 210, 225, 255));
+        var choices = player.script.getTestUpgradeChoices();
+        var startX = -280;
+        for (var i = 0; i < choices.length; i++) {
+            var card = this._createUpgradeChoiceCard(dialog, choices[i], cc.v2(startX + i * 280, -10));
+            card.opacity = 0;
+            card.scaleX = 0.05;
+            card.scaleY = 0.92;
+            card.runAction(cc.sequence(cc.delayTime(i * 0.05), cc.spawn(cc.fadeIn(0.08), cc.scaleTo(0.12, 1.12, 1.06)), cc.scaleTo(0.07, 0.96, 1.02), cc.scaleTo(0.06, 1.03, 0.99), cc.scaleTo(0.05, 1, 1)));
+        }
+    };
+    GameMain.prototype._createUpgradePanelLabel = function (parent, name, text, pos, fontSize, color) {
+        var labelNode = new cc.Node(name);
+        labelNode.parent = parent;
+        labelNode.setPosition(pos);
+        labelNode.setContentSize(700, fontSize + 10);
+        labelNode.color = color;
+        var label = labelNode.addComponent(cc.Label);
+        label.string = text;
+        label.fontSize = fontSize;
+        label.lineHeight = fontSize + 4;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        return labelNode;
+    };
+    GameMain.prototype._createUpgradeChoiceCard = function (parent, choice, pos) {
+        var card = new cc.Node("_card_" + choice.id);
+        card.parent = parent;
+        card.setPosition(pos);
+        card.setContentSize(240, 270);
+        card["__upgradeChoice"] = choice;
+        var graphics = card.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(38, 43, 58, 245);
+        graphics.roundRect(-120, -135, 240, 270, 18);
+        graphics.fill();
+        graphics.lineWidth = 4;
+        graphics.strokeColor = choice.color;
+        graphics.roundRect(-120, -135, 240, 270, 18);
+        graphics.stroke();
+        var glow = new cc.Node("_cardGlow");
+        glow.parent = card;
+        var glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(choice.color.r, choice.color.g, choice.color.b, 34);
+        glowGraphics.roundRect(-112, -127, 224, 254, 16);
+        glowGraphics.fill();
+        var icon = new cc.Node("_cardIcon");
+        icon.parent = card;
+        icon.setPosition(0, 74);
+        var iconGraphics = icon.addComponent(cc.Graphics);
+        iconGraphics.fillColor = choice.color;
+        iconGraphics.circle(0, 0, 34);
+        iconGraphics.fill();
+        iconGraphics.lineWidth = 3;
+        iconGraphics.strokeColor = cc.color(255, 255, 255, 220);
+        iconGraphics.circle(0, 0, 34);
+        iconGraphics.stroke();
+        var iconLabelNode = new cc.Node("_cardIconLabel");
+        iconLabelNode.parent = icon;
+        iconLabelNode.setContentSize(78, 40);
+        var iconLabel = iconLabelNode.addComponent(cc.Label);
+        iconLabel.string = choice.shortLabel;
+        iconLabel.fontSize = choice.shortLabel.length > 2 ? 18 : 22;
+        iconLabel.lineHeight = 24;
+        iconLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        iconLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        this._createUpgradePanelLabel(card, "_cardTitle", choice.title, cc.v2(0, 16), 28, cc.color(255, 255, 255, 255));
+        this._createUpgradePanelLabel(card, "_cardValue", choice.valueText, cc.v2(0, -34), 40, choice.color);
+        var descNode = new cc.Node("_cardDesc");
+        descNode.parent = card;
+        descNode.setPosition(0, -92);
+        descNode.setContentSize(190, 56);
+        descNode.color = cc.color(200, 210, 225, 220);
+        var descLabel = descNode.addComponent(cc.Label);
+        descLabel.string = choice.desc;
+        descLabel.fontSize = 20;
+        descLabel.lineHeight = 26;
+        descLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        descLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        card.on(cc.Node.EventType.TOUCH_END, this._onUpgradeChoiceSelect, this);
+        return card;
+    };
+    GameMain.prototype._onUpgradeChoiceSelect = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        var card = event ? event.currentTarget : null;
+        var choice = card ? card["__upgradeChoice"] : null;
+        var player = this._getCurrentPlayer();
+        if (!choice || !player || !player.script) {
+            this._hideUpgradeChoicePanel();
+            return;
+        }
+        MusicManager_1.MusicManager.playEffect("btnLUp");
+        this._hideUpgradeChoicePanel();
+        player.script.applyTestUpgradeChoice(choice);
+    };
+    GameMain.prototype._hideUpgradeChoicePanel = function (resumeGame) {
+        if (resumeGame === void 0) { resumeGame = true; }
+        if (this._upgradeChoicePanel && cc.isValid(this._upgradeChoicePanel)) {
+            this._upgradeChoicePanel.destroy();
+        }
+        this._upgradeChoicePanel = null;
+        if (resumeGame) {
+            yyp.eventCenter.emit("game-resume", {});
+        }
+    };
+    GameMain.prototype._destroyUpgradeChoicePanel = function () {
+        if (this._upgradeChoicePanel && cc.isValid(this._upgradeChoicePanel)) {
+            this._upgradeChoicePanel.destroy();
+        }
+        this._upgradeChoicePanel = null;
     };
     __decorate([
         property(cc.Prefab)

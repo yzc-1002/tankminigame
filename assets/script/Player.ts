@@ -34,6 +34,7 @@ export class Player extends Tank {
     _freeBulletRecoverTime = 0; //免费子弹恢复计时
     _moveInputDir = cc.v2(1, 0); //移动摇杆目标方向
     _moveInputRatio = 0;        //移动摇杆目标速率
+    _moveSpeedScale = 1;        //局内移速倍率
     _energyLevel = 1;           //局内能量等级
     _energyExp = 0;             //当前经验
     _energyNeedExp = PLAYER_EXP_BASE; //升级所需经验
@@ -69,6 +70,7 @@ export class Player extends Tank {
         this._currentSpeed = 0;
         this._moveInputDir = this._dir;
         this._moveInputRatio = 0;
+        this._moveSpeedScale = 1;
         this._energyLevel = 1;
         this._energyExp = 0;
         this._energyNeedExp = this._getEnergyNeedExp();
@@ -221,7 +223,7 @@ export class Player extends Tank {
     }
 
     _refreshMoveSpeed(dt) {
-        let maxSpeed = this._getConfigValue("Speed", 0);
+        let maxSpeed = this._getConfigValue("Speed", 0) * this._moveSpeedScale;
         let targetSpeed = this._moveInputRatio > 0 ? maxSpeed * this._moveInputRatio : 0;
 
         if (this._currentSpeed < targetSpeed) {
@@ -393,6 +395,190 @@ export class Player extends Tank {
             this._stopMoveEffect();
         }
         
+    }
+
+    getTestUpgradeChoices() {
+        let hpAdd = Math.max(25, Math.round(this._maxHp * 0.22));
+        let atkAdd = Math.max(8, Math.round(this._atk * 0.18));
+        let speedAdd = 18;
+
+        return [
+            {
+                id: "hp",
+                title: "装甲强化",
+                desc: "生命上限提升并立刻回满",
+                shortLabel: "HP",
+                valueText: "+" + hpAdd,
+                amount: hpAdd,
+                color: cc.color(120, 255, 170, 255),
+            },
+            {
+                id: "atk",
+                title: "火力强化",
+                desc: "攻击力提升, 输出更高",
+                shortLabel: "ATK",
+                valueText: "+" + atkAdd,
+                amount: atkAdd,
+                color: cc.color(255, 185, 90, 255),
+            },
+            {
+                id: "speed",
+                title: "推进强化",
+                desc: "移动速度提升, 走位更灵活",
+                shortLabel: "SPD",
+                valueText: "+" + speedAdd + "%",
+                amount: speedAdd,
+                color: cc.color(110, 210, 255, 255),
+            },
+        ];
+    }
+
+    applyTestUpgradeChoice(choice) {
+        if (!choice || !choice.id) {
+            return;
+        }
+
+        if (choice.id == "hp") {
+            this._maxHp += choice.amount;
+            this._hp = this._maxHp;
+            this.refreshHp();
+        }
+        else if (choice.id == "atk") {
+            this._atk += choice.amount;
+        }
+        else if (choice.id == "speed") {
+            this._moveSpeedScale += choice.amount / 100;
+        }
+
+        this._showUpgradeFloat(choice);
+        this._playUpgradeSelectFeedback(choice);
+    }
+
+    _showUpgradeFloat(choice) {
+        if (!this.node.parent || !cc.isValid(this.node.parent)) {
+            return;
+        }
+
+        let floatNode = new cc.Node("_upgradeFloat");
+        floatNode.parent = this.node.parent;
+        floatNode.setPosition(cc.v3(this.node.x, this.node.y + 110, 0));
+        floatNode.zIndex = 6500;
+        floatNode.opacity = 0;
+        floatNode.scale = 0.82;
+
+        let badge = new cc.Node("_upgradeBadge");
+        badge.parent = floatNode;
+        badge.setPosition(-44, 4);
+        let badgeGraphics = badge.addComponent(cc.Graphics);
+        badgeGraphics.fillColor = choice.color;
+        badgeGraphics.circle(0, 0, 24);
+        badgeGraphics.fill();
+        badgeGraphics.lineWidth = 3;
+        badgeGraphics.strokeColor = cc.color(255, 255, 255, 220);
+        badgeGraphics.circle(0, 0, 24);
+        badgeGraphics.stroke();
+
+        let badgeLabelNode = new cc.Node("_upgradeBadgeLabel");
+        badgeLabelNode.parent = badge;
+        badgeLabelNode.setContentSize(54, 32);
+        let badgeLabel = badgeLabelNode.addComponent(cc.Label);
+        badgeLabel.string = choice.shortLabel;
+        badgeLabel.fontSize = choice.shortLabel.length > 2 ? 15 : 18;
+        badgeLabel.lineHeight = 20;
+        badgeLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        badgeLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        let valueNode = new cc.Node("_upgradeValue");
+        valueNode.parent = floatNode;
+        valueNode.setPosition(22, 8);
+        valueNode.color = choice.color;
+        valueNode.setContentSize(170, 38);
+        let valueLabel = valueNode.addComponent(cc.Label);
+        valueLabel.string = choice.valueText;
+        valueLabel.fontSize = 34;
+        valueLabel.lineHeight = 38;
+        valueLabel.horizontalAlign = cc.Label.HorizontalAlign.LEFT;
+        valueLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        let titleNode = new cc.Node("_upgradeTitle");
+        titleNode.parent = floatNode;
+        titleNode.setPosition(16, -24);
+        titleNode.color = cc.color(255, 255, 255, 220);
+        titleNode.setContentSize(220, 28);
+        let titleLabel = titleNode.addComponent(cc.Label);
+        titleLabel.string = choice.title;
+        titleLabel.fontSize = 20;
+        titleLabel.lineHeight = 24;
+        titleLabel.horizontalAlign = cc.Label.HorizontalAlign.LEFT;
+        titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        floatNode.runAction(cc.sequence(
+            cc.spawn(
+                cc.fadeIn(0.12),
+                cc.scaleTo(0.12, 1.04),
+                cc.moveBy(0.12, 0, 18)
+            ),
+            cc.spawn(
+                cc.moveBy(0.55, 0, 72),
+                cc.fadeOut(0.55)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
+    _playUpgradeSelectFeedback(choice) {
+        let wave = new cc.Node("_upgradeWave");
+        wave.parent = this.node;
+        wave.setPosition(0, 0);
+        wave.zIndex = 280;
+        wave.opacity = 220;
+        wave.scale = 0.55;
+        let waveGraphics = wave.addComponent(cc.Graphics);
+        waveGraphics.lineWidth = 8;
+        waveGraphics.strokeColor = choice.color;
+        waveGraphics.circle(0, 0, this._radius + 18);
+        waveGraphics.stroke();
+        wave.runAction(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(0.3, 3.2),
+                cc.fadeOut(0.3)
+            ),
+            cc.removeSelf()
+        ));
+
+        let glow = new cc.Node("_upgradeGlow");
+        glow.parent = this.node;
+        glow.setPosition(0, 0);
+        glow.zIndex = 275;
+        glow.opacity = 0;
+        glow.scale = 0.75;
+        let glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(choice.color.r, choice.color.g, choice.color.b, 90);
+        glowGraphics.circle(0, 0, this._radius + 26);
+        glowGraphics.fill();
+        glow.runAction(cc.sequence(
+            cc.spawn(
+                cc.fadeTo(0.12, 180),
+                cc.scaleTo(0.12, 1.28)
+            ),
+            cc.spawn(
+                cc.fadeOut(0.18),
+                cc.scaleTo(0.18, 1.8)
+            ),
+            cc.removeSelf()
+        ));
+
+        this.node.stopActionByTag(9301);
+        let punch = cc.sequence(
+            cc.scaleTo(0.1, 1.08),
+            cc.scaleTo(0.2, 1)
+        );
+        punch.setTag(9301);
+        this.node.runAction(punch);
+
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
     }
 
     _refreshMoveEffect() {
