@@ -377,6 +377,196 @@ export class GameMap extends BaseComponent {
         this._enemys.push(enemy);
     }
 
+    _getTestEffectPreviewPos() {
+        let basePos = this._player && cc.isValid(this._player)
+            ? cc.v2(this._player.position)
+            : (this._playerBornPos ? cc.v2(this._playerBornPos) : cc.v2(0, 0));
+        return this.clampMapInnerPosition(basePos.add(cc.v2(180, 96)), 120);
+    }
+
+    playKillExplosionEffectAt(pos) {
+        // this._playWhiteScreenFlash(190, 0.05, 0.24);
+        this._spawnExplosionStarburstAt(pos);
+        this._spawnExplosionGlowAt(pos, 0.36);
+        this._spawnExplosionCoreBurstAt(pos, 0.3);
+        this._spawnTransparentShockwaveAt(pos, 76, 380, 0, 0.48, 180, 10);
+        this._spawnTransparentShockwaveAt(pos, 38, 220, 0.06, 0.36, 135, 6);
+        MusicManager.playEffect("boom");
+        this.playLightScreenShake();
+    }
+
+    _spawnExplosionStarburstAt(pos) {
+        let burst = new cc.Node("_explosionStarburst");
+        burst.parent = this._fire._tmLayerObstacle;
+        burst.setPosition(cc.v3(pos));
+        burst.zIndex = 6055;
+        burst.opacity = 255;
+        burst.scale = 0.45;
+
+        let rayConfigs = [
+            {angle: 0, length: 170, width: 18, alpha: 160},
+            {angle: 45, length: 140, width: 14, alpha: 150},
+            {angle: 90, length: 175, width: 18, alpha: 165},
+            {angle: 135, length: 142, width: 14, alpha: 150},
+        ];
+        for (let i = 0; i < rayConfigs.length; i++) {
+            let config = rayConfigs[i];
+            let ray = new cc.Node("_explosionRay" + i);
+            ray.parent = burst;
+            ray.angle = config.angle;
+
+            let graphics = ray.addComponent(cc.Graphics);
+            graphics.fillColor = cc.color(255, 255, 255, config.alpha);
+            graphics.moveTo(0, config.length);
+            graphics.lineTo(-config.width, config.length * 0.24);
+            graphics.lineTo(0, 12);
+            graphics.lineTo(config.width, config.length * 0.24);
+            graphics.close();
+            graphics.fill();
+        }
+
+        let hotCross = new cc.Node("_explosionHotCross");
+        hotCross.parent = burst;
+        let crossGraphics = hotCross.addComponent(cc.Graphics);
+        crossGraphics.fillColor = cc.color(255, 240, 180, 150);
+        crossGraphics.rect(-112, -5, 224, 10);
+        crossGraphics.rect(-5, -112, 10, 224);
+        crossGraphics.fill();
+
+        burst.runAction(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(0.1, 1.08),
+                cc.fadeTo(0.1, 220)
+            ),
+            cc.spawn(
+                cc.scaleTo(0.22, 1.55),
+                cc.fadeOut(0.22)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
+    _spawnExplosionGlowAt(pos, strength = 0.3) {
+        let glow = new cc.Node("_explosionGlow");
+        glow.parent = this._fire._tmLayerObstacle;
+        glow.setPosition(cc.v3(pos));
+        glow.zIndex = 6050;
+        glow.opacity = 0;
+        glow.scale = 0.35;
+
+        let graphics = glow.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(255, 248, 220, Math.floor(125 * strength));
+        graphics.circle(0, 0, 108);
+        graphics.fill();
+        graphics.fillColor = cc.color(255, 210, 120, Math.floor(95 * strength));
+        graphics.circle(0, 0, 70);
+        graphics.fill();
+
+        glow.runAction(cc.sequence(
+            cc.spawn(
+                cc.fadeTo(0.05, 210),
+                cc.scaleTo(0.05, 1)
+            ),
+            cc.spawn(
+                cc.fadeOut(0.24),
+                cc.scaleTo(0.24, 1.52)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
+    _spawnExplosionCoreBurstAt(pos, duration = 0.28) {
+        let core = new cc.Node("_explosionCoreBurst");
+        core.parent = this._fire._tmLayerObstacle;
+        core.setPosition(cc.v3(pos));
+        core.zIndex = 6060;
+        core.opacity = 255;
+        core.scale = 0.2;
+
+        let outer = new cc.Node("_explosionOuterCore");
+        outer.parent = core;
+        let outerGraphics = outer.addComponent(cc.Graphics);
+        outerGraphics.fillColor = cc.color(255, 244, 196, 170);
+        outerGraphics.circle(0, 0, 76);
+        outerGraphics.fill();
+
+        let inner = new cc.Node("_explosionInnerCore");
+        inner.parent = core;
+        let innerGraphics = inner.addComponent(cc.Graphics);
+        innerGraphics.fillColor = cc.color(255, 255, 255, 240);
+        innerGraphics.circle(0, 0, 34);
+        innerGraphics.fill();
+
+        core.runAction(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(duration * 0.42, 1.16),
+                cc.fadeTo(duration * 0.42, 255)
+            ),
+            cc.spawn(
+                cc.scaleTo(duration * 0.58, 1.85),
+                cc.fadeOut(duration * 0.58)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
+    _spawnTransparentShockwaveAt(pos, startRadius = 72, endRadius = 340, delay = 0, duration = 0.42, alpha = 170, lineWidth = 8) {
+        let wave = new cc.Node("_explosionShockwave");
+        wave.parent = this._fire._tmLayerObstacle;
+        wave.setPosition(cc.v3(pos));
+        wave.zIndex = 6058;
+        wave.opacity = alpha;
+        wave.scale = 1;
+
+        let graphics = wave.addComponent(cc.Graphics);
+        graphics.lineWidth = lineWidth;
+        graphics.strokeColor = cc.color(255, 255, 255, alpha);
+        graphics.circle(0, 0, startRadius);
+        graphics.stroke();
+
+        let endScale = startRadius > 0 ? endRadius / startRadius : 1;
+        let playAction = cc.sequence(
+            cc.spawn(
+                cc.scaleTo(duration, endScale),
+                cc.fadeOut(duration)
+            ),
+            cc.removeSelf()
+        );
+
+        if (delay > 0) {
+            wave.runAction(cc.sequence(cc.delayTime(delay), playAction));
+        }
+        else{
+            wave.runAction(playAction);
+        }
+    }
+
+    _playWhiteScreenFlash(maxOpacity = 180, fadeIn = 0.04, fadeOut = 0.2) {
+        let parentNode = this.node.parent;
+        if (!parentNode || !cc.isValid(parentNode)) {
+            return;
+        }
+
+        let size = this._getViewportSize();
+        let flash = new cc.Node("_screenFlashWhite");
+        flash.parent = parentNode;
+        flash.setContentSize(size);
+        flash.setPosition(0, 0);
+        flash.zIndex = 1700;
+        flash.opacity = 0;
+
+        let graphics = flash.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(255, 255, 255, 255);
+        graphics.rect(-size.width / 2, -size.height / 2, size.width, size.height);
+        graphics.fill();
+
+        flash.runAction(cc.sequence(
+            cc.fadeTo(fadeIn, maxOpacity),
+            cc.fadeOut(fadeOut),
+            cc.removeSelf()
+        ));
+    }
+
     //生成一个敌人
     deleteEnemy(delEnemy) {
         for (let i = 0; i < this._enemys.length; i++) {
@@ -1201,7 +1391,7 @@ export class GameMap extends BaseComponent {
         this.node.runAction(cc.sequence(
             cc.delayTime(0.15),
             cc.callFunc(function(){
-                self._showKillExplosion(deathPos);
+                self.playKillExplosionEffectAt(deathPos);
                 if (self._player && cc.isValid(self._player) && self._player.script
                     && self._player.script._spawnDeathAftermathAt) {
                     self._player.script._spawnDeathAftermathAt(deathPos, self._fire._tmLayerObstacle);
@@ -1237,20 +1427,6 @@ export class GameMap extends BaseComponent {
             cc.fadeOut(0.1),
             cc.removeSelf()
         ));
-    }
-
-    _showKillExplosion(pos) {
-        let boom = cc.instantiate(this._player.script.boomPrefab);
-        boom.parent = this._fire._tmLayerObstacle;
-        boom.position = cc.v3(pos);
-        boom.zIndex = 6000;
-        let ani = boom.getComponent(cc.Animation);
-        if (ani) {
-            ani.play("boom2");
-        }
-        boom.runAction(cc.sequence(cc.delayTime(0.8), cc.removeSelf()));
-        MusicManager.playEffect("boom");
-        this.playLightScreenShake();
     }
 
     _dropTestEnergy(pos) {

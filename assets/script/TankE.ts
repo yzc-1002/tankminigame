@@ -617,17 +617,15 @@ export class Tank extends BaseComponent {
     doDeath(){
         this._stopLowHpBarEffect();
         this._clearLowHpSmoke();
-        let boom = cc.instantiate(this.boomPrefab);
-        boom.parent = this.node.parent;
-        boom.position = this.node.position;
-        boom.zIndex = 1000;
-
-        let ani = boom.getComponent(cc.Animation);
-        ani.play("boom2");
-        MusicManager.playEffect("boom");
         Utils.vibrate();
-        if (this._map && this._map.playLightScreenShake) {
-            this._map.playLightScreenShake();
+        if (this._map && this._map.playKillExplosionEffectAt) {
+            this._map.playKillExplosionEffectAt(cc.v2(this.node.position));
+        }
+        else{
+            MusicManager.playEffect("boom");
+            if (this._map && this._map.playLightScreenShake) {
+                this._map.playLightScreenShake();
+            }
         }
         this._spawnDeathAftermathAt(this.node.position);
     }

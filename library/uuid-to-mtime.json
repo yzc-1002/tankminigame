@@ -1995,8 +1995,8 @@
     "relativePath": "script\\config\\Tank.ts"
   },
   "9eb8f898-f012-4150-bd35-1b087a918955": {
-    "asset": 1777515872964,
-    "meta": 1777515872966,
+    "asset": 1777538400325,
+    "meta": 1777538400327,
     "relativePath": "prefab\\GameMain.prefab"
   },
   "f36d749b-573e-4e8e-841e-8e150a30225a": {
@@ -2019,24 +2019,24 @@
     "meta": 1777455091723,
     "relativePath": "script\\Enemy.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1777534724671,
-    "meta": 1777534916103,
-    "relativePath": "script\\GameMain.ts"
-  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
     "asset": 1777535593872,
     "meta": 1777535625980,
     "relativePath": "script\\Player.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777535939581,
-    "meta": 1777536022569,
-    "relativePath": "script\\GameMap.ts"
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1777538626821,
+    "meta": 1777538811899,
+    "relativePath": "script\\GameMain.ts"
   },
   "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
-    "asset": 1777535935803,
-    "meta": 1777536022650,
+    "asset": 1777538639817,
+    "meta": 1777538812148,
     "relativePath": "script\\TankE.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1777538955307,
+    "meta": 1777538957445,
+    "relativePath": "script\\GameMap.ts"
   }
 }
