@@ -1885,8 +1885,8 @@
     "relativePath": "scene\\StartScene.fire"
   },
   "2d2f792f-a40c-49bb-a189-ed176a246e49": {
-    "asset": 1777368844659,
-    "meta": 1777368844669,
+    "asset": 1777542994092,
+    "meta": 1777542994096,
     "relativePath": "scene\\GameScene.fire"
   },
   "5806deda-365d-4894-85af-1b8fa8c177d4": {
@@ -1995,8 +1995,8 @@
     "relativePath": "script\\config\\Tank.ts"
   },
   "9eb8f898-f012-4150-bd35-1b087a918955": {
-    "asset": 1777538400325,
-    "meta": 1777538400327,
+    "asset": 1777540972917,
+    "meta": 1777540972917,
     "relativePath": "prefab\\GameMain.prefab"
   },
   "f36d749b-573e-4e8e-841e-8e150a30225a": {
@@ -2034,9 +2034,24 @@
     "meta": 1777538812148,
     "relativePath": "script\\TankE.ts"
   },
+  "e18071e7-d8e4-4aa1-a499-2d008f5decc8": {
+    "asset": 1777540816252,
+    "meta": 1777540847187,
+    "relativePath": "resources\\shader\\ripple-distortion.effect"
+  },
+  "dc25955e-68f9-48e8-8a4e-0bf71f7f1192": {
+    "asset": 1777540847017,
+    "meta": 1777540847188,
+    "relativePath": "script\\effect"
+  },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777538955307,
-    "meta": 1777538957445,
+    "asset": 1777542881210,
+    "meta": 1777542977536,
     "relativePath": "script\\GameMap.ts"
+  },
+  "bb6fc9c9-fd97-4e90-b469-1dc1740705fd": {
+    "asset": 1777543172786,
+    "meta": 1777543173949,
+    "relativePath": "script\\effect\\RippleShockwave.ts"
   }
 }

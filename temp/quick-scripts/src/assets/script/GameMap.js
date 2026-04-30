@@ -29,6 +29,7 @@ var Utils_1 = require("./base/Utils");
 var LocalizedData_1 = require("./base/LocalizedData");
 var EnergyItem_1 = require("./EnergyItem");
 var MusicManager_1 = require("./base/MusicManager");
+var RippleShockwave_1 = require("./effect/RippleShockwave");
 //电子邮件puhalskijsemen@gmail.com
 //源码网站 开vpn全局模式打开 http://web3incubators.com/
 //电报https://t.me/gamecode999
@@ -84,6 +85,9 @@ var GameMap = /** @class */ (function (_super) {
         _this._roamFlg = false; //漫游标记
         _this._roamDir = cc.v2(1, 0); //漫游方向
         _this._playerLastPos = 0;
+        _this._rippleDistortionEffect = null;
+        _this._rippleCaptureCamera = null;
+        _this._rippleCaptureCameraNode = null;
         return _this;
     }
     //加载完成
@@ -102,8 +106,10 @@ var GameMap = /** @class */ (function (_super) {
         this._initTmObstacle();
         //初始化tiled map 的对象(出生点)
         this._initTmBorn();
+        this._preloadRippleDistortionEffect();
     };
     GameMap.prototype.onDestroy = function () {
+        this._destroyRippleCaptureResources();
         //销毁事件
         this._destroyEvent();
     };
@@ -344,13 +350,121 @@ var GameMap = /** @class */ (function (_super) {
             : (this._playerBornPos ? cc.v2(this._playerBornPos) : cc.v2(0, 0));
         return this.clampMapInnerPosition(basePos.add(cc.v2(180, 96)), 120);
     };
+    GameMap.prototype._preloadRippleDistortionEffect = function () {
+        var _this = this;
+        if (cc.dynamicAtlasManager) {
+            cc.dynamicAtlasManager.enabled = false;
+        }
+        cc.loader.loadRes("shader/ripple-distortion", cc.EffectAsset, function (err, effectAsset) {
+            if (err) {
+                console.warn("load ripple distortion effect failed", err);
+                return;
+            }
+            _this._rippleDistortionEffect = effectAsset;
+        });
+    };
+    GameMap.prototype._destroyRippleCaptureResources = function () {
+        if (this._rippleCaptureCamera) {
+            this._rippleCaptureCamera.targetTexture = null;
+        }
+        if (this._rippleCaptureCameraNode && cc.isValid(this._rippleCaptureCameraNode)) {
+            this._rippleCaptureCameraNode.destroy();
+        }
+        this._rippleCaptureCamera = null;
+        this._rippleCaptureCameraNode = null;
+    };
+    GameMap.prototype._getRippleCaptureCamera = function () {
+        if (this._rippleCaptureCamera && cc.isValid(this._rippleCaptureCamera.node)) {
+            return this._rippleCaptureCamera;
+        }
+        var parentNode = this.node.parent;
+        if (!parentNode || !cc.isValid(parentNode)) {
+            return null;
+        }
+        var cameraNode = new cc.Node("_rippleCaptureCamera");
+        cameraNode.parent = parentNode;
+        cameraNode.setPosition(0, 0);
+        cameraNode.zIndex = -9999;
+        var camera = cameraNode.addComponent(cc.Camera);
+        camera.enabled = true;
+        camera.ortho = true;
+        camera.alignWithScreen = true;
+        camera.depth = -999;
+        camera.cullingMask = 0xffffffff;
+        camera.backgroundColor = cc.color(0, 0, 0, 0);
+        camera.clearFlags = 0;
+        this._rippleCaptureCameraNode = cameraNode;
+        this._rippleCaptureCamera = camera;
+        return camera;
+    };
+    GameMap.prototype._captureRippleScreenFrame = function () {
+        var camera = this._getRippleCaptureCamera();
+        if (!camera) {
+            return null;
+        }
+        var viewportSize = this._getViewportSize();
+        var renderTexture = new cc.RenderTexture();
+        var gl = cc.game._renderContext;
+        if (!gl) {
+            return null;
+        }
+        renderTexture.initWithSize(Math.ceil(viewportSize.width), Math.ceil(viewportSize.height), gl.STENCIL_INDEX8);
+        camera.targetTexture = renderTexture;
+        camera.render(cc.director.getScene());
+        var spriteFrame = new cc.SpriteFrame();
+        spriteFrame.setTexture(renderTexture);
+        return {
+            spriteFrame: spriteFrame,
+            renderTexture: renderTexture,
+            viewportSize: viewportSize,
+        };
+    };
+    GameMap.prototype._getRippleCenterUv = function (overlayNode, worldPos, viewportSize) {
+        if (!overlayNode || !cc.isValid(overlayNode)) {
+            return cc.v2(0.5, 0.5);
+        }
+        var localPos = overlayNode.convertToNodeSpaceAR(worldPos);
+        var normalizedX = (localPos.x + viewportSize.width * 0.5) / Math.max(1, viewportSize.width);
+        var normalizedY = (localPos.y + viewportSize.height * 0.5) / Math.max(1, viewportSize.height);
+        return cc.v2(cc.misc.clampf(normalizedX, 0, 1), cc.misc.clampf(1 - normalizedY, 0, 1));
+    };
+    GameMap.prototype._spawnDistortionRippleAt = function (pos) {
+        if (!this._rippleDistortionEffect) {
+            this._preloadRippleDistortionEffect();
+            return;
+        }
+        var capture = this._captureRippleScreenFrame();
+        if (!capture || !capture.spriteFrame || !capture.renderTexture) {
+            return;
+        }
+        var screenParent = this.node.parent;
+        if (!screenParent || !cc.isValid(screenParent)) {
+            return;
+        }
+        var overlay = new cc.Node("_explosionDistortionRipple");
+        overlay.parent = screenParent;
+        overlay.setContentSize(capture.viewportSize);
+        overlay.setPosition(0, 0);
+        overlay.zIndex = 1500;
+        var sprite = overlay.addComponent(cc.Sprite);
+        sprite.spriteFrame = capture.spriteFrame;
+        var material = cc.Material.create(this._rippleDistortionEffect, 0);
+        material.define("USE_TEXTURE", true, 0);
+        material.setProperty("texture", capture.renderTexture);
+        var materialVariant = cc.MaterialVariant.create(material, sprite);
+        sprite.setMaterial(0, materialVariant);
+        var worldPos = this._fire._tmLayerObstacle.convertToWorldSpaceAR(cc.v2(pos));
+        var center = this._getRippleCenterUv(overlay, worldPos, capture.viewportSize);
+        var ripple = overlay.addComponent(RippleShockwave_1.default);
+        ripple.init(null, sprite, materialVariant, center, capture.viewportSize, capture.spriteFrame, capture.renderTexture, 0.34);
+    };
     GameMap.prototype.playKillExplosionEffectAt = function (pos) {
-        // this._playWhiteScreenFlash(190, 0.05, 0.24);
+        this._spawnDistortionRippleAt(pos);
         this._spawnExplosionStarburstAt(pos);
         this._spawnExplosionGlowAt(pos, 0.36);
-        this._spawnExplosionCoreBurstAt(pos, 0.3);
-        this._spawnTransparentShockwaveAt(pos, 76, 380, 0, 0.48, 180, 10);
-        this._spawnTransparentShockwaveAt(pos, 38, 220, 0.06, 0.36, 135, 6);
+        this._spawnExplosionCoreBurstAt(pos, 0.22);
+        this._spawnTransparentShockwaveAt(pos, 76, 380, 0, 0.34, 180, 10);
+        this._spawnTransparentShockwaveAt(pos, 38, 220, 0.04, 0.24, 135, 6);
         MusicManager_1.MusicManager.playEffect("boom");
         this.playLightScreenShake();
     };
@@ -388,7 +502,7 @@ var GameMap = /** @class */ (function (_super) {
         crossGraphics.rect(-112, -5, 224, 10);
         crossGraphics.rect(-5, -112, 10, 224);
         crossGraphics.fill();
-        burst.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.1, 1.08), cc.fadeTo(0.1, 220)), cc.spawn(cc.scaleTo(0.22, 1.55), cc.fadeOut(0.22)), cc.removeSelf()));
+        burst.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.08, 1.08), cc.fadeTo(0.08, 220)), cc.spawn(cc.scaleTo(0.16, 1.55), cc.fadeOut(0.16)), cc.removeSelf()));
     };
     GameMap.prototype._spawnExplosionGlowAt = function (pos, strength) {
         if (strength === void 0) { strength = 0.3; }
@@ -405,7 +519,7 @@ var GameMap = /** @class */ (function (_super) {
         graphics.fillColor = cc.color(255, 210, 120, Math.floor(95 * strength));
         graphics.circle(0, 0, 70);
         graphics.fill();
-        glow.runAction(cc.sequence(cc.spawn(cc.fadeTo(0.05, 210), cc.scaleTo(0.05, 1)), cc.spawn(cc.fadeOut(0.24), cc.scaleTo(0.24, 1.52)), cc.removeSelf()));
+        glow.runAction(cc.sequence(cc.spawn(cc.fadeTo(0.04, 210), cc.scaleTo(0.04, 1)), cc.spawn(cc.fadeOut(0.18), cc.scaleTo(0.18, 1.52)), cc.removeSelf()));
     };
     GameMap.prototype._spawnExplosionCoreBurstAt = function (pos, duration) {
         if (duration === void 0) { duration = 0.28; }

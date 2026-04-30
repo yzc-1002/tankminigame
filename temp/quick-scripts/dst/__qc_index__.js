@@ -62,6 +62,7 @@ require('./assets/script/config/Energy');
 require('./assets/script/config/Level');
 require('./assets/script/config/Music');
 require('./assets/script/config/Tank');
+require('./assets/script/effect/RippleShockwave');
 require('./assets/script/sdk/Main');
 require('./assets/script/sdk/cfw/interface/TextureRenderInterface');
 require('./assets/script/sdk/engine/ScreenshotComp');

@@ -3,6 +3,7 @@ import {Utils} from "./base/Utils";
 import {LocalizedData} from "./base/LocalizedData";
 import {EnergyItem} from "./EnergyItem";
 import { MusicManager } from "./base/MusicManager";
+import RippleShockwave from "./effect/RippleShockwave";
 //电子邮件puhalskijsemen@gmail.com
 //源码网站 开vpn全局模式打开 http://web3incubators.com/
 //电报https://t.me/gamecode999
@@ -83,6 +84,9 @@ export class GameMap extends BaseComponent {
     _roamDir        = cc.v2(1,0);     //漫游方向
 
     _playerLastPos  = 0;
+    _rippleDistortionEffect = null;
+    _rippleCaptureCamera = null;
+    _rippleCaptureCameraNode = null;
 
     //加载完成
     onLoad () {
@@ -106,10 +110,12 @@ export class GameMap extends BaseComponent {
         
         //初始化tiled map 的对象(出生点)
         this._initTmBorn();
+        this._preloadRippleDistortionEffect();
 
     }
 
     onDestroy() {
+        this._destroyRippleCaptureResources();
         //销毁事件
         this._destroyEvent();
     }
@@ -384,13 +390,151 @@ export class GameMap extends BaseComponent {
         return this.clampMapInnerPosition(basePos.add(cc.v2(180, 96)), 120);
     }
 
+    _preloadRippleDistortionEffect() {
+        if (cc.dynamicAtlasManager) {
+            cc.dynamicAtlasManager.enabled = false;
+        }
+        cc.loader.loadRes("shader/ripple-distortion", cc.EffectAsset, (err, effectAsset) => {
+            if (err) {
+                console.warn("load ripple distortion effect failed", err);
+                return;
+            }
+            this._rippleDistortionEffect = effectAsset;
+        });
+    }
+
+    _destroyRippleCaptureResources() {
+        if (this._rippleCaptureCamera) {
+            this._rippleCaptureCamera.targetTexture = null;
+        }
+        if (this._rippleCaptureCameraNode && cc.isValid(this._rippleCaptureCameraNode)) {
+            this._rippleCaptureCameraNode.destroy();
+        }
+        this._rippleCaptureCamera = null;
+        this._rippleCaptureCameraNode = null;
+    }
+
+    _getRippleCaptureCamera() {
+        if (this._rippleCaptureCamera && cc.isValid(this._rippleCaptureCamera.node)) {
+            return this._rippleCaptureCamera;
+        }
+
+        let parentNode = this.node.parent;
+        if (!parentNode || !cc.isValid(parentNode)) {
+            return null;
+        }
+
+        let cameraNode = new cc.Node("_rippleCaptureCamera");
+        cameraNode.parent = parentNode;
+        cameraNode.setPosition(0, 0);
+        cameraNode.zIndex = -9999;
+        let camera = cameraNode.addComponent(cc.Camera);
+        camera.enabled = true;
+        camera.ortho = true;
+        camera.alignWithScreen = true;
+        camera.depth = -999;
+        camera.cullingMask = 0xffffffff;
+        camera.backgroundColor = cc.color(0, 0, 0, 0);
+        camera.clearFlags = 0;
+
+        this._rippleCaptureCameraNode = cameraNode;
+        this._rippleCaptureCamera = camera;
+        return camera;
+    }
+
+    _captureRippleScreenFrame() {
+        let camera = this._getRippleCaptureCamera();
+        if (!camera) {
+            return null;
+        }
+
+        let viewportSize = this._getViewportSize();
+        let renderTexture = new cc.RenderTexture();
+        let gl = (cc.game as any)._renderContext;
+        if (!gl) {
+            return null;
+        }
+        renderTexture.initWithSize(Math.ceil(viewportSize.width), Math.ceil(viewportSize.height), gl.STENCIL_INDEX8);
+        camera.targetTexture = renderTexture;
+        camera.render(cc.director.getScene());
+
+        let spriteFrame = new cc.SpriteFrame();
+        spriteFrame.setTexture(renderTexture);
+        return {
+            spriteFrame: spriteFrame,
+            renderTexture: renderTexture,
+            viewportSize: viewportSize,
+        };
+    }
+
+    _getRippleCenterUv(overlayNode, worldPos, viewportSize) {
+        if (!overlayNode || !cc.isValid(overlayNode)) {
+            return cc.v2(0.5, 0.5);
+        }
+
+        let localPos = overlayNode.convertToNodeSpaceAR(worldPos);
+        let normalizedX = (localPos.x + viewportSize.width * 0.5) / Math.max(1, viewportSize.width);
+        let normalizedY = (localPos.y + viewportSize.height * 0.5) / Math.max(1, viewportSize.height);
+        return cc.v2(
+            cc.misc.clampf(normalizedX, 0, 1),
+            cc.misc.clampf(1 - normalizedY, 0, 1)
+        );
+    }
+
+    _spawnDistortionRippleAt(pos) {
+        if (!this._rippleDistortionEffect) {
+            this._preloadRippleDistortionEffect();
+            return;
+        }
+
+        let capture = this._captureRippleScreenFrame();
+        if (!capture || !capture.spriteFrame || !capture.renderTexture) {
+            return;
+        }
+
+        let screenParent = this.node.parent;
+        if (!screenParent || !cc.isValid(screenParent)) {
+            return;
+        }
+
+        let overlay = new cc.Node("_explosionDistortionRipple");
+        overlay.parent = screenParent;
+        overlay.setContentSize(capture.viewportSize);
+        overlay.setPosition(0, 0);
+        overlay.zIndex = 1500;
+
+        let sprite = overlay.addComponent(cc.Sprite);
+        sprite.spriteFrame = capture.spriteFrame;
+        let material = cc.Material.create(this._rippleDistortionEffect, 0);
+        material.define("USE_TEXTURE", true, 0);
+        material.setProperty("texture", capture.renderTexture);
+
+        let materialVariant = cc.MaterialVariant.create(material, sprite);
+        sprite.setMaterial(0, materialVariant);
+
+        let worldPos = this._fire._tmLayerObstacle.convertToWorldSpaceAR(cc.v2(pos));
+        let center = this._getRippleCenterUv(overlay, worldPos, capture.viewportSize);
+
+        let ripple = overlay.addComponent(RippleShockwave);
+        ripple.init(
+            null,
+            sprite,
+            materialVariant,
+            center,
+            capture.viewportSize,
+            capture.spriteFrame,
+            capture.renderTexture,
+            0.34
+        );
+    }
+
     playKillExplosionEffectAt(pos) {
-        // this._playWhiteScreenFlash(190, 0.05, 0.24);
+        this._spawnDistortionRippleAt(pos);
         this._spawnExplosionStarburstAt(pos);
         this._spawnExplosionGlowAt(pos, 0.36);
-        this._spawnExplosionCoreBurstAt(pos, 0.3);
-        this._spawnTransparentShockwaveAt(pos, 76, 380, 0, 0.48, 180, 10);
-        this._spawnTransparentShockwaveAt(pos, 38, 220, 0.06, 0.36, 135, 6);
+        this._spawnExplosionCoreBurstAt(pos, 0.22);
+        this._spawnTransparentShockwaveAt(pos, 76, 380, 0, 0.34, 180, 10);
+        this._spawnTransparentShockwaveAt(pos, 38, 220, 0.04, 0.24, 135, 6);
         MusicManager.playEffect("boom");
         this.playLightScreenShake();
     }
@@ -435,12 +579,12 @@ export class GameMap extends BaseComponent {
 
         burst.runAction(cc.sequence(
             cc.spawn(
-                cc.scaleTo(0.1, 1.08),
-                cc.fadeTo(0.1, 220)
+                cc.scaleTo(0.08, 1.08),
+                cc.fadeTo(0.08, 220)
             ),
             cc.spawn(
-                cc.scaleTo(0.22, 1.55),
-                cc.fadeOut(0.22)
+                cc.scaleTo(0.16, 1.55),
+                cc.fadeOut(0.16)
             ),
             cc.removeSelf()
         ));
@@ -464,12 +608,12 @@ export class GameMap extends BaseComponent {
 
         glow.runAction(cc.sequence(
             cc.spawn(
-                cc.fadeTo(0.05, 210),
-                cc.scaleTo(0.05, 1)
+                cc.fadeTo(0.04, 210),
+                cc.scaleTo(0.04, 1)
             ),
             cc.spawn(
-                cc.fadeOut(0.24),
-                cc.scaleTo(0.24, 1.52)
+                cc.fadeOut(0.18),
+                cc.scaleTo(0.18, 1.52)
             ),
             cc.removeSelf()
         ));
