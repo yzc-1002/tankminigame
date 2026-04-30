@@ -33,6 +33,9 @@ var MusicManager_1 = require("./base/MusicManager");
 //网页客服 http://web3incubators.com/kefu.html
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
 var LOW_HP_RATIO = 0.2;
+var DEATH_AFTERMATH_DURATION = 5;
+var DEATH_AFTERMATH_FADE_IN = 0.12;
+var DEATH_AFTERMATH_FADE_OUT = 0.45;
 var Tank = /** @class */ (function (_super) {
     __extends(Tank, _super);
     function Tank() {
@@ -385,6 +388,113 @@ var Tank = /** @class */ (function (_super) {
         }
         this._lowHpSmokeRoot = null;
     };
+    Tank.prototype._spawnDeathAftermathAt = function (pos, parentNode) {
+        if (parentNode === void 0) { parentNode = null; }
+        var targetParent = parentNode;
+        if (!targetParent || !cc.isValid(targetParent)) {
+            targetParent = this._getDeathAftermathParent();
+        }
+        if (!targetParent || !cc.isValid(targetParent)) {
+            return;
+        }
+        var root = new cc.Node("_deathAftermath");
+        root.parent = targetParent;
+        root.setPosition(cc.v3(pos));
+        root.zIndex = this._getDeathAftermathZIndex(pos.y);
+        var scorch = this._createDeathScorchNode();
+        scorch.parent = root;
+        var flameRoot = new cc.Node("_deathFlameRoot");
+        flameRoot.parent = root;
+        flameRoot.zIndex = 2;
+        for (var i = 0; i < 4; i++) {
+            this._createDeathFlame(flameRoot, i);
+        }
+        var smokeRoot = new cc.Node("_deathSmokeRoot");
+        smokeRoot.parent = root;
+        smokeRoot.zIndex = 3;
+        for (var i = 0; i < 3; i++) {
+            this._createDeathSmoke(smokeRoot, i);
+        }
+        root.runAction(cc.sequence(cc.delayTime(DEATH_AFTERMATH_DURATION), cc.removeSelf()));
+    };
+    Tank.prototype._getDeathAftermathParent = function () {
+        if (this._map && this._map._fire && this._map._fire._tmLayerObstacle
+            && cc.isValid(this._map._fire._tmLayerObstacle)) {
+            return this._map._fire._tmLayerObstacle;
+        }
+        if (this.node.parent && cc.isValid(this.node.parent)) {
+            return this.node.parent;
+        }
+        return null;
+    };
+    Tank.prototype._getDeathAftermathZIndex = function (y) {
+        if (this._map && this._map.judgezIndex) {
+            return this._map.judgezIndex(y) - 2;
+        }
+        return this.node.zIndex - 2;
+    };
+    Tank.prototype._createDeathScorchNode = function () {
+        var scorch = new cc.Node("_deathScorch");
+        scorch.opacity = 0;
+        scorch.angle = Math.random() * 360;
+        var main = new cc.Node("_deathScorchMain");
+        main.parent = scorch;
+        main.scaleX = 1.9;
+        main.scaleY = 0.95;
+        var mainGraphics = main.addComponent(cc.Graphics);
+        mainGraphics.fillColor = cc.color(28, 24, 24, 155);
+        mainGraphics.circle(0, 0, 26);
+        mainGraphics.fill();
+        var side = new cc.Node("_deathScorchSide");
+        side.parent = scorch;
+        side.setPosition(18, -6);
+        side.scaleX = 1.2;
+        side.scaleY = 0.7;
+        var sideGraphics = side.addComponent(cc.Graphics);
+        sideGraphics.fillColor = cc.color(20, 18, 18, 100);
+        sideGraphics.circle(0, 0, 18);
+        sideGraphics.fill();
+        scorch.runAction(cc.sequence(cc.fadeTo(DEATH_AFTERMATH_FADE_IN, 210), cc.delayTime(DEATH_AFTERMATH_DURATION - DEATH_AFTERMATH_FADE_IN - DEATH_AFTERMATH_FADE_OUT), cc.fadeOut(DEATH_AFTERMATH_FADE_OUT)));
+        return scorch;
+    };
+    Tank.prototype._createDeathFlame = function (parentNode, index) {
+        var wrapper = new cc.Node("_deathFlameWrap" + index);
+        wrapper.parent = parentNode;
+        wrapper.opacity = 0;
+        wrapper.setPosition((index - 1.5) * 14 + (Math.random() - 0.5) * 8, -2 + Math.random() * 10);
+        var flame = new cc.Node("_deathFlame" + index);
+        flame.parent = wrapper;
+        flame.scale = 0.8 + Math.random() * 0.3;
+        var outer = flame.addComponent(cc.Graphics);
+        outer.fillColor = cc.color(255, 110 + Math.floor(Math.random() * 40), 40, 220);
+        outer.moveTo(0, 26);
+        outer.bezierCurveTo(12, 14, 14, -2, 0, -16);
+        outer.bezierCurveTo(-14, -2, -12, 14, 0, 26);
+        outer.fill();
+        outer.fillColor = cc.color(255, 220, 110, 235);
+        outer.moveTo(0, 16);
+        outer.bezierCurveTo(6, 10, 8, 0, 0, -10);
+        outer.bezierCurveTo(-8, 0, -6, 10, 0, 16);
+        outer.fill();
+        var swayX = (Math.random() - 0.5) * 8;
+        var baseScale = flame.scale;
+        flame.runAction(cc.repeatForever(cc.sequence(cc.spawn(cc.moveTo(0.24, swayX, 3 + Math.random() * 4), cc.scaleTo(0.24, baseScale * 1.08)), cc.spawn(cc.moveTo(0.28, -swayX * 0.45, -1), cc.scaleTo(0.28, baseScale * 0.92)))));
+        wrapper.runAction(cc.sequence(cc.delayTime(index * 0.04), cc.fadeTo(0.1, 255), cc.delayTime(DEATH_AFTERMATH_DURATION - 0.8 - index * 0.04), cc.fadeOut(0.35)));
+    };
+    Tank.prototype._createDeathSmoke = function (parentNode, index) {
+        var smoke = new cc.Node("_deathSmoke" + index);
+        smoke.parent = parentNode;
+        smoke.opacity = 0;
+        smoke.scale = 0.55 + Math.random() * 0.15;
+        smoke.setPosition((Math.random() - 0.5) * 16, 12 + index * 4);
+        var graphics = smoke.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(65, 65, 65, 120);
+        graphics.circle(0, 0, 11 + Math.random() * 3);
+        graphics.fill();
+        var driftX = (Math.random() - 0.5) * 28;
+        var driftY = 36 + Math.random() * 14;
+        smoke.runAction(cc.sequence(cc.delayTime(index * 0.22), cc.spawn(cc.fadeTo(0.12, 160), cc.moveBy(0.12, cc.v2(0, 4))), cc.spawn(cc.moveBy(1.15 + Math.random() * 0.2, cc.v2(driftX, driftY)), cc.scaleTo(1.15 + Math.random() * 0.2, smoke.scale * 1.7), cc.fadeOut(1.15 + Math.random() * 0.2)), cc.removeSelf()));
+    };
     //执行死亡
     Tank.prototype.doDeath = function () {
         this._stopLowHpBarEffect();
@@ -400,6 +510,7 @@ var Tank = /** @class */ (function (_super) {
         if (this._map && this._map.playLightScreenShake) {
             this._map.playLightScreenShake();
         }
+        this._spawnDeathAftermathAt(this.node.position);
     };
     __decorate([
         property(cc.Prefab)

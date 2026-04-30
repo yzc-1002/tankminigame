@@ -41,6 +41,11 @@ var CHARGE_CANNON_BULLET_TYPE = 99;
 var LOW_HP_SCREEN_FLASH_IN = 0.2;
 var LOW_HP_SCREEN_FLASH_OUT = 0.5;
 var LOW_HP_SCREEN_FLASH_LOOP = 3;
+var SHOOT_RECOIL_DISTANCE = 10;
+var SHOOT_RECOIL_OUT_TIME = 0.04;
+var SHOOT_RECOIL_RETURN_TIME = 0.11;
+var SHOOT_FLASH_FADE_IN = 0.02;
+var SHOOT_FLASH_FADE_OUT = 0.07;
 var Player = /** @class */ (function (_super) {
     __extends(Player, _super);
     function Player() {
@@ -692,10 +697,118 @@ var Player = /** @class */ (function (_super) {
         var attackRadius = this._viewMode ? this._config.AttackRadius * 0.8 : this._config.AttackRadius;
         var mutationData = this._viewMode ? null : this._getCurrentBulletMutationData();
         BulletE_1.Bullet.createBulletEx(type, this.node.position, this._barrelDir, this._fire._lyBarrel.height + 20, attackRadius, this._atk, this._camp, this.node.parent, this._map, 8, mutationData);
+        if (this._map && this._map.isShootEffectTestMode && this._map.isShootEffectTestMode()) {
+            this._playShootFeedback(type, mutationData);
+        }
         // if (this._viewMode == false && this._map.enemyCount() > 0) {
         if (this._viewMode == false) {
             MusicManager_1.MusicManager.playEffect("shoot");
         }
+    };
+    Player.prototype._playShootFeedback = function (bulletType, mutationData) {
+        this._playBarrelRecoil();
+        this._playMuzzleFlash(bulletType, mutationData);
+        this._playShootGlow(bulletType, mutationData);
+        this._playShootShake();
+    };
+    Player.prototype._playBarrelRecoil = function () {
+        var recoilNode = this._currentBg || (this._fire && this._fire._lyBarrel);
+        if (!recoilNode || !cc.isValid(recoilNode)) {
+            return;
+        }
+        var parentNode = recoilNode.parent;
+        if (!parentNode || !cc.isValid(parentNode)) {
+            return;
+        }
+        var basePos = recoilNode["_shootBasePos"];
+        if (!basePos) {
+            basePos = cc.v3(recoilNode.position);
+            recoilNode["_shootBasePos"] = cc.v3(basePos);
+        }
+        var baseWorldPos = parentNode.convertToWorldSpaceAR(basePos);
+        var recoilDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? this._barrelDir.normalize() : cc.v2(1, 0);
+        var recoilWorldPos = cc.v2(baseWorldPos).sub(recoilDir.mul(SHOOT_RECOIL_DISTANCE));
+        var recoilLocalPos = parentNode.convertToNodeSpaceAR(recoilWorldPos);
+        recoilNode.stopActionByTag(9004);
+        recoilNode.setPosition(basePos);
+        var action = cc.sequence(cc.moveTo(SHOOT_RECOIL_OUT_TIME, recoilLocalPos.x, recoilLocalPos.y), cc.moveTo(SHOOT_RECOIL_RETURN_TIME, basePos.x, basePos.y));
+        action.setTag(9004);
+        recoilNode.runAction(action);
+    };
+    Player.prototype._playMuzzleFlash = function (bulletType, mutationData) {
+        var barrelNode = this._currentBg || this._fire._lyBarrel;
+        if (!barrelNode || !cc.isValid(barrelNode)) {
+            return;
+        }
+        var effectColor = this._getShootEffectColor(bulletType, mutationData);
+        var flash = new cc.Node("_shootMuzzleFlash");
+        flash.parent = barrelNode;
+        flash.setPosition(cc.v3(this._getBarrelMuzzleLocalPosition(6)));
+        flash.zIndex = 115;
+        flash.opacity = 0;
+        flash.scaleX = 0.28;
+        flash.scaleY = 0.72;
+        var cone = new cc.Node("_flashCone");
+        cone.parent = flash;
+        var coneGraphics = cone.addComponent(cc.Graphics);
+        coneGraphics.fillColor = cc.color(effectColor.r, effectColor.g, effectColor.b, 210);
+        coneGraphics.moveTo(0, 36);
+        coneGraphics.lineTo(-17, 8);
+        coneGraphics.lineTo(-7, -8);
+        coneGraphics.lineTo(0, 4);
+        coneGraphics.lineTo(7, -8);
+        coneGraphics.lineTo(17, 8);
+        coneGraphics.close();
+        coneGraphics.fill();
+        var core = new cc.Node("_flashCore");
+        core.parent = flash;
+        var coreGraphics = core.addComponent(cc.Graphics);
+        coreGraphics.fillColor = cc.color(255, 250, 220, 235);
+        coreGraphics.circle(0, 0, 11);
+        coreGraphics.fill();
+        flash.runAction(cc.sequence(cc.spawn(cc.fadeTo(SHOOT_FLASH_FADE_IN, 255), cc.scaleTo(SHOOT_FLASH_FADE_IN, 1.1, 1.18)), cc.spawn(cc.fadeOut(SHOOT_FLASH_FADE_OUT), cc.scaleTo(SHOOT_FLASH_FADE_OUT, 0.55, 1.65)), cc.removeSelf()));
+    };
+    Player.prototype._playShootGlow = function (bulletType, mutationData) {
+        var effectColor = this._getShootEffectColor(bulletType, mutationData);
+        if (!this.node.parent || !cc.isValid(this.node.parent)) {
+            return;
+        }
+        var muzzleGlow = new cc.Node("_shootMuzzleGlow");
+        muzzleGlow.parent = this.node.parent;
+        muzzleGlow.setPosition(cc.v3(this._getBarrelMuzzlePosition(0)));
+        muzzleGlow.zIndex = 285;
+        muzzleGlow.opacity = 0;
+        muzzleGlow.scale = 0.5;
+        var muzzleGlowGraphics = muzzleGlow.addComponent(cc.Graphics);
+        muzzleGlowGraphics.fillColor = cc.color(effectColor.r, effectColor.g, effectColor.b, 95);
+        muzzleGlowGraphics.circle(0, 0, 28);
+        muzzleGlowGraphics.fill();
+        muzzleGlow.runAction(cc.sequence(cc.spawn(cc.fadeTo(0.03, 210), cc.scaleTo(0.03, 1.05)), cc.spawn(cc.fadeOut(0.1), cc.scaleTo(0.1, 1.65)), cc.removeSelf()));
+        var bodyGlow = new cc.Node("_shootBodyGlow");
+        bodyGlow.parent = this.node;
+        bodyGlow.setPosition(0, 0);
+        bodyGlow.zIndex = 260;
+        bodyGlow.opacity = 0;
+        bodyGlow.scale = 0.75;
+        var bodyGlowGraphics = bodyGlow.addComponent(cc.Graphics);
+        bodyGlowGraphics.fillColor = cc.color(effectColor.r, effectColor.g, effectColor.b, 70);
+        bodyGlowGraphics.circle(0, 0, this._radius + 28);
+        bodyGlowGraphics.fill();
+        bodyGlow.runAction(cc.sequence(cc.spawn(cc.fadeTo(0.04, 150), cc.scaleTo(0.04, 1.08)), cc.spawn(cc.fadeOut(0.12), cc.scaleTo(0.12, 1.38)), cc.removeSelf()));
+    };
+    Player.prototype._playShootShake = function () {
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
+    };
+    Player.prototype._getShootEffectColor = function (bulletType, mutationData) {
+        if (mutationData && mutationData.effectColor) {
+            return mutationData.effectColor;
+        }
+        if (bulletType == this._config.BType2) {
+            return cc.color(120, 225, 255, 230);
+        }
+        return cc.color(255, 205, 95, 230);
     };
     Player.prototype._updateChargeCannon = function (dt) {
         if (this._chargeCannonCdTime > 0) {

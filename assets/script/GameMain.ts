@@ -308,15 +308,15 @@ export default class GameMain extends BaseComponent {
 
         let dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(460, 620);
+        dialog.setContentSize(460, 700);
         dialog.zIndex = 1;
         let dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-230, -310, 460, 620, 18);
+        dialogGraphics.roundRect(-230, -350, 460, 700, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-230, -310, 460, 620, 18);
+        dialogGraphics.roundRect(-230, -350, 460, 700, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function(event){
             if (event && event.stopPropagation) {
@@ -324,15 +324,16 @@ export default class GameMain extends BaseComponent {
             }
         }, this);
 
-        this._createTestLabel(dialog, "_lbTestTitle", "测试面板", cc.v2(0, 224), 34, cc.color(255, 255, 255, 255));
-        this._createTestLabel(dialog, "_lbTestTips", "会先重置当前游戏状态，再进入测试场景", cc.v2(0, 184), 22, cc.color(210, 210, 220, 255));
-        this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(0, 110), cc.color(255, 90, 70, 255), this._onKillTestClick);
-        this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(0, 42), cc.color(80, 180, 255, 255), this._onHitTestClick);
-        this._createTestButton(dialog, "_btnUpgradeTest", "升级测试", cc.v2(0, -26), cc.color(115, 255, 170, 255), this._onUpgradeTestClick);
-        this._createTestButton(dialog, "_btnMutationTest", "子弹质变测试", cc.v2(0, -94), cc.color(255, 120, 210, 255), this._onBulletMutationTestClick);
-        this._createTestButton(dialog, "_btnPlayerLowHpTest", "自己血量告急", cc.v2(0, -162), cc.color(255, 110, 110, 255), this._onPlayerLowHpTestClick);
-        this._createTestButton(dialog, "_btnEnemyLowHpTest", "敌人血量告急", cc.v2(0, -230), cc.color(255, 165, 70, 255), this._onEnemyLowHpTestClick);
-        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -282), cc.color(180, 180, 190, 255), this._hideTestPanel, 160, 46, 24);
+        this._createTestLabel(dialog, "_lbTestTitle", "测试面板", cc.v2(0, 274), 34, cc.color(255, 255, 255, 255));
+        this._createTestLabel(dialog, "_lbTestTips", "会先重置当前游戏状态，再进入测试场景", cc.v2(0, 232), 22, cc.color(210, 210, 220, 255));
+        this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(0, 154), cc.color(255, 90, 70, 255), this._onKillTestClick);
+        this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(0, 88), cc.color(80, 180, 255, 255), this._onHitTestClick);
+        this._createTestButton(dialog, "_btnUpgradeTest", "升级测试", cc.v2(0, 22), cc.color(115, 255, 170, 255), this._onUpgradeTestClick);
+        this._createTestButton(dialog, "_btnMutationTest", "子弹质变测试", cc.v2(0, -44), cc.color(255, 120, 210, 255), this._onBulletMutationTestClick);
+        this._createTestButton(dialog, "_btnShootEffectTest", "子弹射击测试", cc.v2(0, -110), cc.color(255, 205, 90, 255), this._onShootEffectTestClick);
+        this._createTestButton(dialog, "_btnPlayerLowHpTest", "自己血量告急", cc.v2(0, -176), cc.color(255, 110, 110, 255), this._onPlayerLowHpTestClick);
+        this._createTestButton(dialog, "_btnEnemyLowHpTest", "敌人血量告急", cc.v2(0, -242), cc.color(255, 165, 70, 255), this._onEnemyLowHpTestClick);
+        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -308), cc.color(180, 180, 190, 255), this._hideTestPanel, 160, 46, 24);
     }
 
     _createTestLabel(parent, name, text, pos, fontSize, color) {
@@ -409,6 +410,13 @@ export default class GameMain extends BaseComponent {
         this._startTestGame("mutation");
     }
 
+    _onShootEffectTestClick(event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("shoot");
+    }
+
     _onPlayerLowHpTestClick(event) {
         if (event && event.stopPropagation) {
             event.stopPropagation();
@@ -448,6 +456,11 @@ export default class GameMain extends BaseComponent {
             this._fire._tiled.script.startUpgradeTestGame(function(){
                 complete();
                 self._showUpgradeChoicePanel("mutation");
+            });
+        }
+        else if (type == "shoot") {
+            this._fire._tiled.script.startShootEffectTestGame(function(){
+                complete();
             });
         }
         else if (type == "playerLowHp") {

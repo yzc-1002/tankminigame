@@ -78,6 +78,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._killEffectTestMode = false; //击杀效果测试模式
         _this._playerHitTestMode = false; //受击测试模式
         _this._upgradeTestMode = false; //升级测试模式
+        _this._shootEffectTestMode = false; //子弹射击测试模式
         _this._levelId = 1; //当前关卡id
         _this._levelConfig = null; //当前关卡配置
         _this._roamFlg = false; //漫游标记
@@ -314,6 +315,26 @@ var GameMap = /** @class */ (function (_super) {
             enemy.script._hp = Math.max(1, enemy.script._maxHp - 1);
         }
         enemy.script.refreshHp();
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+    };
+    //生成一个射击特效测试木桩
+    GameMap.prototype.createShootEffectTestEnemy = function () {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        var enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        var pos = cc.v2(this._player.position).add(cc.v2(320, 0));
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._config = Object.assign({}, enemy.script._config);
+        enemy.script._hp = 99999;
+        enemy.script._maxHp = 99999;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
         enemy.zIndex = this.judgezIndex(enemy.y);
         this._enemys.push(enemy);
     };
@@ -898,6 +919,7 @@ var GameMap = /** @class */ (function (_super) {
         this._killEffectTestMode = true;
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -921,6 +943,7 @@ var GameMap = /** @class */ (function (_super) {
         this._killEffectTestMode = false;
         this._playerHitTestMode = true;
         this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -944,6 +967,7 @@ var GameMap = /** @class */ (function (_super) {
         this._killEffectTestMode = false;
         this._playerHitTestMode = false;
         this._upgradeTestMode = true;
+        this._shootEffectTestMode = false;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
         this._bornEnemyCount = 0;
@@ -960,8 +984,35 @@ var GameMap = /** @class */ (function (_super) {
             func();
         })));
     };
+    GameMap.prototype.startShootEffectTestGame = function (func) {
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._killEffectTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = true;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
+        yyp.eventCenter.emit("current-enemycount", { enemycount: 1 });
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            self.createPlayer();
+            self.createShootEffectTestEnemy();
+            self._gaming = true;
+            func();
+        })));
+    };
     GameMap.prototype.isTestMode = function () {
-        return this._killEffectTestMode || this._playerHitTestMode || this._upgradeTestMode;
+        return this._killEffectTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode;
+    };
+    GameMap.prototype.isShootEffectTestMode = function () {
+        return this._shootEffectTestMode;
     };
     GameMap.prototype.isKillEffectTestMode = function () {
         return this._killEffectTestMode;
@@ -984,6 +1035,10 @@ var GameMap = /** @class */ (function (_super) {
         var self = this;
         this.node.runAction(cc.sequence(cc.delayTime(0.15), cc.callFunc(function () {
             self._showKillExplosion(deathPos);
+            if (self._player && cc.isValid(self._player) && self._player.script
+                && self._player.script._spawnDeathAftermathAt) {
+                self._player.script._spawnDeathAftermathAt(deathPos, self._fire._tmLayerObstacle);
+            }
             self._dropTestEnergy(deathPos);
             if (cc.isValid(enemyNode)) {
                 enemyNode.destroy();
@@ -1094,6 +1149,7 @@ var GameMap = /** @class */ (function (_super) {
         this._killEffectTestMode = false;
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
         if (this._player && cc.isValid(this._player)) {
             this._player.destroy();
             this._player = null;

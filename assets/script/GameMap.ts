@@ -75,6 +75,7 @@ export class GameMap extends BaseComponent {
     _killEffectTestMode = false; //击杀效果测试模式
     _playerHitTestMode = false; //受击测试模式
     _upgradeTestMode = false; //升级测试模式
+    _shootEffectTestMode = false; //子弹射击测试模式
     _levelId        = 1;        //当前关卡id
     _levelConfig    = null;     //当前关卡配置
 
@@ -350,6 +351,28 @@ export class GameMap extends BaseComponent {
             enemy.script._hp = Math.max(1, enemy.script._maxHp - 1);
         }
         enemy.script.refreshHp();
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+    }
+
+    //生成一个射击特效测试木桩
+    createShootEffectTestEnemy() {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+
+        let enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        let pos = cc.v2(this._player.position).add(cc.v2(320, 0));
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._config = Object.assign({}, enemy.script._config);
+        enemy.script._hp = 99999;
+        enemy.script._maxHp = 99999;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
         enemy.zIndex = this.judgezIndex(enemy.y);
         this._enemys.push(enemy);
     }
@@ -1034,6 +1057,7 @@ export class GameMap extends BaseComponent {
         this._killEffectTestMode = true;
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -1062,6 +1086,7 @@ export class GameMap extends BaseComponent {
         this._killEffectTestMode = false;
         this._playerHitTestMode = true;
         this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -1090,6 +1115,7 @@ export class GameMap extends BaseComponent {
         this._killEffectTestMode = false;
         this._playerHitTestMode = false;
         this._upgradeTestMode = true;
+        this._shootEffectTestMode = false;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
         this._bornEnemyCount = 0;
@@ -1111,8 +1137,41 @@ export class GameMap extends BaseComponent {
         ));
     }
 
+    startShootEffectTestGame(func){
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._killEffectTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = true;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
+        yyp.eventCenter.emit("current-enemycount",{enemycount:1});
+
+        this._roamFlg = false;
+        let will = this._correctMapPosition(cc.v2(-this._playerBornPos.x,-this._playerBornPos.y));
+        let self = this;
+        this.node.runAction(cc.sequence(
+            cc.moveTo(0.2,will),
+            cc.callFunc(function(){
+                self.createPlayer();
+                self.createShootEffectTestEnemy();
+                self._gaming = true;
+                func();
+            })
+        ));
+    }
+
     isTestMode() {
-        return this._killEffectTestMode || this._playerHitTestMode || this._upgradeTestMode;
+        return this._killEffectTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode;
+    }
+
+    isShootEffectTestMode() {
+        return this._shootEffectTestMode;
     }
 
     isKillEffectTestMode() {
@@ -1143,6 +1202,10 @@ export class GameMap extends BaseComponent {
             cc.delayTime(0.15),
             cc.callFunc(function(){
                 self._showKillExplosion(deathPos);
+                if (self._player && cc.isValid(self._player) && self._player.script
+                    && self._player.script._spawnDeathAftermathAt) {
+                    self._player.script._spawnDeathAftermathAt(deathPos, self._fire._tmLayerObstacle);
+                }
                 self._dropTestEnergy(deathPos);
                 if (cc.isValid(enemyNode)) {
                     enemyNode.destroy();
@@ -1299,6 +1362,7 @@ export class GameMap extends BaseComponent {
         this._killEffectTestMode = false;
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
         if (this._player && cc.isValid(this._player)){
             this._player.destroy();
             this._player = null;
