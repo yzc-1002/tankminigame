@@ -328,6 +328,32 @@ export class GameMap extends BaseComponent {
         this._enemys.push(enemy);
     }
 
+    //生成一个残血状态展示敌人
+    createLowHpTestEnemy() {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+
+        let enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        let pos = cc.v2(this._player.position).add(cc.v2(260, 0));
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 80));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11,this._levelId);
+        enemy.script._config = Object.assign({}, enemy.script._config);
+        enemy.script._config.AttackRadius = 9999;
+        enemy.script._config.BulletCodeTime = 1.2;
+        enemy.script._bulletCodeTime = enemy.script._config.BulletCodeTime;
+        enemy.script._hp = Math.max(1, Math.floor(enemy.script._maxHp * 0.18));
+        if (enemy.script._hp >= enemy.script._maxHp) {
+            enemy.script._hp = Math.max(1, enemy.script._maxHp - 1);
+        }
+        enemy.script.refreshHp();
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+    }
+
     //生成一个敌人
     deleteEnemy(delEnemy) {
         for (let i = 0; i < this._enemys.length; i++) {

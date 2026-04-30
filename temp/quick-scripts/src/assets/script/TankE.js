@@ -32,6 +32,7 @@ var MusicManager_1 = require("./base/MusicManager");
 //电报https://t.me/gamecode999
 //网页客服 http://web3incubators.com/kefu.html
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
+var LOW_HP_RATIO = 0.2;
 var Tank = /** @class */ (function (_super) {
     __extends(Tank, _super);
     function Tank() {
@@ -53,6 +54,10 @@ var Tank = /** @class */ (function (_super) {
         _this._config = {};
         _this._tankType = 1; //坦克类型
         _this._currentBg = null;
+        _this._lowHpBarBasePosition = null;
+        _this._lowHpBarFxPlaying = false;
+        _this._lowHpSmokeRoot = null;
+        _this._lowHpSmokeTime = 0;
         return _this;
     }
     Tank.prototype.onLoad = function () {
@@ -291,9 +296,99 @@ var Tank = /** @class */ (function (_super) {
     Tank.prototype.refreshHp = function () {
         var percent = this._hp / this._maxHp;
         this._fire._lifebar.$ProgressBar.progress = percent;
+        this._syncLowHpVisualState();
+    };
+    Tank.prototype.isLowHp = function () {
+        return this._hp > 0 && this._maxHp > 0 && this._hp / this._maxHp <= LOW_HP_RATIO;
+    };
+    Tank.prototype.updateLowHpVisual = function (dt) {
+        this._syncLowHpVisualState();
+        if (this.isLowHp()) {
+            this._updateLowHpSmoke(dt);
+        }
+        else {
+            this._clearLowHpSmoke();
+        }
+    };
+    Tank.prototype._syncLowHpVisualState = function () {
+        if (this.isLowHp()) {
+            this._startLowHpBarEffect();
+        }
+        else {
+            this._stopLowHpBarEffect();
+        }
+    };
+    Tank.prototype._startLowHpBarEffect = function () {
+        var lifebar = this._fire && this._fire._lifebar;
+        if (!lifebar || !cc.isValid(lifebar) || this._lowHpBarFxPlaying) {
+            return;
+        }
+        this._lowHpBarFxPlaying = true;
+        this._lowHpBarBasePosition = cc.v3(lifebar.position);
+        var basePos = this._lowHpBarBasePosition;
+        lifebar.stopAllActions();
+        lifebar.opacity = 255;
+        lifebar.position = basePos;
+        lifebar.runAction(cc.repeatForever(cc.sequence(cc.spawn(cc.fadeTo(0.2, 135), cc.sequence(cc.moveTo(0.05, basePos.x + 4, basePos.y + 1), cc.moveTo(0.05, basePos.x - 4, basePos.y - 1), cc.moveTo(0.05, basePos.x + 2, basePos.y), cc.moveTo(0.05, basePos.x, basePos.y))), cc.fadeTo(0.5, 255), cc.delayTime(0.3))));
+    };
+    Tank.prototype._stopLowHpBarEffect = function () {
+        var lifebar = this._fire && this._fire._lifebar;
+        if (!lifebar || !cc.isValid(lifebar)) {
+            this._lowHpBarFxPlaying = false;
+            return;
+        }
+        lifebar.stopAllActions();
+        lifebar.opacity = 255;
+        if (this._lowHpBarBasePosition) {
+            lifebar.position = this._lowHpBarBasePosition;
+        }
+        this._lowHpBarFxPlaying = false;
+    };
+    Tank.prototype._updateLowHpSmoke = function (dt) {
+        this._lowHpSmokeTime += dt;
+        if (this._lowHpSmokeTime < 0.32) {
+            return;
+        }
+        this._lowHpSmokeTime = 0;
+        var root = this._ensureLowHpSmokeRoot();
+        if (!root) {
+            return;
+        }
+        var smoke = new cc.Node("_lowHpSmoke");
+        smoke.parent = root;
+        smoke.zIndex = 80;
+        smoke.opacity = 110;
+        smoke.position = cc.v3((Math.random() - 0.5) * 18, 12 + Math.random() * 8);
+        var graphics = smoke.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(120, 120, 120, 170);
+        graphics.circle(0, 0, 7 + Math.random() * 4);
+        graphics.fill();
+        var driftX = (Math.random() - 0.5) * 20;
+        var driftY = 32 + Math.random() * 14;
+        smoke.scale = 0.55 + Math.random() * 0.2;
+        smoke.runAction(cc.sequence(cc.spawn(cc.moveBy(1.1, driftX, driftY), cc.scaleTo(1.1, 1.25 + Math.random() * 0.25), cc.fadeOut(1.1)), cc.removeSelf()));
+    };
+    Tank.prototype._ensureLowHpSmokeRoot = function () {
+        if (this._lowHpSmokeRoot && cc.isValid(this._lowHpSmokeRoot)) {
+            return this._lowHpSmokeRoot;
+        }
+        this._lowHpSmokeRoot = new cc.Node("_lowHpSmokeRoot");
+        this._lowHpSmokeRoot.parent = this.node;
+        this._lowHpSmokeRoot.setPosition(0, 4);
+        this._lowHpSmokeRoot.zIndex = 90;
+        return this._lowHpSmokeRoot;
+    };
+    Tank.prototype._clearLowHpSmoke = function () {
+        this._lowHpSmokeTime = 0;
+        if (this._lowHpSmokeRoot && cc.isValid(this._lowHpSmokeRoot)) {
+            this._lowHpSmokeRoot.destroy();
+        }
+        this._lowHpSmokeRoot = null;
     };
     //执行死亡
     Tank.prototype.doDeath = function () {
+        this._stopLowHpBarEffect();
+        this._clearLowHpSmoke();
         var boom = cc.instantiate(this.boomPrefab);
         boom.parent = this.node.parent;
         boom.position = this.node.position;

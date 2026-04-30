@@ -1995,48 +1995,48 @@
     "relativePath": "script\\config\\Tank.ts"
   },
   "9eb8f898-f012-4150-bd35-1b087a918955": {
-    "asset": 1777448146721,
-    "meta": 1777448146722,
+    "asset": 1777515872964,
+    "meta": 1777515872966,
     "relativePath": "prefab\\GameMain.prefab"
-  },
-  "a390b105-7508-4780-a6f6-fbd78451b51a": {
-    "asset": 1777450025183,
-    "meta": 1777450606792,
-    "relativePath": "script\\Enemy.ts"
-  },
-  "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
-    "asset": 1777451383912,
-    "meta": 1777451451630,
-    "relativePath": "script\\TankE.ts"
   },
   "f36d749b-573e-4e8e-841e-8e150a30225a": {
     "asset": 1777452275024,
     "meta": 1777452280826,
     "relativePath": "resources\\sfx\\chargeShoot.mp3"
   },
-  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
-    "asset": 1777452731231,
-    "meta": 1777452731784,
-    "relativePath": "script\\config\\Music.ts"
-  },
   "57473783-53bb-4668-9e13-3d2242e0eae2": {
     "asset": 1777454009265,
     "meta": 1777454136593,
     "relativePath": "script\\BulletE.ts"
   },
+  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
+    "asset": 1777454961109,
+    "meta": 1777455091644,
+    "relativePath": "script\\config\\Music.ts"
+  },
+  "a390b105-7508-4780-a6f6-fbd78451b51a": {
+    "asset": 1777454918166,
+    "meta": 1777455091723,
+    "relativePath": "script\\Enemy.ts"
+  },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1777453925402,
-    "meta": 1777454136705,
+    "asset": 1777454953910,
+    "meta": 1777455091840,
     "relativePath": "script\\GameMain.ts"
   },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777453934945,
-    "meta": 1777454136858,
+    "asset": 1777454939035,
+    "meta": 1777455092057,
     "relativePath": "script\\GameMap.ts"
   },
+  "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
+    "asset": 1777454915669,
+    "meta": 1777455092291,
+    "relativePath": "script\\TankE.ts"
+  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777454472003,
-    "meta": 1777454472857,
+    "asset": 1777455940441,
+    "meta": 1777460913578,
     "relativePath": "script\\Player.ts"
   }
 }

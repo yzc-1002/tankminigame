@@ -189,6 +189,7 @@ var Enemy = /** @class */ (function (_super) {
     Enemy.prototype.update = function (dt) {
         if (this._map._pause)
             return;
+        this.updateLowHpVisual(dt);
         this._codeTime -= dt;
         if (this._target && cc.isValid(this._target)) {
             var fromPos = cc.v2(this.node.position);

@@ -38,6 +38,9 @@ var PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 var PLAYER_EXP_BASE = 30;
 var PLAYER_EXP_STEP = 15;
 var CHARGE_CANNON_BULLET_TYPE = 99;
+var LOW_HP_SCREEN_FLASH_IN = 0.2;
+var LOW_HP_SCREEN_FLASH_OUT = 0.5;
+var LOW_HP_SCREEN_FLASH_LOOP = 3;
 var Player = /** @class */ (function (_super) {
     __extends(Player, _super);
     function Player() {
@@ -69,6 +72,8 @@ var Player = /** @class */ (function (_super) {
         _this._bulletMutationData = null;
         _this._bulletMutationEffectNode = null;
         _this._moveEffectId = -1;
+        _this._lowHpHeartbeatEffectId = -1;
+        _this._lowHpScreenEffect = null;
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -104,6 +109,8 @@ var Player = /** @class */ (function (_super) {
         this._bulletMutationData = null;
         this._bulletMutationEffectNode = null;
         this._moveEffectId = -1;
+        this._lowHpHeartbeatEffectId = -1;
+        this._lowHpScreenEffect = null;
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -200,6 +207,7 @@ var Player = /** @class */ (function (_super) {
         //销毁事件
         this._destroyEvent();
         this._stopMoveEffect();
+        this._stopLowHpPlayerFeedback();
         this._hideBulletMutationEffect();
     };
     //刷新玩家位置
@@ -347,6 +355,8 @@ var Player = /** @class */ (function (_super) {
             this._bulletCodeTime += dt;
             this._updateFreeBulletRecover(dt);
             this._updateChargeCannon(dt);
+            this.updateLowHpVisual(dt);
+            this._updateLowHpPlayerFeedback();
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
             this._refreshPosition(dt);
@@ -367,6 +377,7 @@ var Player = /** @class */ (function (_super) {
             this.node.zIndex = this._map.judgezIndex(this.node.y);
         }
         else if (this._viewMode) {
+            this._stopLowHpPlayerFeedback();
             this._stopMoveEffect();
             this._dir = Utils_1.Utils.vectorsRotateDegress(this._dir, -0.5);
             this.node.angle = Utils_1.Utils.vectorsToDegress(this._dir);
@@ -374,6 +385,7 @@ var Player = /** @class */ (function (_super) {
             this.shooting(dt);
         }
         else {
+            this._stopLowHpPlayerFeedback();
             this._stopMoveEffect();
         }
     };
@@ -873,6 +885,66 @@ var Player = /** @class */ (function (_super) {
         effect.scale = 0.65;
         effect.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.18, 1.25), cc.fadeTo(0.18, 60)), cc.fadeOut(0.1), cc.removeSelf()));
     };
+    Player.prototype._updateLowHpPlayerFeedback = function () {
+        if (!this._inGame || !this.isLowHp()) {
+            this._stopLowHpPlayerFeedback();
+            return;
+        }
+        this._startLowHpScreenEffect();
+        this._startLowHpHeartbeatSound();
+    };
+    Player.prototype._startLowHpHeartbeatSound = function () {
+        if (this._lowHpHeartbeatEffectId >= 0) {
+            return;
+        }
+        this._lowHpHeartbeatEffectId = MusicManager_1.MusicManager.playLoopEffect("heartbeat");
+    };
+    Player.prototype._stopLowHpHeartbeatSound = function () {
+        if (this._lowHpHeartbeatEffectId >= 0) {
+            MusicManager_1.MusicManager.stopEffect(this._lowHpHeartbeatEffectId);
+            this._lowHpHeartbeatEffectId = -1;
+        }
+    };
+    Player.prototype._startLowHpScreenEffect = function () {
+        if (this._lowHpScreenEffect && cc.isValid(this._lowHpScreenEffect)) {
+            return;
+        }
+        var effectRoot = new cc.Node("_lowHpScreenEffect");
+        var parentNode = this._map && this._map.node && this._map.node.parent ? this._map.node.parent : this.node.parent;
+        effectRoot.parent = parentNode;
+        effectRoot.setPosition(0, 0);
+        effectRoot.zIndex = 1600;
+        this._lowHpScreenEffect = effectRoot;
+        var borderNode = new cc.Node("_lowHpBorder");
+        borderNode.parent = effectRoot;
+        borderNode.opacity = 0;
+        var createEdge = function (name, x, y, width, height) {
+            var edge = new cc.Node(name);
+            edge.parent = borderNode;
+            edge.setPosition(x, y);
+            var graphics = edge.addComponent(cc.Graphics);
+            graphics.fillColor = cc.color(255, 60, 60, 255);
+            graphics.rect(-width / 2, -height / 2, width, height);
+            graphics.fill();
+            return edge;
+        };
+        createEdge("_topEdge", 0, 351, 1280, 18);
+        createEdge("_bottomEdge", 0, -351, 1280, 18);
+        createEdge("_leftEdge", -631, 0, 18, 720);
+        createEdge("_rightEdge", 631, 0, 18, 720);
+        var idleTime = Math.max(0, LOW_HP_SCREEN_FLASH_LOOP - LOW_HP_SCREEN_FLASH_IN - LOW_HP_SCREEN_FLASH_OUT);
+        borderNode.runAction(cc.repeatForever(cc.sequence(cc.fadeTo(LOW_HP_SCREEN_FLASH_IN, 210), cc.fadeTo(LOW_HP_SCREEN_FLASH_OUT, 0), cc.delayTime(idleTime))));
+    };
+    Player.prototype._destroyLowHpScreenEffect = function () {
+        if (this._lowHpScreenEffect && cc.isValid(this._lowHpScreenEffect)) {
+            this._lowHpScreenEffect.destroy();
+        }
+        this._lowHpScreenEffect = null;
+    };
+    Player.prototype._stopLowHpPlayerFeedback = function () {
+        this._stopLowHpHeartbeatSound();
+        this._destroyLowHpScreenEffect();
+    };
     Player.prototype._updateFreeBulletRecover = function (dt) {
         if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
             this._stopFireTime = 0;
@@ -938,12 +1010,21 @@ var Player = /** @class */ (function (_super) {
     };
     //执行死亡
     Player.prototype.doDeath = function () {
+        this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
         _super.prototype.doDeath.call(this);
         yyp.eventCenter.emit("player-death", {});
         this.node.destroy();
         // 爆炸效果
         // 显示结束界面
+    };
+    Player.prototype.debugSetLowHp = function () {
+        var hp = Math.max(1, Math.floor(this._maxHp * 0.12));
+        if (hp >= this._maxHp) {
+            hp = Math.max(1, this._maxHp - 1);
+        }
+        this._hp = hp;
+        this.refreshHp();
     };
     Player.prototype.setInGame = function () {
         this._inGame = true;

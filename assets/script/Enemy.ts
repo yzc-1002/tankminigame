@@ -199,6 +199,7 @@ export class Enemy extends Tank {
         
         if (this._map._pause) return;
 
+        this.updateLowHpVisual(dt);
         this._codeTime -= dt;
         if (this._target && cc.isValid(this._target)) {
             let fromPos = cc.v2(this.node.position);

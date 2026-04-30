@@ -13,6 +13,9 @@ const PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 const PLAYER_EXP_BASE = 30;
 const PLAYER_EXP_STEP = 15;
 const CHARGE_CANNON_BULLET_TYPE = 99;
+const LOW_HP_SCREEN_FLASH_IN = 0.2;
+const LOW_HP_SCREEN_FLASH_OUT = 0.5;
+const LOW_HP_SCREEN_FLASH_LOOP = 3;
 
 @ccclass
 export class Player extends Tank {
@@ -48,6 +51,8 @@ export class Player extends Tank {
     _bulletMutationData = null;
     _bulletMutationEffectNode = null;
     _moveEffectId = -1;
+    _lowHpHeartbeatEffectId = -1;
+    _lowHpScreenEffect = null;
 
     onLoad () {
         super.onLoad();
@@ -86,6 +91,8 @@ export class Player extends Tank {
         this._bulletMutationData = null;
         this._bulletMutationEffectNode = null;
         this._moveEffectId = -1;
+        this._lowHpHeartbeatEffectId = -1;
+        this._lowHpScreenEffect = null;
     }
 
     //设置坦克类型
@@ -195,6 +202,7 @@ export class Player extends Tank {
         //销毁事件
         this._destroyEvent();
         this._stopMoveEffect();
+        this._stopLowHpPlayerFeedback();
         this._hideBulletMutationEffect();
     }
 
@@ -366,6 +374,8 @@ export class Player extends Tank {
             this._bulletCodeTime += dt;
             this._updateFreeBulletRecover(dt);
             this._updateChargeCannon(dt);
+            this.updateLowHpVisual(dt);
+            this._updateLowHpPlayerFeedback();
             
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
@@ -392,6 +402,7 @@ export class Player extends Tank {
             this.node.zIndex = this._map.judgezIndex(this.node.y);
         }
         else if(this._viewMode){
+            this._stopLowHpPlayerFeedback();
             this._stopMoveEffect();
             this._dir = Utils.vectorsRotateDegress(this._dir,-0.5);
             this.node.angle = Utils.vectorsToDegress(this._dir);
@@ -399,6 +410,7 @@ export class Player extends Tank {
             this.shooting(dt);
         }
         else{
+            this._stopLowHpPlayerFeedback();
             this._stopMoveEffect();
         }
         
@@ -1036,6 +1048,87 @@ export class Player extends Tank {
         ));
     }
 
+    _updateLowHpPlayerFeedback() {
+        if (!this._inGame || !this.isLowHp()) {
+            this._stopLowHpPlayerFeedback();
+            return;
+        }
+
+        this._startLowHpScreenEffect();
+        this._startLowHpHeartbeatSound();
+    }
+
+    _startLowHpHeartbeatSound() {
+        if (this._lowHpHeartbeatEffectId >= 0) {
+            return;
+        }
+
+        this._lowHpHeartbeatEffectId = MusicManager.playLoopEffect("heartbeat");
+    }
+
+    _stopLowHpHeartbeatSound() {
+        if (this._lowHpHeartbeatEffectId >= 0) {
+            MusicManager.stopEffect(this._lowHpHeartbeatEffectId);
+            this._lowHpHeartbeatEffectId = -1;
+        }
+    }
+
+    _startLowHpScreenEffect() {
+        if (this._lowHpScreenEffect && cc.isValid(this._lowHpScreenEffect)) {
+            return;
+        }
+
+        let effectRoot = new cc.Node("_lowHpScreenEffect");
+        let parentNode = this._map && this._map.node && this._map.node.parent ? this._map.node.parent : this.node.parent;
+        effectRoot.parent = parentNode;
+        effectRoot.setPosition(0, 0);
+        effectRoot.zIndex = 1600;
+        this._lowHpScreenEffect = effectRoot;
+
+        let borderNode = new cc.Node("_lowHpBorder");
+        borderNode.parent = effectRoot;
+        borderNode.opacity = 0;
+
+        let createEdge = function(name, x, y, width, height) {
+            let edge = new cc.Node(name);
+            edge.parent = borderNode;
+            edge.setPosition(x, y);
+            let graphics = edge.addComponent(cc.Graphics);
+            graphics.fillColor = cc.color(255, 60, 60, 255);
+            graphics.rect(-width / 2, -height / 2, width, height);
+            graphics.fill();
+            return edge;
+        };
+
+        createEdge("_topEdge", 0, 351, 1280, 18);
+        createEdge("_bottomEdge", 0, -351, 1280, 18);
+        createEdge("_leftEdge", -631, 0, 18, 720);
+        createEdge("_rightEdge", 631, 0, 18, 720);
+
+        let idleTime = Math.max(0, LOW_HP_SCREEN_FLASH_LOOP - LOW_HP_SCREEN_FLASH_IN - LOW_HP_SCREEN_FLASH_OUT);
+        borderNode.runAction(
+            cc.repeatForever(
+                cc.sequence(
+                    cc.fadeTo(LOW_HP_SCREEN_FLASH_IN, 210),
+                    cc.fadeTo(LOW_HP_SCREEN_FLASH_OUT, 0),
+                    cc.delayTime(idleTime)
+                )
+            )
+        );
+    }
+
+    _destroyLowHpScreenEffect() {
+        if (this._lowHpScreenEffect && cc.isValid(this._lowHpScreenEffect)) {
+            this._lowHpScreenEffect.destroy();
+        }
+        this._lowHpScreenEffect = null;
+    }
+
+    _stopLowHpPlayerFeedback() {
+        this._stopLowHpHeartbeatSound();
+        this._destroyLowHpScreenEffect();
+    }
+
     _updateFreeBulletRecover(dt) {
         if (this._freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
             this._stopFireTime = 0;
@@ -1112,6 +1205,7 @@ export class Player extends Tank {
     
     //执行死亡
     doDeath(){
+        this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
         super.doDeath();
         
@@ -1119,6 +1213,15 @@ export class Player extends Tank {
         this.node.destroy(); 
         // 爆炸效果
         // 显示结束界面
+    }
+
+    debugSetLowHp() {
+        let hp = Math.max(1, Math.floor(this._maxHp * 0.12));
+        if (hp >= this._maxHp) {
+            hp = Math.max(1, this._maxHp - 1);
+        }
+        this._hp = hp;
+        this.refreshHp();
     }
 
     setInGame(){
@@ -1134,4 +1237,5 @@ export class Player extends Tank {
     setViewMode(){
         this._viewMode = true;
     }
+
 }
