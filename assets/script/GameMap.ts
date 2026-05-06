@@ -10,6 +10,25 @@ import RippleShockwave from "./effect/RippleShockwave";
 //网页客服 http://web3incubators.com/kefu.html
 import {Analytics} from "./ad/Analytics";
 const {ccclass, property} = cc._decorator;
+const KILL_STREAK_WINDOW = 20;
+const KILL_BROADCAST_MAX_VISIBLE = 3;
+const KILL_BROADCAST_SLOT_HEIGHT = 64;
+const KILL_BROADCAST_DURATION = 2.2;
+const KILL_TEST_VICTIM_NAMES = ["疾风号", "黑虎机", "钢牙炮手", "赤焰战车", "重锤坦克"];
+const KILL_BADGE_FRAME_UUIDS = {
+    1: "91b6ef23-19f3-4d75-9e4c-4ee246eee6f7",
+    2: "58a666b7-ae8d-4622-82c3-03d89b76627b",
+    3: "e957568c-29a0-4e89-84d5-38cd02496537",
+    4: "eff4de59-56d1-4ded-a05b-0fbe8c81adff",
+    5: "fbdd351f-3d96-4823-9e4a-ea213085f9b7"
+};
+const KILL_BADGE_TINTS = {
+    1: [255, 255, 255],
+    2: [205, 127, 50],
+    3: [220, 232, 242],
+    4: [255, 215, 0],
+    5: [186, 102, 255]
+};
 
 //私有函数,请使用'_'开头
 //请修改'NewClass' => 自己的类名
@@ -74,6 +93,7 @@ export class GameMap extends BaseComponent {
     _pause          = false;    //是否处于暂停状态
     _gaming         = false;    //是否处于游戏中 
     _killEffectTestMode = false; //击杀效果测试模式
+    _killBroadcastTestMode = false; //击杀广播测试模式
     _playerHitTestMode = false; //受击测试模式
     _upgradeTestMode = false; //升级测试模式
     _shootEffectTestMode = false; //子弹射击测试模式
@@ -87,6 +107,14 @@ export class GameMap extends BaseComponent {
     _rippleDistortionEffect = null;
     _rippleCaptureCamera = null;
     _rippleCaptureCameraNode = null;
+    _killBroadcastLayer = null;
+    _killBroadcastEntries = [];
+    _killBadgeLayer = null;
+    _killBadgeActiveNode = null;
+    _killBadgeFrames = {};
+    _killBadgeLoading = {};
+    _killStreakCount = 0;
+    _killStreakRemain = 0;
 
     //加载完成
     onLoad () {
@@ -111,11 +139,14 @@ export class GameMap extends BaseComponent {
         //初始化tiled map 的对象(出生点)
         this._initTmBorn();
         this._preloadRippleDistortionEffect();
+        this._preloadKillBroadcastBadgeFrames();
 
     }
 
     onDestroy() {
         this._destroyRippleCaptureResources();
+        this._destroyKillBroadcastUi();
+        this._destroyKillBadgeUi();
         //销毁事件
         this._destroyEvent();
     }
@@ -333,6 +364,31 @@ export class GameMap extends BaseComponent {
         enemy.script.refreshHp();
         enemy.zIndex = this.judgezIndex(enemy.y);
         this._enemys.push(enemy);
+    }
+
+    createKillBroadcastTestEnemies() {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+
+        let count = 5;
+        let radius = 260;
+        for (let i = 0; i < count; i++) {
+            let enemy = cc.instantiate(this.enemyPrefab);
+            enemy.parent = this._fire._tmLayerObstacle;
+            let angle = Math.PI * 2 * i / count - Math.PI * 0.5;
+            let pos = cc.v2(this._player.position).add(cc.v2(Math.cos(angle) * radius, Math.sin(angle) * radius));
+            enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+            enemy.script.setMap(this);
+            enemy.script.setTarget(this._player);
+            enemy.script.setEnemyType(11, this._levelId);
+            enemy.script._hp = 1;
+            enemy.script.refreshHp();
+            enemy.script.enabled = false;
+            enemy["_killVictimName"] = KILL_TEST_VICTIM_NAMES[i] || ("敌方" + (i + 1) + "号");
+            enemy.zIndex = this.judgezIndex(enemy.y);
+            this._enemys.push(enemy);
+        }
     }
 
     //生成一个残血状态展示敌人
@@ -711,15 +767,421 @@ export class GameMap extends BaseComponent {
         ));
     }
 
+    _getScreenOverlayRoot() {
+        let parentNode = this.node.parent;
+        if (parentNode && cc.isValid(parentNode)) {
+            return parentNode;
+        }
+        return Utils.getCurrentSceneCanvas();
+    }
+
+    _ensureKillBroadcastLayer() {
+        if (this._killBroadcastLayer && cc.isValid(this._killBroadcastLayer)) {
+            return this._killBroadcastLayer;
+        }
+
+        let root = this._getScreenOverlayRoot();
+        if (!root || !cc.isValid(root)) {
+            return null;
+        }
+
+        let layer = new cc.Node("_killBroadcastLayer");
+        layer.parent = root;
+        layer.setContentSize(this._getViewportSize());
+        layer.setPosition(0, 0);
+        layer.zIndex = 1850;
+        this._killBroadcastLayer = layer;
+        return layer;
+    }
+
+    _ensureKillBadgeLayer() {
+        if (this._killBadgeLayer && cc.isValid(this._killBadgeLayer)) {
+            return this._killBadgeLayer;
+        }
+
+        let root = this._getScreenOverlayRoot();
+        if (!root || !cc.isValid(root)) {
+            return null;
+        }
+
+        let layer = new cc.Node("_killBadgeLayer");
+        layer.parent = root;
+        layer.setContentSize(this._getViewportSize());
+        layer.setPosition(0, 0);
+        layer.zIndex = 1860;
+        this._killBadgeLayer = layer;
+        return layer;
+    }
+
+    _destroyKillBroadcastUi() {
+        this._killBroadcastEntries = [];
+        if (this._killBroadcastLayer && cc.isValid(this._killBroadcastLayer)) {
+            this._killBroadcastLayer.destroy();
+        }
+        this._killBroadcastLayer = null;
+    }
+
+    _destroyKillBadgeUi() {
+        if (this._killBadgeLayer && cc.isValid(this._killBadgeLayer)) {
+            this._killBadgeLayer.destroy();
+        }
+        this._killBadgeLayer = null;
+        this._killBadgeActiveNode = null;
+    }
+
+    _resetKillBroadcastRuntime() {
+        this._killStreakCount = 0;
+        this._killStreakRemain = 0;
+        this._destroyKillBroadcastUi();
+        this._destroyKillBadgeUi();
+    }
+
+    _preloadKillBroadcastBadgeFrames() {
+        for (let i = 1; i <= 5; i++) {
+            this._loadKillBadgeFrame(i);
+        }
+    }
+
+    _loadKillBadgeFrame(streak, callback = null) {
+        let uuid = KILL_BADGE_FRAME_UUIDS[streak];
+        if (!uuid || !cc.assetManager || !cc.assetManager.loadAny) {
+            if (callback) {
+                callback(null);
+            }
+            return;
+        }
+
+        if (this._killBadgeFrames[streak]) {
+            if (callback) {
+                callback(this._killBadgeFrames[streak]);
+            }
+            return;
+        }
+
+        if (this._killBadgeLoading[streak]) {
+            if (callback) {
+                this._killBadgeLoading[streak].push(callback);
+            }
+            return;
+        }
+
+        this._killBadgeLoading[streak] = callback ? [callback] : [];
+        cc.assetManager.loadAny({uuid: uuid}, (err, asset) => {
+            let spriteFrame = null;
+            if (!err && asset) {
+                spriteFrame = asset instanceof cc.SpriteFrame ? asset : asset;
+                this._killBadgeFrames[streak] = spriteFrame;
+            }
+            let callbacks = this._killBadgeLoading[streak] || [];
+            delete this._killBadgeLoading[streak];
+            for (let i = 0; i < callbacks.length; i++) {
+                callbacks[i](spriteFrame);
+            }
+        });
+    }
+
+    _getKillBadgeColor(streak) {
+        let color = KILL_BADGE_TINTS[streak] || KILL_BADGE_TINTS[1];
+        return cc.color(color[0], color[1], color[2], 255);
+    }
+
+    _createKillBroadcastEntry(text) {
+        let layer = this._ensureKillBroadcastLayer();
+        if (!layer) {
+            return null;
+        }
+
+        let entry = new cc.Node("_killBroadcastEntry");
+        entry.parent = layer;
+        entry.setContentSize(438, 56);
+        entry.opacity = 0;
+        entry["_expireAt"] = Date.now() + Math.floor(KILL_BROADCAST_DURATION * 1000);
+        entry["_isExiting"] = false;
+
+        let bg = entry.addComponent(cc.Graphics);
+        bg.fillColor = cc.color(16, 20, 28, 220);
+        bg.roundRect(-219, -28, 438, 56, 16);
+        bg.fill();
+        bg.strokeColor = cc.color(255, 186, 82, 220);
+        bg.lineWidth = 2;
+        bg.roundRect(-219, -28, 438, 56, 16);
+        bg.stroke();
+
+        let tagNode = new cc.Node("_lbBroadcastTag");
+        tagNode.parent = entry;
+        tagNode.setContentSize(100, 40);
+        tagNode.setPosition(-160, 0);
+        let tagLabel = tagNode.addComponent(cc.Label);
+        tagLabel.string = "房间广播";
+        tagLabel.fontSize = 22;
+        tagLabel.lineHeight = 26;
+        tagLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        tagLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        tagNode.color = cc.color(255, 214, 122, 255);
+
+        let split = new cc.Node("_broadcastSplit");
+        split.parent = entry;
+        split.setPosition(-98, 0);
+        let splitGraphics = split.addComponent(cc.Graphics);
+        splitGraphics.lineWidth = 2;
+        splitGraphics.strokeColor = cc.color(255, 255, 255, 60);
+        splitGraphics.moveTo(0, -16);
+        splitGraphics.lineTo(0, 16);
+        splitGraphics.stroke();
+
+        let labelNode = new cc.Node("_lbBroadcastText");
+        labelNode.parent = entry;
+        labelNode.setContentSize(236, 40);
+        labelNode.setPosition(64, 0);
+        let label = labelNode.addComponent(cc.Label);
+        label.string = text;
+        label.fontSize = 24;
+        label.lineHeight = 28;
+        label.horizontalAlign = cc.Label.HorizontalAlign.LEFT;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        labelNode.color = cc.color(255, 255, 255, 255);
+        return entry;
+    }
+
+    _layoutKillBroadcastEntries(fast = false, newEntry = null) {
+        let layer = this._ensureKillBroadcastLayer();
+        if (!layer) {
+            return;
+        }
+
+        let size = this._getViewportSize();
+        layer.setContentSize(size);
+        let topY = Math.min(size.height / 2 - 120, (yyp.safeTopBottom || size.height / 2) - 96);
+        let rightX = size.width / 2 - 246;
+        let duration = fast ? 0.12 : 0.2;
+
+        for (let i = 0; i < this._killBroadcastEntries.length; i++) {
+            let entry = this._killBroadcastEntries[i];
+            if (!cc.isValid(entry)) {
+                continue;
+            }
+            let slot = this._killBroadcastEntries.length - 1 - i;
+            let targetX = rightX;
+            let targetY = topY - slot * KILL_BROADCAST_SLOT_HEIGHT;
+            entry.stopAllActions();
+            if (entry == newEntry) {
+                entry.setPosition(targetX + 24, targetY - 18);
+                entry.runAction(cc.spawn(
+                    cc.moveTo(duration, targetX, targetY),
+                    cc.fadeTo(duration, 255)
+                ));
+            }
+            else{
+                entry.runAction(cc.spawn(
+                    cc.moveTo(duration, targetX, targetY),
+                    cc.fadeTo(duration, 255)
+                ));
+            }
+        }
+    }
+
+    _removeKillBroadcastEntry(entry, fast = false) {
+        if (!entry || !cc.isValid(entry) || entry["_isExiting"]) {
+            return;
+        }
+
+        entry["_isExiting"] = true;
+        let index = this._killBroadcastEntries.indexOf(entry);
+        if (index >= 0) {
+            this._killBroadcastEntries.splice(index, 1);
+        }
+
+        let duration = fast ? 0.12 : 0.18;
+        entry.stopAllActions();
+        entry.runAction(cc.sequence(
+            cc.spawn(
+                cc.moveBy(duration, 28, 18),
+                cc.fadeOut(duration)
+            ),
+            cc.removeSelf()
+        ));
+        this._layoutKillBroadcastEntries(true);
+    }
+
+    _pushKillBroadcast(text) {
+        let entry = this._createKillBroadcastEntry(text);
+        if (!entry) {
+            return;
+        }
+
+        let fastExpireAt = Date.now() + 900;
+        for (let i = 0; i < this._killBroadcastEntries.length; i++) {
+            let oldEntry = this._killBroadcastEntries[i];
+            if (oldEntry && cc.isValid(oldEntry) && !oldEntry["_isExiting"]) {
+                oldEntry["_expireAt"] = Math.min(oldEntry["_expireAt"], fastExpireAt);
+            }
+        }
+
+        this._killBroadcastEntries.push(entry);
+        while (this._killBroadcastEntries.length > KILL_BROADCAST_MAX_VISIBLE) {
+            let removed = this._killBroadcastEntries.shift();
+            this._removeKillBroadcastEntry(removed, true);
+        }
+        this._layoutKillBroadcastEntries(true, entry);
+    }
+
+    _updateKillBroadcastEntries() {
+        if (this._killBroadcastEntries.length <= 0) {
+            return;
+        }
+
+        let now = Date.now();
+        let entries = this._killBroadcastEntries.slice();
+        for (let i = 0; i < entries.length; i++) {
+            let entry = entries[i];
+            if (!cc.isValid(entry)) {
+                let index = this._killBroadcastEntries.indexOf(entry);
+                if (index >= 0) {
+                    this._killBroadcastEntries.splice(index, 1);
+                }
+                continue;
+            }
+            if (!entry["_isExiting"] && now >= entry["_expireAt"]) {
+                this._removeKillBroadcastEntry(entry, false);
+            }
+        }
+    }
+
+    _spawnKillBadgeLightning(parentNode, color) {
+        for (let i = 0; i < 3; i++) {
+            let lightning = new cc.Node("_killBadgeLightning" + i);
+            lightning.parent = parentNode;
+            lightning.setPosition(-80 + i * 80, 10 + Math.random() * 26);
+            lightning.angle = -10 + Math.random() * 20;
+            lightning.opacity = 0;
+            let graphics = lightning.addComponent(cc.Graphics);
+            graphics.lineWidth = 6;
+            graphics.strokeColor = cc.color(color.r, color.g, color.b, 235);
+            graphics.moveTo(-8, 42);
+            graphics.lineTo(12, 10);
+            graphics.lineTo(-2, 10);
+            graphics.lineTo(14, -30);
+            graphics.stroke();
+            lightning.runAction(cc.sequence(
+                cc.fadeTo(0.04, 255),
+                cc.delayTime(0.08 + i * 0.03),
+                cc.fadeOut(0.12)
+            ));
+        }
+    }
+
+    _showKillBadgeStamp(streak) {
+        let layer = this._ensureKillBadgeLayer();
+        if (!layer) {
+            return;
+        }
+
+        if (this._killBadgeActiveNode && cc.isValid(this._killBadgeActiveNode)) {
+            this._killBadgeActiveNode.stopAllActions();
+            this._killBadgeActiveNode.runAction(cc.sequence(
+                cc.spawn(
+                    cc.scaleTo(0.08, 1.1),
+                    cc.fadeOut(0.08)
+                ),
+                cc.removeSelf()
+            ));
+        }
+
+        let badge = new cc.Node("_killBadgeStamp");
+        badge.parent = layer;
+        badge.setPosition(0, 12);
+        badge.zIndex = 1;
+        badge.opacity = 0;
+        badge.scale = 1.42;
+        badge.angle = -12;
+        this._killBadgeActiveNode = badge;
+
+        let color = this._getKillBadgeColor(streak);
+
+        let glow = new cc.Node("_killBadgeGlow");
+        glow.parent = badge;
+        glow.opacity = 180;
+        glow.scale = 0.8;
+        let glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(color.r, color.g, color.b, streak >= 5 ? 88 : 56);
+        glowGraphics.circle(0, 0, 128);
+        glowGraphics.fill();
+        glowGraphics.strokeColor = cc.color(255, 255, 255, 145);
+        glowGraphics.lineWidth = 6;
+        glowGraphics.circle(0, 0, 114);
+        glowGraphics.stroke();
+
+        let flash = new cc.Node("_killBadgeFlash");
+        flash.parent = badge;
+        flash.opacity = 180;
+        let flashGraphics = flash.addComponent(cc.Graphics);
+        flashGraphics.fillColor = cc.color(255, 255, 255, 95);
+        flashGraphics.rect(-150, -12, 300, 24);
+        flashGraphics.rect(-12, -120, 24, 240);
+        flashGraphics.fill();
+
+        let spriteNode = new cc.Node("_killBadgeSprite");
+        spriteNode.parent = badge;
+        spriteNode.setContentSize(360, 240);
+        let sprite = spriteNode.addComponent(cc.Sprite);
+        sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+        spriteNode.color = color;
+
+        if (streak >= 5) {
+            this._spawnKillBadgeLightning(badge, color);
+        }
+
+        this._loadKillBadgeFrame(streak, (spriteFrame) => {
+            if (sprite && cc.isValid(sprite) && spriteFrame) {
+                sprite.spriteFrame = spriteFrame;
+            }
+        });
+
+        badge.runAction(cc.sequence(
+            cc.spawn(
+                cc.fadeTo(0.08, 255),
+                cc.scaleTo(0.08, 0.92),
+                cc.rotateTo(0.08, -2)
+            ),
+            cc.spawn(
+                cc.scaleTo(0.14, 1.03),
+                cc.rotateTo(0.14, 0)
+            ),
+            cc.delayTime(0.52),
+            cc.spawn(
+                cc.fadeOut(0.24),
+                cc.scaleTo(0.24, 1.12)
+            ),
+            cc.callFunc(() => {
+                if (this._killBadgeActiveNode == badge) {
+                    this._killBadgeActiveNode = null;
+                }
+            }),
+            cc.removeSelf()
+        ));
+    }
+
+    _recordKillStreak() {
+        if (this._killStreakRemain > 0) {
+            this._killStreakCount += 1;
+        }
+        else{
+            this._killStreakCount = 1;
+        }
+        this._killStreakCount = Math.min(5, this._killStreakCount);
+        this._killStreakRemain = KILL_STREAK_WINDOW;
+        return this._killStreakCount;
+    }
+
     //生成一个敌人
     deleteEnemy(delEnemy) {
         for (let i = 0; i < this._enemys.length; i++) {
             let enemy = this._enemys[i];
             if (enemy == delEnemy) {
-                if (this._killEffectTestMode) {
+                if (this._killEffectTestMode || this._killBroadcastTestMode) {
                     this._deathEnemyCount +=1;
                     this._enemys.splice(i,1);
-                    yyp.eventCenter.emit("current-enemycount",{enemycount:0});
+                    yyp.eventCenter.emit("current-enemycount",{enemycount:Math.max(0, this._maxEnemyCount - this._deathEnemyCount)});
                     break;
                 }
 
@@ -1116,6 +1578,15 @@ export class GameMap extends BaseComponent {
     //每帧调用
     update(dt) {
         if (this._pause) return;
+
+        this._updateKillBroadcastEntries();
+        if (this._killStreakRemain > 0) {
+            this._killStreakRemain -= dt;
+            if (this._killStreakRemain <= 0) {
+                this._killStreakRemain = 0;
+                this._killStreakCount = 0;
+            }
+        }
         
         if (this._gaming) {
             this._bornCdTime += dt;
@@ -1363,7 +1834,9 @@ export class GameMap extends BaseComponent {
         //获取关卡数据
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
         this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
         this._maxEnemyCount = this._levelConfig.EnemyCount * this._levelId;
         this._timeMaxEnemyCount = this._levelConfig.Max + Math.floor(this._levelId/5);
@@ -1388,7 +1861,9 @@ export class GameMap extends BaseComponent {
     startKillEffectTestGame(func){
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
         this._killEffectTestMode = true;
+        this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = false;
@@ -1414,10 +1889,43 @@ export class GameMap extends BaseComponent {
         ));
     }
 
+    startKillBroadcastTestGame(func){
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = true;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._maxEnemyCount = 5;
+        this._timeMaxEnemyCount = 5;
+        this._bornEnemyCount = 5;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
+        yyp.eventCenter.emit("current-enemycount",{enemycount:5});
+
+        this._roamFlg = false;
+        let will = this._correctMapPosition(cc.v2(-this._playerBornPos.x,-this._playerBornPos.y));
+        let self = this;
+        this.node.runAction(cc.sequence(
+            cc.moveTo(0.2,will),
+            cc.callFunc(function(){
+                self.createPlayer();
+                self.createKillBroadcastTestEnemies();
+                self._gaming = true;
+                func();
+            })
+        ));
+    }
+
     startPlayerHitTestGame(func){
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
         this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
         this._playerHitTestMode = true;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = false;
@@ -1446,7 +1954,9 @@ export class GameMap extends BaseComponent {
     startUpgradeTestGame(func){
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
         this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
         this._upgradeTestMode = true;
         this._shootEffectTestMode = false;
@@ -1474,7 +1984,9 @@ export class GameMap extends BaseComponent {
     startShootEffectTestGame(func){
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
         this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = true;
@@ -1501,7 +2013,7 @@ export class GameMap extends BaseComponent {
     }
 
     isTestMode() {
-        return this._killEffectTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode;
+        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode;
     }
 
     isShootEffectTestMode() {
@@ -1510,6 +2022,10 @@ export class GameMap extends BaseComponent {
 
     isKillEffectTestMode() {
         return this._killEffectTestMode;
+    }
+
+    isKillBroadcastTestMode() {
+        return this._killBroadcastTestMode;
     }
 
     handleKillEffectTestEnemyDeath(enemyNode) {
@@ -1541,6 +2057,42 @@ export class GameMap extends BaseComponent {
                     self._player.script._spawnDeathAftermathAt(deathPos, self._fire._tmLayerObstacle);
                 }
                 self._dropTestEnergy(deathPos);
+                if (cc.isValid(enemyNode)) {
+                    enemyNode.destroy();
+                }
+            })
+        ));
+    }
+
+    handleKillBroadcastTestEnemyDeath(enemyNode) {
+        if (!enemyNode || !cc.isValid(enemyNode)) {
+            return;
+        }
+
+        let deathPos = cc.v2(enemyNode.position);
+        let victimName = enemyNode["_killVictimName"] || "敌方坦克";
+        let streak = this._recordKillStreak();
+        this.deleteEnemy(enemyNode);
+        if (enemyNode.script) {
+            enemyNode.script.enabled = false;
+        }
+        enemyNode.stopAllActions();
+        this._showKillSkull(deathPos);
+        this._pushKillBroadcast("我击杀了" + victimName);
+        this._showKillBadgeStamp(streak);
+        if (streak >= 5) {
+            this._showPlayerBubble("我在carry");
+        }
+
+        let self = this;
+        this.node.runAction(cc.sequence(
+            cc.delayTime(0.15),
+            cc.callFunc(function(){
+                self.playKillExplosionEffectAt(deathPos);
+                if (self._player && cc.isValid(self._player) && self._player.script
+                    && self._player.script._spawnDeathAftermathAt) {
+                    self._player.script._spawnDeathAftermathAt(deathPos, self._fire._tmLayerObstacle);
+                }
                 if (cc.isValid(enemyNode)) {
                     enemyNode.destroy();
                 }
@@ -1680,9 +2232,11 @@ export class GameMap extends BaseComponent {
         this._gaming = false;
         this._pause = false;
         this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = false;
+        this._resetKillBroadcastRuntime();
         if (this._player && cc.isValid(this._player)){
             this._player.destroy();
             this._player = null;

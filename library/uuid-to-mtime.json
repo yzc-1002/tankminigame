@@ -1885,8 +1885,8 @@
     "relativePath": "scene\\StartScene.fire"
   },
   "2d2f792f-a40c-49bb-a189-ed176a246e49": {
-    "asset": 1777542994092,
-    "meta": 1777542994096,
+    "asset": 1777544075953,
+    "meta": 1777544075957,
     "relativePath": "scene\\GameScene.fire"
   },
   "5806deda-365d-4894-85af-1b8fa8c177d4": {
@@ -2014,20 +2014,10 @@
     "meta": 1777455091644,
     "relativePath": "script\\config\\Music.ts"
   },
-  "a390b105-7508-4780-a6f6-fbd78451b51a": {
-    "asset": 1777454918166,
-    "meta": 1777455091723,
-    "relativePath": "script\\Enemy.ts"
-  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
     "asset": 1777535593872,
     "meta": 1777535625980,
     "relativePath": "script\\Player.ts"
-  },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1777538626821,
-    "meta": 1777538811899,
-    "relativePath": "script\\GameMain.ts"
   },
   "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
     "asset": 1777538639817,
@@ -2044,14 +2034,49 @@
     "meta": 1777540847188,
     "relativePath": "script\\effect"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777542881210,
-    "meta": 1777542977536,
-    "relativePath": "script\\GameMap.ts"
-  },
   "bb6fc9c9-fd97-4e90-b469-1dc1740705fd": {
-    "asset": 1777543172786,
-    "meta": 1777543173949,
+    "asset": 1777543197699,
+    "meta": 1777544052314,
     "relativePath": "script\\effect\\RippleShockwave.ts"
+  },
+  "d90792c1-f611-4e84-927b-6b81669153e3": {
+    "asset": 1777544069734,
+    "meta": 1777544069793,
+    "relativePath": "texture\\shoot1.png"
+  },
+  "6a9f5a9c-572f-4338-aac7-133ea2322b22": {
+    "asset": 1777544069734,
+    "meta": 1777544069795,
+    "relativePath": "texture\\shoot4.png"
+  },
+  "dc69e29b-ed5a-4cb3-93eb-43dc622b00f8": {
+    "asset": 1777544069734,
+    "meta": 1777544069821,
+    "relativePath": "texture\\shoot2.png"
+  },
+  "d2c9326a-b624-4d10-b6b9-901363d964c2": {
+    "asset": 1777544069734,
+    "meta": 1777544069824,
+    "relativePath": "texture\\shoot5.png"
+  },
+  "e51de72a-250f-4005-855b-002757ccaf6b": {
+    "asset": 1777544069738,
+    "meta": 1777544069848,
+    "relativePath": "texture\\shoot3.png"
+  },
+  "a390b105-7508-4780-a6f6-fbd78451b51a": {
+    "asset": 1777544398428,
+    "meta": 1777547495744,
+    "relativePath": "script\\Enemy.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1777544263724,
+    "meta": 1777547495842,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1777544427199,
+    "meta": 1777547496093,
+    "relativePath": "script\\GameMap.ts"
   }
 }

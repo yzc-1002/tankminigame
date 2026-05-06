@@ -350,6 +350,10 @@ var Enemy = /** @class */ (function (_super) {
             this._map.handleKillEffectTestEnemyDeath(this.node);
             return;
         }
+        if (this._map && this._map.isKillBroadcastTestMode && this._map.isKillBroadcastTestMode()) {
+            this._map.handleKillBroadcastTestEnemyDeath(this.node);
+            return;
+        }
         _super.prototype.doDeath.call(this);
         yyp.eventCenter.emit('add-coin', { count: this._config.Coin, position: Utils_1.Utils.getWorldPosition(this.node) });
         this._map.deleteEnemy(this.node);

@@ -278,15 +278,15 @@ var GameMain = /** @class */ (function (_super) {
         mask.on(cc.Node.EventType.TOUCH_END, this._hideTestPanel, this);
         var dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(520, 560);
+        dialog.setContentSize(520, 590);
         dialog.zIndex = 1;
         var dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-260, -280, 520, 560, 18);
+        dialogGraphics.roundRect(-260, -295, 520, 590, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-260, -280, 520, 560, 18);
+        dialogGraphics.roundRect(-260, -295, 520, 590, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function (event) {
             if (event && event.stopPropagation) {
@@ -301,8 +301,9 @@ var GameMain = /** @class */ (function (_super) {
         this._createTestButton(dialog, "_btnMutationTest", "子弹质变测试", cc.v2(112, 34), cc.color(255, 120, 210, 255), this._onBulletMutationTestClick, 208, 54, 24);
         this._createTestButton(dialog, "_btnShootEffectTest", "子弹射击测试", cc.v2(-112, -32), cc.color(255, 205, 90, 255), this._onShootEffectTestClick, 208, 54, 24);
         this._createTestButton(dialog, "_btnPlayerLowHpTest", "自己血量告急", cc.v2(112, -32), cc.color(255, 110, 110, 255), this._onPlayerLowHpTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnEnemyLowHpTest", "敌人血量告急", cc.v2(0, -98), cc.color(255, 165, 70, 255), this._onEnemyLowHpTestClick, 220, 54, 24);
-        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -184), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
+        this._createTestButton(dialog, "_btnEnemyLowHpTest", "敌人血量告急", cc.v2(-112, -98), cc.color(255, 165, 70, 255), this._onEnemyLowHpTestClick, 208, 54, 24);
+        this._createTestButton(dialog, "_btnKillBroadcastTest", "击杀广播", cc.v2(112, -98), cc.color(175, 120, 255, 255), this._onKillBroadcastTestClick, 208, 54, 24);
+        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -212), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
     };
     GameMain.prototype._createTestLabel = function (parent, name, text, pos, fontSize, color) {
         var labelNode = new cc.Node(name);
@@ -390,6 +391,12 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._startTestGame("enemyLowHp");
     };
+    GameMain.prototype._onKillBroadcastTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("killBroadcast");
+    };
     GameMain.prototype._startTestGame = function (type) {
         MusicManager_1.MusicManager.playEffect("btn");
         this._hideTestPanel();
@@ -435,6 +442,11 @@ var GameMain = /** @class */ (function (_super) {
                 if (self._fire._tiled && self._fire._tiled.script && self._fire._tiled.script.createLowHpTestEnemy) {
                     self._fire._tiled.script.createLowHpTestEnemy();
                 }
+            });
+        }
+        else if (type == "killBroadcast") {
+            this._fire._tiled.script.startKillBroadcastTestGame(function () {
+                complete();
             });
         }
         else {

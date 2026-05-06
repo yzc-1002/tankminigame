@@ -409,6 +409,10 @@ export class Enemy extends Tank {
             this._map.handleKillEffectTestEnemyDeath(this.node);
             return;
         }
+        if (this._map && this._map.isKillBroadcastTestMode && this._map.isKillBroadcastTestMode()) {
+            this._map.handleKillBroadcastTestEnemyDeath(this.node);
+            return;
+        }
 
         super.doDeath();
         
