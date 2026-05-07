@@ -81,6 +81,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._tmGroup = null; //普通层
         _this._tmObj = null; //对象层(障碍物)
         _this._tmBorn = null; //对象层(出生点)
+        _this._tmDecal = null; //地表贴花层(地图与坦克之间)
         _this._tmSize = null; //地图尺寸
         _this._tileSize = null; //瓦片尺寸
         _this._colliders = []; //碰撞检测列表
@@ -165,9 +166,24 @@ var GameMap = /** @class */ (function (_super) {
         // this._fire._tmLayerGroup.active = false;
         this._tmObj = this._fire._tmLayerObstacle.$TiledObjectGroup;
         this._tmBorn = this._fire._tmLayerBorn.$TiledObjectGroup;
+        this._tmDecal = this._ensureDecalLayer();
         this._tmSize = this.node.getContentSize();
         // this._tmSize = new cc.Size(this._tiledMap.getMapSize().width * this._tiledMap.getTileSize().width, this._tiledMap.getMapSize().height * this._tiledMap.getTileSize().height);
         this._tileSize = this._tiledMap.getTileSize();
+    };
+    GameMap.prototype._ensureDecalLayer = function () {
+        if (this._fire._tmLayerDecal && cc.isValid(this._fire._tmLayerDecal)) {
+            return this._fire._tmLayerDecal;
+        }
+        var layer = new cc.Node("_tmLayerDecal");
+        layer.parent = this.node;
+        layer.setContentSize(this.node.getContentSize());
+        layer.setAnchorPoint(0.5, 0.5);
+        layer.setPosition(0, 0);
+        var obstacleIndex = this._fire._tmLayerObstacle ? this._fire._tmLayerObstacle.getSiblingIndex() : this.node.childrenCount;
+        layer.setSiblingIndex(Math.max(0, obstacleIndex));
+        this._fire._tmLayerDecal = layer;
+        return layer;
     };
     //初始化事件
     GameMap.prototype._initEvent = function () {
@@ -1778,7 +1794,7 @@ var GameMap = /** @class */ (function (_super) {
     };
     GameMap.prototype.spawnOilSpill = function (pos, options) {
         if (options === void 0) { options = {}; }
-        if (!this._fire._tmLayerObstacle) {
+        if (!this._tmDecal || !cc.isValid(this._tmDecal)) {
             return null;
         }
         var spillPos = this.clampMapInnerPosition(cc.v2(pos), 68);
@@ -1786,7 +1802,7 @@ var GameMap = /** @class */ (function (_super) {
         var duration = options.duration || OIL_SPILL_DURATION;
         var slowFactor = options.slowFactor || OIL_SPILL_SLOW_FACTOR;
         var root = new cc.Node("_oilSpill");
-        root.parent = this._fire._tmLayerObstacle;
+        root.parent = this._tmDecal;
         root.setPosition(cc.v3(spillPos));
         root.zIndex = this.judgezIndex(spillPos.y) - 2;
         var spriteNode = new cc.Node("_oilSpillSprite");
@@ -2502,6 +2518,15 @@ var GameMap = /** @class */ (function (_super) {
         this._clearRuntimeMapNodes();
     };
     GameMap.prototype._clearRuntimeMapNodes = function () {
+        if (this._tmDecal && cc.isValid(this._tmDecal)) {
+            var decalChildren = this._tmDecal.children.slice();
+            for (var i = 0; i < decalChildren.length; i++) {
+                var child = decalChildren[i];
+                if (cc.isValid(child)) {
+                    child.destroy();
+                }
+            }
+        }
         var runtimeNames = {
             "Player": true,
             "Enemy": true,

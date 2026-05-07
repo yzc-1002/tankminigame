@@ -555,8 +555,8 @@
     "relativePath": "prefab\\GameMap.prefab"
   },
   "099f4dde-58f4-4a3e-b662-48642286555d": {
-    "asset": 1778139080861,
-    "meta": 1778139080863,
+    "asset": 1778140610919,
+    "meta": 1778140610920,
     "relativePath": "prefab\\JoyStick.prefab"
   },
   "7aefe2c8-be5c-46a7-a3d9-dae9628bdd2b": {
@@ -2069,11 +2069,6 @@
     "meta": 1778140066142,
     "relativePath": "script\\GameMain.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778139681016,
-    "meta": 1778140066445,
-    "relativePath": "script\\GameMap.ts"
-  },
   "bc87592d-3055-4635-bb55-a57728de0328": {
     "asset": 1778139877242,
     "meta": 1778140066535,
@@ -2093,5 +2088,10 @@
     "asset": 1778140158205,
     "meta": 1778140234304,
     "relativePath": "script\\BulletE.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778141216600,
+    "meta": 1778141299818,
+    "relativePath": "script\\GameMap.ts"
   }
 }

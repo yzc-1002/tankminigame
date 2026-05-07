@@ -75,6 +75,7 @@ export class GameMap extends BaseComponent {
     _tmGroup    = null;     //普通层
     _tmObj      = null;     //对象层(障碍物)
     _tmBorn     = null;     //对象层(出生点)
+    _tmDecal    = null;     //地表贴花层(地图与坦克之间)
     _tmSize     = null;     //地图尺寸
     _tileSize   = null;     //瓦片尺寸
 
@@ -172,9 +173,27 @@ export class GameMap extends BaseComponent {
         // this._fire._tmLayerGroup.active = false;
         this._tmObj = this._fire._tmLayerObstacle.$TiledObjectGroup;
         this._tmBorn = this._fire._tmLayerBorn.$TiledObjectGroup;
+        this._tmDecal = this._ensureDecalLayer();
         this._tmSize = this.node.getContentSize();
         // this._tmSize = new cc.Size(this._tiledMap.getMapSize().width * this._tiledMap.getTileSize().width, this._tiledMap.getMapSize().height * this._tiledMap.getTileSize().height);
         this._tileSize = this._tiledMap.getTileSize();
+    }
+
+    _ensureDecalLayer() {
+        if (this._fire._tmLayerDecal && cc.isValid(this._fire._tmLayerDecal)) {
+            return this._fire._tmLayerDecal;
+        }
+
+        let layer = new cc.Node("_tmLayerDecal");
+        layer.parent = this.node;
+        layer.setContentSize(this.node.getContentSize());
+        layer.setAnchorPoint(0.5, 0.5);
+        layer.setPosition(0, 0);
+
+        let obstacleIndex = this._fire._tmLayerObstacle ? this._fire._tmLayerObstacle.getSiblingIndex() : this.node.childrenCount;
+        layer.setSiblingIndex(Math.max(0, obstacleIndex));
+        this._fire._tmLayerDecal = layer;
+        return layer;
     }
 
     //初始化事件
@@ -2125,7 +2144,7 @@ export class GameMap extends BaseComponent {
     }
 
     spawnOilSpill(pos, options: any = {}) {
-        if (!this._fire._tmLayerObstacle) {
+        if (!this._tmDecal || !cc.isValid(this._tmDecal)) {
             return null;
         }
 
@@ -2135,7 +2154,7 @@ export class GameMap extends BaseComponent {
         let slowFactor = options.slowFactor || OIL_SPILL_SLOW_FACTOR;
 
         let root = new cc.Node("_oilSpill");
-        root.parent = this._fire._tmLayerObstacle;
+        root.parent = this._tmDecal;
         root.setPosition(cc.v3(spillPos));
         root.zIndex = this.judgezIndex(spillPos.y) - 2;
 
@@ -3005,6 +3024,16 @@ export class GameMap extends BaseComponent {
     }
 
     _clearRuntimeMapNodes(){
+        if (this._tmDecal && cc.isValid(this._tmDecal)) {
+            let decalChildren = this._tmDecal.children.slice();
+            for (let i = 0; i < decalChildren.length; i++) {
+                let child = decalChildren[i];
+                if (cc.isValid(child)) {
+                    child.destroy();
+                }
+            }
+        }
+
         let runtimeNames = {
             "Player": true,
             "Enemy": true,
