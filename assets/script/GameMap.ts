@@ -4,6 +4,7 @@ import {LocalizedData} from "./base/LocalizedData";
 import {EnergyItem} from "./EnergyItem";
 import { MusicManager } from "./base/MusicManager";
 import RippleShockwave from "./effect/RippleShockwave";
+import {OilPickup} from "./OilPickup";
 //电子邮件puhalskijsemen@gmail.com
 //源码网站 开vpn全局模式打开 http://web3incubators.com/
 //电报https://t.me/gamecode999
@@ -14,6 +15,10 @@ const KILL_STREAK_WINDOW = 20;
 const KILL_BROADCAST_MAX_VISIBLE = 3;
 const KILL_BROADCAST_SLOT_HEIGHT = 64;
 const KILL_BROADCAST_DURATION = 2.2;
+const OIL_SPILL_DURATION = 10;
+const OIL_SPILL_RADIUS = 120;
+const OIL_SPILL_SLOW_FACTOR = 0.52;
+const OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
 const KILL_TEST_VICTIM_NAMES = ["疾风号", "黑虎机", "钢牙炮手", "赤焰战车", "重锤坦克"];
 const KILL_BADGE_FRAME_UUIDS = {
     1: "91b6ef23-19f3-4d75-9e4c-4ee246eee6f7",
@@ -119,6 +124,10 @@ export class GameMap extends BaseComponent {
     _killStreakRemain = 0;
     _portalPairs = [];
     _centrifugalRingData = null;
+    _oilSpills = [];
+    _oilSpillFrame = null;
+    _oilSpillFrameLoading = false;
+    _oilSpillFrameCallbacks = [];
 
     //加载完成
     onLoad () {
@@ -144,6 +153,7 @@ export class GameMap extends BaseComponent {
         this._initTmBorn();
         this._preloadRippleDistortionEffect();
         this._preloadKillBroadcastBadgeFrames();
+        this._preloadOilSpillFrame();
 
     }
 
@@ -1262,6 +1272,42 @@ export class GameMap extends BaseComponent {
         });
     }
 
+    _preloadOilSpillFrame() {
+        if (!OIL_SPILL_FRAME_UUID || !cc.assetManager || !cc.assetManager.loadAny) {
+            return;
+        }
+        this._loadOilSpillFrame();
+    }
+
+    _loadOilSpillFrame(callback = null) {
+        if (this._oilSpillFrame) {
+            if (callback) {
+                callback(this._oilSpillFrame);
+            }
+            return;
+        }
+
+        if (callback) {
+            this._oilSpillFrameCallbacks.push(callback);
+        }
+        if (this._oilSpillFrameLoading) {
+            return;
+        }
+
+        this._oilSpillFrameLoading = true;
+        cc.assetManager.loadAny({uuid: OIL_SPILL_FRAME_UUID}, (err, asset) => {
+            this._oilSpillFrameLoading = false;
+            if (!err && asset) {
+                this._oilSpillFrame = asset instanceof cc.SpriteFrame ? asset : asset;
+            }
+            let callbacks = this._oilSpillFrameCallbacks.slice();
+            this._oilSpillFrameCallbacks = [];
+            for (let i = 0; i < callbacks.length; i++) {
+                callbacks[i](this._oilSpillFrame);
+            }
+        });
+    }
+
     _getKillBadgeColor(streak) {
         let color = KILL_BADGE_TINTS[streak] || KILL_BADGE_TINTS[1];
         return cc.color(color[0], color[1], color[2], 255);
@@ -1633,6 +1679,40 @@ export class GameMap extends BaseComponent {
         return energy;
     }
 
+    spawnOilTestPickup(pos = null) {
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+
+        let pickup = new cc.Node("OilPickup");
+        pickup.parent = this._fire._tmLayerObstacle;
+        pickup.addComponent(OilPickup);
+        pickup.position = cc.v3(pos || this._getOilTestPickupPos());
+        pickup.zIndex = this.judgezIndex(pickup.y);
+        pickup.script.setInGame(18);
+        this._skills.push(pickup);
+        return pickup;
+    }
+
+    _getOilTestPickupPos() {
+        let basePos = this._player && cc.isValid(this._player)
+            ? cc.v2(this._player.position)
+            : cc.v2(this._playerBornPos || cc.v2(0, 0));
+        let candidateDirs = [
+            cc.v2(0, 1),
+            cc.v2(1, 0),
+            cc.v2(-1, 0),
+            cc.v2(0, -1),
+        ];
+        for (let i = 0; i < candidateDirs.length; i++) {
+            let pos = this.clampMapInnerPosition(basePos.add(candidateDirs[i].mul(150)), 70);
+            if (this.testColliders(pos, 42).length == 0) {
+                return pos;
+            }
+        }
+        return this.clampMapInnerPosition(basePos.add(cc.v2(0, 120)), 70);
+    }
+
     _createDefaultEnergy() {
         let energy = new cc.Node("EnergyItem");
         energy.addComponent(EnergyItem);
@@ -1962,6 +2042,7 @@ export class GameMap extends BaseComponent {
         if (this._pause) return;
 
         this._updateKillBroadcastEntries();
+        this._updateOilSpills(dt);
         if (this._killStreakRemain > 0) {
             this._killStreakRemain -= dt;
             if (this._killStreakRemain <= 0) {
@@ -2009,6 +2090,31 @@ export class GameMap extends BaseComponent {
         }
     }
 
+    _updateOilSpills(dt) {
+        for (let i = this._oilSpills.length - 1; i >= 0; i--) {
+            let spill = this._oilSpills[i];
+            if (!spill || !spill.node || !cc.isValid(spill.node)) {
+                this._oilSpills.splice(i, 1);
+                continue;
+            }
+
+            spill.lifeTime -= dt;
+            if (spill.lifeTime <= 0) {
+                spill.node.destroy();
+                this._oilSpills.splice(i, 1);
+                continue;
+            }
+
+            let fadeStart = Math.min(2.2, spill.duration * 0.3);
+            let opacity = 255;
+            if (spill.lifeTime < fadeStart) {
+                opacity = Math.floor(255 * (spill.lifeTime / fadeStart));
+            }
+            spill.node.opacity = Math.max(0, opacity);
+            spill.node.zIndex = this.judgezIndex(spill.node.y) - 2;
+        }
+    }
+
     //地图滚动
     rollMap(){
         if (this._player && cc.isValid(this._player)) {
@@ -2016,6 +2122,99 @@ export class GameMap extends BaseComponent {
             this.node.x = ret.x;
             this.node.y = ret.y;
         }
+    }
+
+    spawnOilSpill(pos, options: any = {}) {
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+
+        let spillPos = this.clampMapInnerPosition(cc.v2(pos), 68);
+        let radius = options.radius || OIL_SPILL_RADIUS;
+        let duration = options.duration || OIL_SPILL_DURATION;
+        let slowFactor = options.slowFactor || OIL_SPILL_SLOW_FACTOR;
+
+        let root = new cc.Node("_oilSpill");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(spillPos));
+        root.zIndex = this.judgezIndex(spillPos.y) - 2;
+
+        let spriteNode = new cc.Node("_oilSpillSprite");
+        spriteNode.parent = root;
+        spriteNode.opacity = 228;
+        spriteNode.setContentSize(radius * 2.15, radius * 2.15);
+        let sprite = spriteNode.addComponent(cc.Sprite);
+        sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+        spriteNode.color = cc.color(80, 56, 30, 228);
+        this._loadOilSpillFrame((spriteFrame) => {
+            if (sprite && cc.isValid(sprite) && spriteFrame) {
+                sprite.spriteFrame = spriteFrame;
+            }
+        });
+
+        let rim = new cc.Node("_oilSpillRim");
+        rim.parent = root;
+        let rimGraphics = rim.addComponent(cc.Graphics);
+        rimGraphics.lineWidth = 5;
+        rimGraphics.strokeColor = cc.color(145, 104, 62, 135);
+        rimGraphics.circle(0, 0, radius * 0.9);
+        rimGraphics.stroke();
+
+        let core = new cc.Node("_oilSpillCore");
+        core.parent = root;
+        let coreGraphics = core.addComponent(cc.Graphics);
+        coreGraphics.fillColor = cc.color(26, 18, 14, 110);
+        coreGraphics.circle(0, 0, radius * 0.72);
+        coreGraphics.fill();
+
+        let splash = new cc.Node("_oilSpillSplash");
+        splash.parent = root;
+        splash.opacity = 0;
+        splash.scale = 0.45;
+        let splashGraphics = splash.addComponent(cc.Graphics);
+        splashGraphics.lineWidth = 7;
+        splashGraphics.strokeColor = cc.color(188, 142, 86, 160);
+        splashGraphics.circle(0, 0, radius * 0.58);
+        splashGraphics.stroke();
+        splash.runAction(cc.sequence(
+            cc.spawn(
+                cc.fadeTo(0.1, 220),
+                cc.scaleTo(0.1, 1.12)
+            ),
+            cc.spawn(
+                cc.fadeOut(0.24),
+                cc.scaleTo(0.24, 1.55)
+            ),
+            cc.removeSelf()
+        ));
+
+        let spill = {
+            node: root,
+            radius: radius,
+            slowFactor: slowFactor,
+            lifeTime: duration,
+            duration: duration,
+        };
+        this._oilSpills.push(spill);
+        return root;
+    }
+
+    getTerrainSpeedFactor(pos, radius = 0) {
+        let factor = 1;
+        let checkPos = cc.v2(pos);
+        for (let i = this._oilSpills.length - 1; i >= 0; i--) {
+            let spill = this._oilSpills[i];
+            if (!spill || !spill.node || !cc.isValid(spill.node)) {
+                this._oilSpills.splice(i, 1);
+                continue;
+            }
+
+            let limit = spill.radius + radius * 0.35;
+            if (checkPos.sub(spill.node.position).mag() <= limit) {
+                factor = Math.min(factor, spill.slowFactor);
+            }
+        }
+        return factor;
     }
 
     _getViewportSize() {
@@ -2788,6 +2987,13 @@ export class GameMap extends BaseComponent {
             }
         }
         this._energys = [];
+        for (let i = 0; i < this._oilSpills.length; i++) {
+            let spill = this._oilSpills[i];
+            if (spill && spill.node && cc.isValid(spill.node)) {
+                spill.node.destroy();
+            }
+        }
+        this._oilSpills = [];
 
         this._bornEnemyCount = 0;
         this._deathEnemyCount = 0;
@@ -2805,6 +3011,7 @@ export class GameMap extends BaseComponent {
             "Bullet": true,
             "Boom": true,
             "SkillIcon": true,
+            "OilPickup": true,
             "EnergyItem": true,
             "_killSkull": true,
             "_killBubble": true,
@@ -2818,7 +3025,8 @@ export class GameMap extends BaseComponent {
             "_centrifugalRing": true,
             "_centrifugalRingHint": true,
             "_centrifugalRingGuide": true,
-            "_centrifugalRingFx": true
+            "_centrifugalRingFx": true,
+            "_oilSpill": true
         };
         let children = this._fire._tmLayerObstacle.children.slice();
         for (let i = 0; i < children.length; i++) {

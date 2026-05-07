@@ -2049,36 +2049,6 @@
     "meta": 1777544069848,
     "relativePath": "texture\\shoot3.png"
   },
-  "a390b105-7508-4780-a6f6-fbd78451b51a": {
-    "asset": 1777544398428,
-    "meta": 1777547495744,
-    "relativePath": "script\\Enemy.ts"
-  },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1778127778881,
-    "meta": 1778128012813,
-    "relativePath": "script\\BulletE.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778127828050,
-    "meta": 1778128013209,
-    "relativePath": "script\\GameMap.ts"
-  },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778128414779,
-    "meta": 1778128809788,
-    "relativePath": "script\\Player.ts"
-  },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1778137625125,
-    "meta": 1778137686413,
-    "relativePath": "script\\JoyStick.ts"
-  },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778137847928,
-    "meta": 1778137912040,
-    "relativePath": "script\\GameMain.ts"
-  },
   "1b2700f9-8441-4e16-9fad-080032464c47": {
     "asset": 1778139033666,
     "meta": 1778139033693,
@@ -2088,5 +2058,40 @@
     "asset": 1778139313285,
     "meta": 1778139313307,
     "relativePath": "texture\\oilSpill_large.png"
+  },
+  "a390b105-7508-4780-a6f6-fbd78451b51a": {
+    "asset": 1778139825116,
+    "meta": 1778140066048,
+    "relativePath": "script\\Enemy.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778139854122,
+    "meta": 1778140066142,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778139681016,
+    "meta": 1778140066445,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778139877242,
+    "meta": 1778140066535,
+    "relativePath": "script\\JoyStick.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778139870782,
+    "meta": 1778140066669,
+    "relativePath": "script\\Player.ts"
+  },
+  "f60d2c9a-5abd-4e9e-a544-4c2bd3a90006": {
+    "asset": 1778139626414,
+    "meta": 1778140066684,
+    "relativePath": "script\\OilPickup.ts"
+  },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1778140158205,
+    "meta": 1778140234304,
+    "relativePath": "script\\BulletE.ts"
   }
 }

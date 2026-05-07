@@ -38,6 +38,8 @@ var PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 var PLAYER_EXP_BASE = 30;
 var PLAYER_EXP_STEP = 15;
 var CHARGE_CANNON_BULLET_TYPE = 99;
+var OIL_SHELL_BULLET_TYPE = 100;
+var OIL_SHELL_MAX_COUNT = 1;
 var LOW_HP_SCREEN_FLASH_IN = 0.2;
 var LOW_HP_SCREEN_FLASH_OUT = 0.5;
 var LOW_HP_SCREEN_FLASH_LOOP = 3;
@@ -74,6 +76,7 @@ var Player = /** @class */ (function (_super) {
         _this._chargeCannonCharging = false;
         _this._chargeCannonReady = false;
         _this._chargeEffectNode = null;
+        _this._oilShellCount = 0;
         _this._bulletMutationType = "";
         _this._bulletMutationData = null;
         _this._bulletMutationEffectNode = null;
@@ -112,6 +115,7 @@ var Player = /** @class */ (function (_super) {
         this._chargeCannonCooldown = 0;
         this._chargeCannonCharging = false;
         this._chargeCannonReady = false;
+        this._oilShellCount = 0;
         this._bulletMutationType = "";
         this._bulletMutationData = null;
         this._bulletMutationEffectNode = null;
@@ -145,6 +149,7 @@ var Player = /** @class */ (function (_super) {
         yyp.eventCenter.on('joy-stick-shoot', this._doShootJoyStick, this); //射击摇杆事件
         yyp.eventCenter.on('charge-cannon-press', this._doChargeCannonPress, this); //蓄力炮按下
         yyp.eventCenter.on('charge-cannon-release', this._doChargeCannonRelease, this); //蓄力炮松开
+        yyp.eventCenter.on('oil-shell-trigger', this._doOilShellTrigger, this); //焦油弹发射
         yyp.eventCenter.on('trigger-sacrifice', this._doSacrifice, this); //献祭按钮
         yyp.eventCenter.on('trigger-skill', this._doSkill, this); //触发技能
     };
@@ -154,6 +159,7 @@ var Player = /** @class */ (function (_super) {
         yyp.eventCenter.off('joy-stick-shoot', this._doShootJoyStick, this); //射击摇杆事件
         yyp.eventCenter.off('charge-cannon-press', this._doChargeCannonPress, this); //蓄力炮按下
         yyp.eventCenter.off('charge-cannon-release', this._doChargeCannonRelease, this); //蓄力炮松开
+        yyp.eventCenter.off('oil-shell-trigger', this._doOilShellTrigger, this); //焦油弹发射
         yyp.eventCenter.off('trigger-sacrifice', this._doSacrifice, this); //献祭按钮
         yyp.eventCenter.off('trigger-skill', this._doSkill, this); //触发技能
     };
@@ -204,6 +210,16 @@ var Player = /** @class */ (function (_super) {
         }
         this._trySacrificeHpForEnergy();
     };
+    Player.prototype._doOilShellTrigger = function () {
+        if (this._inGame == false) {
+            return;
+        }
+        if (this._oilShellCount <= 0) {
+            this._refreshSkillButtonMode();
+            return;
+        }
+        this._fireOilShell();
+    };
     //触发技能
     Player.prototype._doSkill = function (event) {
         if (this._inGame) {
@@ -220,6 +236,9 @@ var Player = /** @class */ (function (_super) {
             }
             else if (skillId == 3) {
                 this._skill3Time += 15;
+            }
+            else if (skillId == 4) {
+                this._gainOilShell();
             }
         }
     };
@@ -257,7 +276,10 @@ var Player = /** @class */ (function (_super) {
         this.node.setPosition(willPosition);
     };
     Player.prototype._refreshMoveSpeed = function (dt) {
-        var maxSpeed = this._getConfigValue("Speed", 0) * this._moveSpeedScale;
+        var terrainFactor = this._map && this._map.getTerrainSpeedFactor
+            ? this._map.getTerrainSpeedFactor(this.node.position, this._radius)
+            : 1;
+        var maxSpeed = this._getConfigValue("Speed", 0) * this._moveSpeedScale * terrainFactor;
         var targetSpeed = this._moveInputRatio > 0 ? maxSpeed * this._moveInputRatio : 0;
         if (this._currentSpeed < targetSpeed) {
             this._currentSpeed += this._getFrameValue("Acceleration", maxSpeed, dt);
@@ -632,6 +654,33 @@ var Player = /** @class */ (function (_super) {
         titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
         floatNode.runAction(cc.sequence(cc.spawn(cc.fadeIn(0.12), cc.scaleTo(0.12, 1.04), cc.moveBy(0.12, 0, 18)), cc.spawn(cc.moveBy(0.55, 0, 72), cc.fadeOut(0.55)), cc.removeSelf()));
     };
+    Player.prototype._showOilPickupFeedback = function () {
+        var badge = new cc.Node("_oilPickupReady");
+        badge.parent = this.node;
+        badge.setPosition(0, this._radius + 48);
+        badge.opacity = 0;
+        badge.scale = 0.7;
+        badge.zIndex = 320;
+        var graphics = badge.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(78, 52, 26, 235);
+        graphics.roundRect(-68, -18, 136, 36, 12);
+        graphics.fill();
+        graphics.lineWidth = 3;
+        graphics.strokeColor = cc.color(255, 205, 122, 235);
+        graphics.roundRect(-68, -18, 136, 36, 12);
+        graphics.stroke();
+        var labelNode = new cc.Node("_oilPickupReadyLabel");
+        labelNode.parent = badge;
+        labelNode.setContentSize(124, 28);
+        labelNode.color = cc.color(255, 232, 172, 255);
+        var label = labelNode.addComponent(cc.Label);
+        label.string = "焦油弹就绪";
+        label.fontSize = 20;
+        label.lineHeight = 24;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        badge.runAction(cc.sequence(cc.spawn(cc.fadeIn(0.12), cc.scaleTo(0.12, 1.02), cc.moveBy(0.12, 0, 12)), cc.delayTime(0.6), cc.spawn(cc.fadeOut(0.2), cc.moveBy(0.2, 0, 16)), cc.removeSelf()));
+    };
     Player.prototype._playUpgradeSelectFeedback = function (choice) {
         var wave = new cc.Node("_upgradeWave");
         wave.parent = this.node;
@@ -874,6 +923,9 @@ var Player = /** @class */ (function (_super) {
         if (mutationData && mutationData.effectColor) {
             return mutationData.effectColor;
         }
+        if (bulletType == OIL_SHELL_BULLET_TYPE) {
+            return cc.color(130, 92, 52, 220);
+        }
         if (bulletType == this._config.BType2) {
             return cc.color(120, 225, 255, 230);
         }
@@ -920,6 +972,28 @@ var Player = /** @class */ (function (_super) {
         this._shakeScreen();
         this._chargeCannonCooldown = this._getChargeConfig("Cooldown", 8);
         this._chargeCannonCdTime = this._chargeCannonCooldown;
+    };
+    Player.prototype._gainOilShell = function () {
+        if (this._chargeCannonCharging) {
+            this._resetChargeCannon();
+        }
+        this._oilShellCount = Math.min(OIL_SHELL_MAX_COUNT, this._oilShellCount + 1);
+        this._refreshSkillButtonMode();
+        this._showOilPickupFeedback();
+    };
+    Player.prototype._fireOilShell = function () {
+        var wipeLen = this._getBarrelMuzzleDistance(8);
+        BulletE_1.Bullet.createBulletEx(OIL_SHELL_BULLET_TYPE, this.node.position, this._barrelDir, wipeLen, this._config.AttackRadius * 1.8, 0, this._camp, this.node.parent, this._map, 10);
+        this._oilShellCount = Math.max(0, this._oilShellCount - 1);
+        this._refreshSkillButtonMode();
+        this._playShootGlow(OIL_SHELL_BULLET_TYPE, { effectColor: cc.color(130, 92, 52, 220) });
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
+        MusicManager_1.MusicManager.playEffect("shoot");
+    };
+    Player.prototype._refreshSkillButtonMode = function () {
+        yyp.eventCenter.emit("skill-button-mode", { mode: this._oilShellCount > 0 ? "oil" : "charge" });
     };
     Player.prototype._getChargeConfig = function (key, defaultValue) {
         var fullKey = "Charge" + key;
@@ -1194,6 +1268,8 @@ var Player = /** @class */ (function (_super) {
     Player.prototype.doDeath = function () {
         this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
+        this._oilShellCount = 0;
+        this._refreshSkillButtonMode();
         _super.prototype.doDeath.call(this);
         yyp.eventCenter.emit("player-death", {});
         this.node.destroy();
@@ -1211,6 +1287,7 @@ var Player = /** @class */ (function (_super) {
     Player.prototype.setInGame = function () {
         this._inGame = true;
         this._fire._lifebar.active = true;
+        this._refreshSkillButtonMode();
     };
     //获取碰撞框
     Player.prototype.getPlayerBoundingBox = function () {

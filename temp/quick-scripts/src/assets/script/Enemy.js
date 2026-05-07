@@ -45,6 +45,8 @@ var Enemy = /** @class */ (function (_super) {
         _this._walkPaths = []; //行走列表
         _this._willPos = null; //
         _this._codeTime = 0.5; //冷却时间
+        _this._moveAction = null;
+        _this._moveSpeedFactor = 1;
         return _this;
     }
     Enemy.prototype.onLoad = function () {
@@ -190,6 +192,7 @@ var Enemy = /** @class */ (function (_super) {
         if (this._map._pause)
             return;
         this.updateLowHpVisual(dt);
+        this._updateMoveActionSpeed();
         this._codeTime -= dt;
         if (this._target && cc.isValid(this._target)) {
             var fromPos = cc.v2(this.node.position);
@@ -202,6 +205,7 @@ var Enemy = /** @class */ (function (_super) {
                         //遇到目标,停下,清空还没有走的路径
                         this._resetCodeTime();
                         this.node.stopAllActions();
+                        this._moveAction = null;
                         this._walkPaths = [];
                     }
                     else {
@@ -216,11 +220,16 @@ var Enemy = /** @class */ (function (_super) {
                             this._dir = this._willPos.sub(fromPos).normalize();
                             var time = this._willPos.sub(fromPos).mag() / this._config.Speed;
                             var self_1 = this;
-                            this.node.runAction(cc.sequence(cc.moveTo(time / 60, this._willPos), cc.callFunc(function () {
+                            var moveSequence = cc.sequence(cc.moveTo(time / 60, this._willPos), cc.callFunc(function () {
                                 // cc.log("走完了一节 ",walkItem.x,walkItem.y);
                                 self_1._walkPaths.shift();
                                 self_1._willPos = null;
-                            })));
+                                self_1._moveAction = null;
+                                self_1._moveSpeedFactor = 1;
+                            }));
+                            this._moveSpeedFactor = this._getTerrainSpeedFactor();
+                            this._moveAction = cc.speed(moveSequence, this._moveSpeedFactor);
+                            this.node.runAction(this._moveAction);
                         }
                     }
                 }
@@ -263,6 +272,23 @@ var Enemy = /** @class */ (function (_super) {
             }
         }
         this.node.zIndex = this._map.judgezIndex(this.node.y);
+    };
+    Enemy.prototype._getTerrainSpeedFactor = function () {
+        if (!this._map || !this._map.getTerrainSpeedFactor) {
+            return 1;
+        }
+        return this._map.getTerrainSpeedFactor(this.node.position, this._radius);
+    };
+    Enemy.prototype._updateMoveActionSpeed = function () {
+        if (!this._moveAction || !this._moveAction.setSpeed) {
+            return;
+        }
+        var nextFactor = this._getTerrainSpeedFactor();
+        if (Math.abs(nextFactor - this._moveSpeedFactor) < 0.02) {
+            return;
+        }
+        this._moveSpeedFactor = nextFactor;
+        this._moveAction.setSpeed(nextFactor);
     };
     //射击
     Enemy.prototype.shooting = function (dt) {

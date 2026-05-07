@@ -30,6 +30,7 @@ var LocalizedData_1 = require("./base/LocalizedData");
 var EnergyItem_1 = require("./EnergyItem");
 var MusicManager_1 = require("./base/MusicManager");
 var RippleShockwave_1 = require("./effect/RippleShockwave");
+var OilPickup_1 = require("./OilPickup");
 //电子邮件puhalskijsemen@gmail.com
 //源码网站 开vpn全局模式打开 http://web3incubators.com/
 //电报https://t.me/gamecode999
@@ -40,6 +41,10 @@ var KILL_STREAK_WINDOW = 20;
 var KILL_BROADCAST_MAX_VISIBLE = 3;
 var KILL_BROADCAST_SLOT_HEIGHT = 64;
 var KILL_BROADCAST_DURATION = 2.2;
+var OIL_SPILL_DURATION = 10;
+var OIL_SPILL_RADIUS = 120;
+var OIL_SPILL_SLOW_FACTOR = 0.52;
+var OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
 var KILL_TEST_VICTIM_NAMES = ["疾风号", "黑虎机", "钢牙炮手", "赤焰战车", "重锤坦克"];
 var KILL_BADGE_FRAME_UUIDS = {
     1: "91b6ef23-19f3-4d75-9e4c-4ee246eee6f7",
@@ -120,6 +125,10 @@ var GameMap = /** @class */ (function (_super) {
         _this._killStreakRemain = 0;
         _this._portalPairs = [];
         _this._centrifugalRingData = null;
+        _this._oilSpills = [];
+        _this._oilSpillFrame = null;
+        _this._oilSpillFrameLoading = false;
+        _this._oilSpillFrameCallbacks = [];
         return _this;
     }
     //加载完成
@@ -140,6 +149,7 @@ var GameMap = /** @class */ (function (_super) {
         this._initTmBorn();
         this._preloadRippleDistortionEffect();
         this._preloadKillBroadcastBadgeFrames();
+        this._preloadOilSpillFrame();
     };
     GameMap.prototype.onDestroy = function () {
         this._destroyRippleCaptureResources();
@@ -1059,6 +1069,40 @@ var GameMap = /** @class */ (function (_super) {
             }
         });
     };
+    GameMap.prototype._preloadOilSpillFrame = function () {
+        if (!OIL_SPILL_FRAME_UUID || !cc.assetManager || !cc.assetManager.loadAny) {
+            return;
+        }
+        this._loadOilSpillFrame();
+    };
+    GameMap.prototype._loadOilSpillFrame = function (callback) {
+        var _this = this;
+        if (callback === void 0) { callback = null; }
+        if (this._oilSpillFrame) {
+            if (callback) {
+                callback(this._oilSpillFrame);
+            }
+            return;
+        }
+        if (callback) {
+            this._oilSpillFrameCallbacks.push(callback);
+        }
+        if (this._oilSpillFrameLoading) {
+            return;
+        }
+        this._oilSpillFrameLoading = true;
+        cc.assetManager.loadAny({ uuid: OIL_SPILL_FRAME_UUID }, function (err, asset) {
+            _this._oilSpillFrameLoading = false;
+            if (!err && asset) {
+                _this._oilSpillFrame = asset instanceof cc.SpriteFrame ? asset : asset;
+            }
+            var callbacks = _this._oilSpillFrameCallbacks.slice();
+            _this._oilSpillFrameCallbacks = [];
+            for (var i = 0; i < callbacks.length; i++) {
+                callbacks[i](_this._oilSpillFrame);
+            }
+        });
+    };
     GameMap.prototype._getKillBadgeColor = function (streak) {
         var color = KILL_BADGE_TINTS[streak] || KILL_BADGE_TINTS[1];
         return cc.color(color[0], color[1], color[2], 255);
@@ -1352,6 +1396,38 @@ var GameMap = /** @class */ (function (_super) {
         this._energys.push(energy);
         return energy;
     };
+    GameMap.prototype.spawnOilTestPickup = function (pos) {
+        if (pos === void 0) { pos = null; }
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+        var pickup = new cc.Node("OilPickup");
+        pickup.parent = this._fire._tmLayerObstacle;
+        pickup.addComponent(OilPickup_1.OilPickup);
+        pickup.position = cc.v3(pos || this._getOilTestPickupPos());
+        pickup.zIndex = this.judgezIndex(pickup.y);
+        pickup.script.setInGame(18);
+        this._skills.push(pickup);
+        return pickup;
+    };
+    GameMap.prototype._getOilTestPickupPos = function () {
+        var basePos = this._player && cc.isValid(this._player)
+            ? cc.v2(this._player.position)
+            : cc.v2(this._playerBornPos || cc.v2(0, 0));
+        var candidateDirs = [
+            cc.v2(0, 1),
+            cc.v2(1, 0),
+            cc.v2(-1, 0),
+            cc.v2(0, -1),
+        ];
+        for (var i = 0; i < candidateDirs.length; i++) {
+            var pos = this.clampMapInnerPosition(basePos.add(candidateDirs[i].mul(150)), 70);
+            if (this.testColliders(pos, 42).length == 0) {
+                return pos;
+            }
+        }
+        return this.clampMapInnerPosition(basePos.add(cc.v2(0, 120)), 70);
+    };
     GameMap.prototype._createDefaultEnergy = function () {
         var energy = new cc.Node("EnergyItem");
         energy.addComponent(EnergyItem_1.EnergyItem);
@@ -1628,6 +1704,7 @@ var GameMap = /** @class */ (function (_super) {
         if (this._pause)
             return;
         this._updateKillBroadcastEntries();
+        this._updateOilSpills(dt);
         if (this._killStreakRemain > 0) {
             this._killStreakRemain -= dt;
             if (this._killStreakRemain <= 0) {
@@ -1669,6 +1746,28 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
     };
+    GameMap.prototype._updateOilSpills = function (dt) {
+        for (var i = this._oilSpills.length - 1; i >= 0; i--) {
+            var spill = this._oilSpills[i];
+            if (!spill || !spill.node || !cc.isValid(spill.node)) {
+                this._oilSpills.splice(i, 1);
+                continue;
+            }
+            spill.lifeTime -= dt;
+            if (spill.lifeTime <= 0) {
+                spill.node.destroy();
+                this._oilSpills.splice(i, 1);
+                continue;
+            }
+            var fadeStart = Math.min(2.2, spill.duration * 0.3);
+            var opacity = 255;
+            if (spill.lifeTime < fadeStart) {
+                opacity = Math.floor(255 * (spill.lifeTime / fadeStart));
+            }
+            spill.node.opacity = Math.max(0, opacity);
+            spill.node.zIndex = this.judgezIndex(spill.node.y) - 2;
+        }
+    };
     //地图滚动
     GameMap.prototype.rollMap = function () {
         if (this._player && cc.isValid(this._player)) {
@@ -1676,6 +1775,81 @@ var GameMap = /** @class */ (function (_super) {
             this.node.x = ret.x;
             this.node.y = ret.y;
         }
+    };
+    GameMap.prototype.spawnOilSpill = function (pos, options) {
+        if (options === void 0) { options = {}; }
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+        var spillPos = this.clampMapInnerPosition(cc.v2(pos), 68);
+        var radius = options.radius || OIL_SPILL_RADIUS;
+        var duration = options.duration || OIL_SPILL_DURATION;
+        var slowFactor = options.slowFactor || OIL_SPILL_SLOW_FACTOR;
+        var root = new cc.Node("_oilSpill");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(spillPos));
+        root.zIndex = this.judgezIndex(spillPos.y) - 2;
+        var spriteNode = new cc.Node("_oilSpillSprite");
+        spriteNode.parent = root;
+        spriteNode.opacity = 228;
+        spriteNode.setContentSize(radius * 2.15, radius * 2.15);
+        var sprite = spriteNode.addComponent(cc.Sprite);
+        sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+        spriteNode.color = cc.color(80, 56, 30, 228);
+        this._loadOilSpillFrame(function (spriteFrame) {
+            if (sprite && cc.isValid(sprite) && spriteFrame) {
+                sprite.spriteFrame = spriteFrame;
+            }
+        });
+        var rim = new cc.Node("_oilSpillRim");
+        rim.parent = root;
+        var rimGraphics = rim.addComponent(cc.Graphics);
+        rimGraphics.lineWidth = 5;
+        rimGraphics.strokeColor = cc.color(145, 104, 62, 135);
+        rimGraphics.circle(0, 0, radius * 0.9);
+        rimGraphics.stroke();
+        var core = new cc.Node("_oilSpillCore");
+        core.parent = root;
+        var coreGraphics = core.addComponent(cc.Graphics);
+        coreGraphics.fillColor = cc.color(26, 18, 14, 110);
+        coreGraphics.circle(0, 0, radius * 0.72);
+        coreGraphics.fill();
+        var splash = new cc.Node("_oilSpillSplash");
+        splash.parent = root;
+        splash.opacity = 0;
+        splash.scale = 0.45;
+        var splashGraphics = splash.addComponent(cc.Graphics);
+        splashGraphics.lineWidth = 7;
+        splashGraphics.strokeColor = cc.color(188, 142, 86, 160);
+        splashGraphics.circle(0, 0, radius * 0.58);
+        splashGraphics.stroke();
+        splash.runAction(cc.sequence(cc.spawn(cc.fadeTo(0.1, 220), cc.scaleTo(0.1, 1.12)), cc.spawn(cc.fadeOut(0.24), cc.scaleTo(0.24, 1.55)), cc.removeSelf()));
+        var spill = {
+            node: root,
+            radius: radius,
+            slowFactor: slowFactor,
+            lifeTime: duration,
+            duration: duration,
+        };
+        this._oilSpills.push(spill);
+        return root;
+    };
+    GameMap.prototype.getTerrainSpeedFactor = function (pos, radius) {
+        if (radius === void 0) { radius = 0; }
+        var factor = 1;
+        var checkPos = cc.v2(pos);
+        for (var i = this._oilSpills.length - 1; i >= 0; i--) {
+            var spill = this._oilSpills[i];
+            if (!spill || !spill.node || !cc.isValid(spill.node)) {
+                this._oilSpills.splice(i, 1);
+                continue;
+            }
+            var limit = spill.radius + radius * 0.35;
+            if (checkPos.sub(spill.node.position).mag() <= limit) {
+                factor = Math.min(factor, spill.slowFactor);
+            }
+        }
+        return factor;
     };
     GameMap.prototype._getViewportSize = function () {
         var canvas = Utils_1.Utils.getCurrentSceneCanvas();
@@ -2312,6 +2486,13 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
         this._energys = [];
+        for (var i = 0; i < this._oilSpills.length; i++) {
+            var spill = this._oilSpills[i];
+            if (spill && spill.node && cc.isValid(spill.node)) {
+                spill.node.destroy();
+            }
+        }
+        this._oilSpills = [];
         this._bornEnemyCount = 0;
         this._deathEnemyCount = 0;
         this._maxEnemyCount = 0;
@@ -2327,6 +2508,7 @@ var GameMap = /** @class */ (function (_super) {
             "Bullet": true,
             "Boom": true,
             "SkillIcon": true,
+            "OilPickup": true,
             "EnergyItem": true,
             "_killSkull": true,
             "_killBubble": true,
@@ -2340,7 +2522,8 @@ var GameMap = /** @class */ (function (_super) {
             "_centrifugalRing": true,
             "_centrifugalRingHint": true,
             "_centrifugalRingGuide": true,
-            "_centrifugalRingFx": true
+            "_centrifugalRingFx": true,
+            "_oilSpill": true
         };
         var children = this._fire._tmLayerObstacle.children.slice();
         for (var i = 0; i < children.length; i++) {

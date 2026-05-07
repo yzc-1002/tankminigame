@@ -10,6 +10,7 @@ require('./assets/script/GameMain');
 require('./assets/script/GameMap');
 require('./assets/script/GameScene');
 require('./assets/script/JoyStick');
+require('./assets/script/OilPickup');
 require('./assets/script/Player');
 require('./assets/script/Revive');
 require('./assets/script/Setting');

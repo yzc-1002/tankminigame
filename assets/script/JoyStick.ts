@@ -16,16 +16,21 @@ export class JoyStick extends BaseComponent {
     _skillTouchId = null;
     _sacrificeTouchId = null;
     _sacrificeEnabled = false;
+    _skillMode = "charge";
+    _chargeProgressValue = 0;
+    _chargeProgressColor = cc.color(255, 90, 55, 255);
 
     onLoad () {
         this._moveTouchPos = this._fire._sprBg.position.clone();
         this._shootTouchPos = this._fire._sprBg02.position.clone();
         this._initSkillButton();
+        this._setSkillButtonMode("charge");
         this._initSacrificeButton();
         yyp.eventCenter.on("charge-cannon-progress", this._onChargeProgress, this);
         yyp.eventCenter.on("charge-cannon-cooldown", this._onChargeCooldown, this);
         yyp.eventCenter.on("charge-cannon-ready", this._onChargeReady, this);
         yyp.eventCenter.on("charge-cannon-clear", this._onChargeClear, this);
+        yyp.eventCenter.on("skill-button-mode", this._onSkillButtonMode, this);
         yyp.eventCenter.on("sacrifice-button-visible", this._onSacrificeButtonVisible, this);
         this.node.on(cc.Node.EventType.TOUCH_START, this._onTouchStart, this);
         this.node.on(cc.Node.EventType.TOUCH_MOVE, this._onTouchMove, this);
@@ -42,6 +47,7 @@ export class JoyStick extends BaseComponent {
         yyp.eventCenter.off("charge-cannon-cooldown", this._onChargeCooldown, this);
         yyp.eventCenter.off("charge-cannon-ready", this._onChargeReady, this);
         yyp.eventCenter.off("charge-cannon-clear", this._onChargeClear, this);
+        yyp.eventCenter.off("skill-button-mode", this._onSkillButtonMode, this);
         yyp.eventCenter.off("sacrifice-button-visible", this._onSacrificeButtonVisible, this);
     }
 
@@ -51,8 +57,13 @@ export class JoyStick extends BaseComponent {
         let controlType = this._getControlType(pos);
         if (controlType == "skill" && this._skillTouchId == null) {
             this._skillTouchId = touchId;
-            this._refreshChargeProgress(0);
-            yyp.eventCenter.emit("charge-cannon-press", {});
+            if (this._skillMode == "oil") {
+                yyp.eventCenter.emit("oil-shell-trigger", {});
+            }
+            else{
+                this._refreshChargeProgress(0);
+                yyp.eventCenter.emit("charge-cannon-press", {});
+            }
             return;
         }
         if (controlType == "sacrifice" && this._sacrificeEnabled && this._sacrificeTouchId == null) {
@@ -107,7 +118,9 @@ export class JoyStick extends BaseComponent {
         }
         else if (touchId == this._skillTouchId) {
             this._skillTouchId = null;
-            yyp.eventCenter.emit("charge-cannon-release", {});
+            if (this._skillMode == "charge") {
+                yyp.eventCenter.emit("charge-cannon-release", {});
+            }
         }
         else if (touchId == this._sacrificeTouchId) {
             this._sacrificeTouchId = null;
@@ -130,9 +143,16 @@ export class JoyStick extends BaseComponent {
         this._sacrificeTouchId = null;
         this._resetMoveStick();
         this._resetShootStick();
-        this._refreshChargeProgress(0);
+        this._refreshChargeProgress(this._chargeProgressValue, this._chargeProgressColor);
         this._setSacrificeButtonPressed(false);
         yyp.eventCenter.emit("joy-stick",{dir:this._moveDir, ratio:0});
+    }
+
+    _getCurrentSkillButton() {
+        if (this._skillMode == "oil" && this._fire._skilloilBtn) {
+            return this._fire._skilloilBtn;
+        }
+        return this._fire._skillBtn;
     }
 
     _getControlType(pos) {
@@ -142,9 +162,10 @@ export class JoyStick extends BaseComponent {
                 return "sacrifice";
             }
         }
-        if (this._fire._skillBtn) {
-            let skillDistance = pos.sub(this._fire._skillBtn.position).mag();
-            if (skillDistance <= this._fire._skillBtn.width / 2) {
+        let skillBtn = this._getCurrentSkillButton();
+        if (skillBtn && skillBtn.active) {
+            let skillDistance = pos.sub(skillBtn.position).mag();
+            if (skillDistance <= skillBtn.width / 2) {
                 return "skill";
             }
         }
@@ -235,6 +256,24 @@ export class JoyStick extends BaseComponent {
         progressNode["$Graphics"] = graphics;
         this._fire._chargeProgress = progressNode;
         this._refreshChargeProgress(0);
+    }
+
+    _setSkillButtonMode(mode) {
+        this._skillMode = mode == "oil" ? "oil" : "charge";
+        this._skillTouchId = null;
+        if (this._fire._skillBtn) {
+            this._fire._skillBtn.active = this._skillMode == "charge";
+        }
+        if (this._fire._skilloilBtn) {
+            this._fire._skilloilBtn.active = this._skillMode == "oil";
+        }
+        if (this._fire._chargeProgressBg) {
+            this._fire._chargeProgressBg.active = this._skillMode == "charge";
+        }
+        if (this._fire._chargeProgress) {
+            this._fire._chargeProgress.active = this._skillMode == "charge";
+        }
+        this._refreshChargeProgress(this._chargeProgressValue, this._chargeProgressColor);
     }
 
     _initSacrificeButton() {
@@ -335,26 +374,36 @@ export class JoyStick extends BaseComponent {
     }
 
     _refreshChargeProgress(progress, color = cc.color(255, 90, 55, 255)) {
+        this._chargeProgressValue = progress || 0;
+        this._chargeProgressColor = color;
         if (!this._fire._chargeProgress || !this._fire._chargeProgress.$Graphics) {
+            return;
+        }
+        if (this._skillMode != "charge") {
+            this._fire._chargeProgress.$Graphics.clear();
             return;
         }
 
         let graphics = this._fire._chargeProgress.$Graphics;
         let radius = this._fire._skillBtn.width / 2 - 6;
         graphics.clear();
-        if (progress <= 0) {
+        if (this._chargeProgressValue <= 0) {
             return;
         }
 
         graphics.lineWidth = 8;
         graphics.strokeColor = color;
-        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
+        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this._chargeProgressValue, false);
         graphics.stroke();
 
         graphics.lineWidth = 3;
         graphics.strokeColor = cc.color(255, 220, 200, 180);
-        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
+        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this._chargeProgressValue, false);
         graphics.stroke();
+    }
+
+    _onSkillButtonMode(event) {
+        this._setSkillButtonMode(event && event.mode ? event.mode : "charge");
     }
 
     _onChargeProgress(event) {

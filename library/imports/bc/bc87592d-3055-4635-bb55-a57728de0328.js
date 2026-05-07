@@ -40,17 +40,22 @@ var JoyStick = /** @class */ (function (_super) {
         _this._skillTouchId = null;
         _this._sacrificeTouchId = null;
         _this._sacrificeEnabled = false;
+        _this._skillMode = "charge";
+        _this._chargeProgressValue = 0;
+        _this._chargeProgressColor = cc.color(255, 90, 55, 255);
         return _this;
     }
     JoyStick.prototype.onLoad = function () {
         this._moveTouchPos = this._fire._sprBg.position.clone();
         this._shootTouchPos = this._fire._sprBg02.position.clone();
         this._initSkillButton();
+        this._setSkillButtonMode("charge");
         this._initSacrificeButton();
         yyp.eventCenter.on("charge-cannon-progress", this._onChargeProgress, this);
         yyp.eventCenter.on("charge-cannon-cooldown", this._onChargeCooldown, this);
         yyp.eventCenter.on("charge-cannon-ready", this._onChargeReady, this);
         yyp.eventCenter.on("charge-cannon-clear", this._onChargeClear, this);
+        yyp.eventCenter.on("skill-button-mode", this._onSkillButtonMode, this);
         yyp.eventCenter.on("sacrifice-button-visible", this._onSacrificeButtonVisible, this);
         this.node.on(cc.Node.EventType.TOUCH_START, this._onTouchStart, this);
         this.node.on(cc.Node.EventType.TOUCH_MOVE, this._onTouchMove, this);
@@ -66,6 +71,7 @@ var JoyStick = /** @class */ (function (_super) {
         yyp.eventCenter.off("charge-cannon-cooldown", this._onChargeCooldown, this);
         yyp.eventCenter.off("charge-cannon-ready", this._onChargeReady, this);
         yyp.eventCenter.off("charge-cannon-clear", this._onChargeClear, this);
+        yyp.eventCenter.off("skill-button-mode", this._onSkillButtonMode, this);
         yyp.eventCenter.off("sacrifice-button-visible", this._onSacrificeButtonVisible, this);
     };
     JoyStick.prototype._onTouchStart = function (event) {
@@ -74,8 +80,13 @@ var JoyStick = /** @class */ (function (_super) {
         var controlType = this._getControlType(pos);
         if (controlType == "skill" && this._skillTouchId == null) {
             this._skillTouchId = touchId;
-            this._refreshChargeProgress(0);
-            yyp.eventCenter.emit("charge-cannon-press", {});
+            if (this._skillMode == "oil") {
+                yyp.eventCenter.emit("oil-shell-trigger", {});
+            }
+            else {
+                this._refreshChargeProgress(0);
+                yyp.eventCenter.emit("charge-cannon-press", {});
+            }
             return;
         }
         if (controlType == "sacrifice" && this._sacrificeEnabled && this._sacrificeTouchId == null) {
@@ -126,7 +137,9 @@ var JoyStick = /** @class */ (function (_super) {
         }
         else if (touchId == this._skillTouchId) {
             this._skillTouchId = null;
-            yyp.eventCenter.emit("charge-cannon-release", {});
+            if (this._skillMode == "charge") {
+                yyp.eventCenter.emit("charge-cannon-release", {});
+            }
         }
         else if (touchId == this._sacrificeTouchId) {
             this._sacrificeTouchId = null;
@@ -147,9 +160,15 @@ var JoyStick = /** @class */ (function (_super) {
         this._sacrificeTouchId = null;
         this._resetMoveStick();
         this._resetShootStick();
-        this._refreshChargeProgress(0);
+        this._refreshChargeProgress(this._chargeProgressValue, this._chargeProgressColor);
         this._setSacrificeButtonPressed(false);
         yyp.eventCenter.emit("joy-stick", { dir: this._moveDir, ratio: 0 });
+    };
+    JoyStick.prototype._getCurrentSkillButton = function () {
+        if (this._skillMode == "oil" && this._fire._skilloilBtn) {
+            return this._fire._skilloilBtn;
+        }
+        return this._fire._skillBtn;
     };
     JoyStick.prototype._getControlType = function (pos) {
         if (this._sacrificeEnabled && this._fire._sacrificeBtn && this._fire._sacrificeBtn.active) {
@@ -158,9 +177,10 @@ var JoyStick = /** @class */ (function (_super) {
                 return "sacrifice";
             }
         }
-        if (this._fire._skillBtn) {
-            var skillDistance = pos.sub(this._fire._skillBtn.position).mag();
-            if (skillDistance <= this._fire._skillBtn.width / 2) {
+        var skillBtn = this._getCurrentSkillButton();
+        if (skillBtn && skillBtn.active) {
+            var skillDistance = pos.sub(skillBtn.position).mag();
+            if (skillDistance <= skillBtn.width / 2) {
                 return "skill";
             }
         }
@@ -237,6 +257,23 @@ var JoyStick = /** @class */ (function (_super) {
         progressNode["$Graphics"] = graphics;
         this._fire._chargeProgress = progressNode;
         this._refreshChargeProgress(0);
+    };
+    JoyStick.prototype._setSkillButtonMode = function (mode) {
+        this._skillMode = mode == "oil" ? "oil" : "charge";
+        this._skillTouchId = null;
+        if (this._fire._skillBtn) {
+            this._fire._skillBtn.active = this._skillMode == "charge";
+        }
+        if (this._fire._skilloilBtn) {
+            this._fire._skilloilBtn.active = this._skillMode == "oil";
+        }
+        if (this._fire._chargeProgressBg) {
+            this._fire._chargeProgressBg.active = this._skillMode == "charge";
+        }
+        if (this._fire._chargeProgress) {
+            this._fire._chargeProgress.active = this._skillMode == "charge";
+        }
+        this._refreshChargeProgress(this._chargeProgressValue, this._chargeProgressColor);
     };
     JoyStick.prototype._initSacrificeButton = function () {
         if (!this._fire._skillBtn || this._fire._sacrificeBtn) {
@@ -323,23 +360,32 @@ var JoyStick = /** @class */ (function (_super) {
     };
     JoyStick.prototype._refreshChargeProgress = function (progress, color) {
         if (color === void 0) { color = cc.color(255, 90, 55, 255); }
+        this._chargeProgressValue = progress || 0;
+        this._chargeProgressColor = color;
         if (!this._fire._chargeProgress || !this._fire._chargeProgress.$Graphics) {
+            return;
+        }
+        if (this._skillMode != "charge") {
+            this._fire._chargeProgress.$Graphics.clear();
             return;
         }
         var graphics = this._fire._chargeProgress.$Graphics;
         var radius = this._fire._skillBtn.width / 2 - 6;
         graphics.clear();
-        if (progress <= 0) {
+        if (this._chargeProgressValue <= 0) {
             return;
         }
         graphics.lineWidth = 8;
         graphics.strokeColor = color;
-        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
+        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this._chargeProgressValue, false);
         graphics.stroke();
         graphics.lineWidth = 3;
         graphics.strokeColor = cc.color(255, 220, 200, 180);
-        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
+        graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this._chargeProgressValue, false);
         graphics.stroke();
+    };
+    JoyStick.prototype._onSkillButtonMode = function (event) {
+        this._setSkillButtonMode(event && event.mode ? event.mode : "charge");
     };
     JoyStick.prototype._onChargeProgress = function (event) {
         this._refreshChargeProgress(event.progress || 0, cc.color(255, 90, 55, 255));

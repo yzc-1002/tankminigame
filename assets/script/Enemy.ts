@@ -22,6 +22,8 @@ export class Enemy extends Tank {
     _walkPaths      = [];       //行走列表
     _willPos        = null;     //
     _codeTime       = 0.5;      //冷却时间
+    _moveAction     = null;
+    _moveSpeedFactor = 1;
 
     onLoad () {
         super.onLoad();
@@ -200,6 +202,7 @@ export class Enemy extends Tank {
         if (this._map._pause) return;
 
         this.updateLowHpVisual(dt);
+        this._updateMoveActionSpeed();
         this._codeTime -= dt;
         if (this._target && cc.isValid(this._target)) {
             let fromPos = cc.v2(this.node.position);
@@ -213,6 +216,7 @@ export class Enemy extends Tank {
                         //遇到目标,停下,清空还没有走的路径
                         this._resetCodeTime();
                         this.node.stopAllActions();
+                        this._moveAction = null;
                         this._walkPaths = [];
                     }
                     else{
@@ -229,14 +233,19 @@ export class Enemy extends Tank {
     
                             let time = this._willPos.sub(fromPos).mag()/this._config.Speed;
                             let self = this;
-                            this.node.runAction(cc.sequence(
+                            let moveSequence = cc.sequence(
                                 cc.moveTo(time/60,this._willPos),
                                 cc.callFunc(function(){
                                     // cc.log("走完了一节 ",walkItem.x,walkItem.y);
                                     self._walkPaths.shift();
                                     self._willPos = null;
+                                    self._moveAction = null;
+                                    self._moveSpeedFactor = 1;
                                 })
-                            ));
+                            );
+                            this._moveSpeedFactor = this._getTerrainSpeedFactor();
+                            this._moveAction = cc.speed(moveSequence, this._moveSpeedFactor);
+                            this.node.runAction(this._moveAction);
                         }
                         
                     }
@@ -286,6 +295,25 @@ export class Enemy extends Tank {
         
         this.node.zIndex = this._map.judgezIndex(this.node.y);
     }  
+
+    _getTerrainSpeedFactor() {
+        if (!this._map || !this._map.getTerrainSpeedFactor) {
+            return 1;
+        }
+        return this._map.getTerrainSpeedFactor(this.node.position, this._radius);
+    }
+
+    _updateMoveActionSpeed() {
+        if (!this._moveAction || !this._moveAction.setSpeed) {
+            return;
+        }
+        let nextFactor = this._getTerrainSpeedFactor();
+        if (Math.abs(nextFactor - this._moveSpeedFactor) < 0.02) {
+            return;
+        }
+        this._moveSpeedFactor = nextFactor;
+        this._moveAction.setSpeed(nextFactor);
+    }
 
     //射击
     shooting(dt){

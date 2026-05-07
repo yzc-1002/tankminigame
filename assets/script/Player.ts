@@ -13,6 +13,8 @@ const PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 const PLAYER_EXP_BASE = 30;
 const PLAYER_EXP_STEP = 15;
 const CHARGE_CANNON_BULLET_TYPE = 99;
+const OIL_SHELL_BULLET_TYPE = 100;
+const OIL_SHELL_MAX_COUNT = 1;
 const LOW_HP_SCREEN_FLASH_IN = 0.2;
 const LOW_HP_SCREEN_FLASH_OUT = 0.5;
 const LOW_HP_SCREEN_FLASH_LOOP = 3;
@@ -53,6 +55,7 @@ export class Player extends Tank {
     _chargeCannonCharging = false;
     _chargeCannonReady = false;
     _chargeEffectNode = null;
+    _oilShellCount = 0;
     _bulletMutationType = "";
     _bulletMutationData = null;
     _bulletMutationEffectNode = null;
@@ -94,6 +97,7 @@ export class Player extends Tank {
         this._chargeCannonCooldown = 0;
         this._chargeCannonCharging = false;
         this._chargeCannonReady = false;
+        this._oilShellCount = 0;
         this._bulletMutationType = "";
         this._bulletMutationData = null;
         this._bulletMutationEffectNode = null;
@@ -131,6 +135,7 @@ export class Player extends Tank {
         yyp.eventCenter.on('joy-stick-shoot',this._doShootJoyStick,this); //射击摇杆事件
         yyp.eventCenter.on('charge-cannon-press',this._doChargeCannonPress,this); //蓄力炮按下
         yyp.eventCenter.on('charge-cannon-release',this._doChargeCannonRelease,this); //蓄力炮松开
+        yyp.eventCenter.on('oil-shell-trigger',this._doOilShellTrigger,this); //焦油弹发射
         yyp.eventCenter.on('trigger-sacrifice',this._doSacrifice,this); //献祭按钮
         yyp.eventCenter.on('trigger-skill',this._doSkill,this);     //触发技能
     }
@@ -141,6 +146,7 @@ export class Player extends Tank {
         yyp.eventCenter.off('joy-stick-shoot',this._doShootJoyStick,this); //射击摇杆事件
         yyp.eventCenter.off('charge-cannon-press',this._doChargeCannonPress,this); //蓄力炮按下
         yyp.eventCenter.off('charge-cannon-release',this._doChargeCannonRelease,this); //蓄力炮松开
+        yyp.eventCenter.off('oil-shell-trigger',this._doOilShellTrigger,this); //焦油弹发射
         yyp.eventCenter.off('trigger-sacrifice',this._doSacrifice,this); //献祭按钮
         yyp.eventCenter.off('trigger-skill',this._doSkill,this);    //触发技能
     }
@@ -199,6 +205,17 @@ export class Player extends Tank {
 
         this._trySacrificeHpForEnergy();
     }
+
+    _doOilShellTrigger() {
+        if (this._inGame == false) {
+            return;
+        }
+        if (this._oilShellCount <= 0) {
+            this._refreshSkillButtonMode();
+            return;
+        }
+        this._fireOilShell();
+    }
     
     //触发技能
     _doSkill(event) {
@@ -216,6 +233,9 @@ export class Player extends Tank {
             }
             else if (skillId == 3) {
                 this._skill3Time += 15;
+            }
+            else if (skillId == 4) {
+                this._gainOilShell();
             }
         }
     }
@@ -260,7 +280,10 @@ export class Player extends Tank {
     }
 
     _refreshMoveSpeed(dt) {
-        let maxSpeed = this._getConfigValue("Speed", 0) * this._moveSpeedScale;
+        let terrainFactor = this._map && this._map.getTerrainSpeedFactor
+            ? this._map.getTerrainSpeedFactor(this.node.position, this._radius)
+            : 1;
+        let maxSpeed = this._getConfigValue("Speed", 0) * this._moveSpeedScale * terrainFactor;
         let targetSpeed = this._moveInputRatio > 0 ? maxSpeed * this._moveInputRatio : 0;
 
         if (this._currentSpeed < targetSpeed) {
@@ -714,6 +737,49 @@ export class Player extends Tank {
         ));
     }
 
+    _showOilPickupFeedback() {
+        let badge = new cc.Node("_oilPickupReady");
+        badge.parent = this.node;
+        badge.setPosition(0, this._radius + 48);
+        badge.opacity = 0;
+        badge.scale = 0.7;
+        badge.zIndex = 320;
+
+        let graphics = badge.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(78, 52, 26, 235);
+        graphics.roundRect(-68, -18, 136, 36, 12);
+        graphics.fill();
+        graphics.lineWidth = 3;
+        graphics.strokeColor = cc.color(255, 205, 122, 235);
+        graphics.roundRect(-68, -18, 136, 36, 12);
+        graphics.stroke();
+
+        let labelNode = new cc.Node("_oilPickupReadyLabel");
+        labelNode.parent = badge;
+        labelNode.setContentSize(124, 28);
+        labelNode.color = cc.color(255, 232, 172, 255);
+        let label = labelNode.addComponent(cc.Label);
+        label.string = "焦油弹就绪";
+        label.fontSize = 20;
+        label.lineHeight = 24;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        badge.runAction(cc.sequence(
+            cc.spawn(
+                cc.fadeIn(0.12),
+                cc.scaleTo(0.12, 1.02),
+                cc.moveBy(0.12, 0, 12)
+            ),
+            cc.delayTime(0.6),
+            cc.spawn(
+                cc.fadeOut(0.2),
+                cc.moveBy(0.2, 0, 16)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
     _playUpgradeSelectFeedback(choice) {
         let wave = new cc.Node("_upgradeWave");
         wave.parent = this.node;
@@ -1064,6 +1130,9 @@ export class Player extends Tank {
         if (mutationData && mutationData.effectColor) {
             return mutationData.effectColor;
         }
+        if (bulletType == OIL_SHELL_BULLET_TYPE) {
+            return cc.color(130, 92, 52, 220);
+        }
         if (bulletType == this._config.BType2) {
             return cc.color(120, 225, 255, 230);
         }
@@ -1116,6 +1185,31 @@ export class Player extends Tank {
         this._shakeScreen();
         this._chargeCannonCooldown = this._getChargeConfig("Cooldown", 8);
         this._chargeCannonCdTime = this._chargeCannonCooldown;
+    }
+
+    _gainOilShell() {
+        if (this._chargeCannonCharging) {
+            this._resetChargeCannon();
+        }
+        this._oilShellCount = Math.min(OIL_SHELL_MAX_COUNT, this._oilShellCount + 1);
+        this._refreshSkillButtonMode();
+        this._showOilPickupFeedback();
+    }
+
+    _fireOilShell() {
+        let wipeLen = this._getBarrelMuzzleDistance(8);
+        Bullet.createBulletEx(OIL_SHELL_BULLET_TYPE, this.node.position, this._barrelDir, wipeLen, this._config.AttackRadius * 1.8, 0, this._camp, this.node.parent, this._map, 10);
+        this._oilShellCount = Math.max(0, this._oilShellCount - 1);
+        this._refreshSkillButtonMode();
+        this._playShootGlow(OIL_SHELL_BULLET_TYPE, {effectColor: cc.color(130, 92, 52, 220)});
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
+        MusicManager.playEffect("shoot");
+    }
+
+    _refreshSkillButtonMode() {
+        yyp.eventCenter.emit("skill-button-mode", {mode: this._oilShellCount > 0 ? "oil" : "charge"});
     }
 
     _getChargeConfig(key, defaultValue) {
@@ -1464,6 +1558,8 @@ export class Player extends Tank {
     doDeath(){
         this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
+        this._oilShellCount = 0;
+        this._refreshSkillButtonMode();
         super.doDeath();
         
         yyp.eventCenter.emit("player-death",{});
@@ -1484,6 +1580,7 @@ export class Player extends Tank {
     setInGame(){
         this._inGame = true;
         this._fire._lifebar.active = true;
+        this._refreshSkillButtonMode();
     }
     
     //获取碰撞框
