@@ -100,6 +100,8 @@ var GameMap = /** @class */ (function (_super) {
         _this._playerHitTestMode = false; //受击测试模式
         _this._upgradeTestMode = false; //升级测试模式
         _this._shootEffectTestMode = false; //子弹射击测试模式
+        _this._portalTestMode = false; //传送门测试模式
+        _this._centrifugalRingTestMode = false; //离心力圈测试模式
         _this._levelId = 1; //当前关卡id
         _this._levelConfig = null; //当前关卡配置
         _this._roamFlg = false; //漫游标记
@@ -116,6 +118,8 @@ var GameMap = /** @class */ (function (_super) {
         _this._killBadgeLoading = {};
         _this._killStreakCount = 0;
         _this._killStreakRemain = 0;
+        _this._portalPairs = [];
+        _this._centrifugalRingData = null;
         return _this;
     }
     //加载完成
@@ -397,6 +401,316 @@ var GameMap = /** @class */ (function (_super) {
         enemy.script.enabled = false;
         enemy.zIndex = this.judgezIndex(enemy.y);
         this._enemys.push(enemy);
+    };
+    GameMap.prototype.createPortalTestEnemy = function (pos) {
+        var enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._hp = 1;
+        enemy.script._maxHp = 1;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+        return enemy;
+    };
+    GameMap.prototype._clearPortalTestNodes = function () {
+        this._portalPairs = [];
+        var children = this._fire._tmLayerObstacle.children.slice();
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (!cc.isValid(child)) {
+                continue;
+            }
+            if (child.name == "_portalGateA"
+                || child.name == "_portalGateB"
+                || child.name == "_portalLinkFx"
+                || child.name == "_portalHintLabel"
+                || child.name == "_portalWarpFx") {
+                child.destroy();
+            }
+        }
+    };
+    GameMap.prototype._createPortalGate = function (name, pos, color, labelText) {
+        var gate = new cc.Node(name);
+        gate.parent = this._fire._tmLayerObstacle;
+        gate.setPosition(cc.v3(pos));
+        gate.zIndex = 5600;
+        var ring = gate.addComponent(cc.Graphics);
+        ring.lineWidth = 8;
+        ring.strokeColor = color;
+        ring.circle(0, 0, 42);
+        ring.stroke();
+        ring.lineWidth = 3;
+        ring.strokeColor = cc.color(255, 255, 255, 180);
+        ring.circle(0, 0, 26);
+        ring.stroke();
+        ring.fillColor = cc.color(color.r, color.g, color.b, 34);
+        ring.circle(0, 0, 36);
+        ring.fill();
+        var glow = new cc.Node("_portalGlow");
+        glow.parent = gate;
+        var glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(color.r, color.g, color.b, 72);
+        glowGraphics.circle(0, 0, 54);
+        glowGraphics.fill();
+        glow.opacity = 140;
+        glow.scale = 0.88;
+        glow.runAction(cc.repeatForever(cc.sequence(cc.spawn(cc.scaleTo(0.45, 1.08), cc.fadeTo(0.45, 225)), cc.spawn(cc.scaleTo(0.45, 0.88), cc.fadeTo(0.45, 110)))));
+        var labelNode = new cc.Node("_portalLabel");
+        labelNode.parent = gate;
+        labelNode.setPosition(0, 0);
+        labelNode.setContentSize(80, 48);
+        var label = labelNode.addComponent(cc.Label);
+        label.string = labelText;
+        label.fontSize = 28;
+        label.lineHeight = 32;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        return gate;
+    };
+    GameMap.prototype._createPortalHintLabel = function (pos) {
+        var hint = new cc.Node("_portalHintLabel");
+        hint.parent = this._fire._tmLayerObstacle;
+        hint.setPosition(cc.v3(pos.x, pos.y + 74, 0));
+        hint.zIndex = 5605;
+        hint.opacity = 220;
+        hint.color = cc.color(230, 245, 255, 255);
+        hint.setContentSize(320, 34);
+        var label = hint.addComponent(cc.Label);
+        label.string = "向 A 门开火，子弹会从 B 门穿出";
+        label.fontSize = 22;
+        label.lineHeight = 26;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        return hint;
+    };
+    GameMap.prototype._createPortalLinkFx = function (fromPos, toPos) {
+        var fx = new cc.Node("_portalLinkFx");
+        fx.parent = this._fire._tmLayerObstacle;
+        fx.zIndex = 5400;
+        var graphics = fx.addComponent(cc.Graphics);
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(110, 255, 245, 120);
+        graphics.moveTo(fromPos.x, fromPos.y);
+        graphics.lineTo(toPos.x, toPos.y);
+        graphics.stroke();
+        fx.opacity = 120;
+        fx.runAction(cc.repeatForever(cc.sequence(cc.fadeTo(0.35, 210), cc.fadeTo(0.35, 90))));
+        return fx;
+    };
+    GameMap.prototype.createPortalTestSetup = function () {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        this._clearPortalTestNodes();
+        var playerPos = cc.v2(this._player.position);
+        var entryPos = this.clampMapInnerPosition(playerPos.add(cc.v2(220, 0)), 90);
+        var exitPos = this.clampMapInnerPosition(playerPos.add(cc.v2(-140, 180)), 90);
+        var enemyPos = this.clampMapInnerPosition(exitPos.add(cc.v2(280, 0)), 90);
+        this._createPortalGate("_portalGateA", entryPos, cc.color(90, 215, 255, 255), "A");
+        this._createPortalGate("_portalGateB", exitPos, cc.color(255, 120, 220, 255), "B");
+        this._createPortalLinkFx(entryPos, exitPos);
+        this._createPortalHintLabel(entryPos);
+        this.createPortalTestEnemy(enemyPos);
+        this._portalPairs.push({
+            id: "portalA",
+            pos: entryPos,
+            radius: 44,
+            exitId: "portalB",
+            exitPos: exitPos
+        });
+        this._portalPairs.push({
+            id: "portalB",
+            pos: exitPos,
+            radius: 44,
+            exitId: "portalA",
+            exitPos: entryPos
+        });
+    };
+    GameMap.prototype._spawnPortalWarpFx = function (pos, color) {
+        var fx = new cc.Node("_portalWarpFx");
+        fx.parent = this._fire._tmLayerObstacle;
+        fx.setPosition(cc.v3(pos));
+        fx.zIndex = 5700;
+        fx.opacity = 220;
+        fx.scale = 0.35;
+        var graphics = fx.addComponent(cc.Graphics);
+        graphics.lineWidth = 6;
+        graphics.strokeColor = color;
+        graphics.circle(0, 0, 26);
+        graphics.stroke();
+        graphics.lineWidth = 3;
+        graphics.strokeColor = cc.color(255, 255, 255, 210);
+        graphics.circle(0, 0, 14);
+        graphics.stroke();
+        fx.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.16, 1.7), cc.fadeOut(0.16)), cc.removeSelf()));
+    };
+    GameMap.prototype._clearCentrifugalRingTestNodes = function () {
+        this._centrifugalRingData = null;
+        var children = this._fire._tmLayerObstacle.children.slice();
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (!cc.isValid(child)) {
+                continue;
+            }
+            if (child.name == "_centrifugalRing"
+                || child.name == "_centrifugalRingHint"
+                || child.name == "_centrifugalRingGuide"
+                || child.name == "_centrifugalRingFx") {
+                child.destroy();
+            }
+        }
+    };
+    GameMap.prototype._createCentrifugalRingNode = function (pos, radius, color) {
+        var ring = new cc.Node("_centrifugalRing");
+        ring.parent = this._fire._tmLayerObstacle;
+        ring.setPosition(cc.v3(pos));
+        ring.zIndex = 5650;
+        var glow = new cc.Node("_ringGlow");
+        glow.parent = ring;
+        var glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(color.r, color.g, color.b, 40);
+        glowGraphics.circle(0, 0, radius + 26);
+        glowGraphics.fill();
+        glow.opacity = 160;
+        glow.scale = 0.84;
+        glow.runAction(cc.repeatForever(cc.sequence(cc.spawn(cc.scaleTo(0.45, 1.06), cc.fadeTo(0.45, 220)), cc.spawn(cc.scaleTo(0.45, 0.84), cc.fadeTo(0.45, 120)))));
+        var graphics = ring.addComponent(cc.Graphics);
+        graphics.lineWidth = 8;
+        graphics.strokeColor = color;
+        graphics.circle(0, 0, radius);
+        graphics.stroke();
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(255, 246, 220, 180);
+        graphics.circle(0, 0, radius - 15);
+        graphics.stroke();
+        graphics.fillColor = cc.color(color.r, color.g, color.b, 24);
+        graphics.circle(0, 0, radius - 6);
+        graphics.fill();
+        for (var i = 0; i < 3; i++) {
+            var arc = new cc.Node("_ringArc" + i);
+            arc.parent = ring;
+            arc.angle = i * 120;
+            var arcGraphics = arc.addComponent(cc.Graphics);
+            arcGraphics.lineWidth = 6;
+            arcGraphics.strokeColor = cc.color(255, 255, 255, 220);
+            arcGraphics.arc(0, 0, radius + 6, -Math.PI * 0.2, Math.PI * 0.32, false);
+            arcGraphics.stroke();
+        }
+        ring.runAction(cc.repeatForever(cc.rotateBy(1.2, -180)));
+        return ring;
+    };
+    GameMap.prototype._createCentrifugalRingGuide = function (fromPos, toPos) {
+        var guide = new cc.Node("_centrifugalRingGuide");
+        guide.parent = this._fire._tmLayerObstacle;
+        guide.zIndex = 5500;
+        var graphics = guide.addComponent(cc.Graphics);
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(255, 184, 112, 120);
+        graphics.moveTo(fromPos.x, fromPos.y);
+        graphics.lineTo(toPos.x, toPos.y);
+        graphics.stroke();
+        guide.opacity = 120;
+        guide.runAction(cc.repeatForever(cc.sequence(cc.fadeTo(0.3, 210), cc.fadeTo(0.3, 90))));
+        return guide;
+    };
+    GameMap.prototype._createCentrifugalRingHint = function (pos) {
+        var hint = new cc.Node("_centrifugalRingHint");
+        hint.parent = this._fire._tmLayerObstacle;
+        hint.setPosition(cc.v3(pos.x, pos.y + 100, 0));
+        hint.zIndex = 5660;
+        hint.opacity = 225;
+        hint.color = cc.color(255, 235, 205, 255);
+        hint.setContentSize(420, 58);
+        var label = hint.addComponent(cc.Label);
+        label.string = "直线射入离心力圈，子弹会绕圈加速后甩出";
+        label.fontSize = 22;
+        label.lineHeight = 28;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        return hint;
+    };
+    GameMap.prototype.createCentrifugalRingTestEnemy = function (pos) {
+        var enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._hp = 99999;
+        enemy.script._maxHp = 99999;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+        return enemy;
+    };
+    GameMap.prototype.createCentrifugalRingTestSetup = function () {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        this._clearCentrifugalRingTestNodes();
+        var playerPos = cc.v2(this._player.position);
+        var center = this.clampMapInnerPosition(playerPos.add(cc.v2(220, 0)), 120);
+        var radius = 82;
+        var enemyPos = this.clampMapInnerPosition(center.add(cc.v2(310, 92)), 100);
+        var color = cc.color(255, 170, 96, 255);
+        this._createCentrifugalRingNode(center, radius, color);
+        this._createCentrifugalRingGuide(playerPos, center);
+        this._createCentrifugalRingHint(center);
+        this.createCentrifugalRingTestEnemy(enemyPos);
+        this._centrifugalRingData = {
+            id: "centrifugalA",
+            center: center,
+            triggerRadius: radius - 10,
+            orbitRadius: radius + 2,
+            rotateAngle: Math.PI * 0.52,
+            angularSpeed: Math.PI * 5.2,
+            directionSign: -1,
+            speedBoost: 1.95,
+            damageBoost: 1.8,
+            radiusExpand: 24,
+            color: color,
+        };
+    };
+    GameMap.prototype.spawnCentrifugalRingFx = function (pos, isRelease, color, dir, speed) {
+        if (isRelease === void 0) { isRelease = false; }
+        if (color === void 0) { color = null; }
+        if (dir === void 0) { dir = null; }
+        if (speed === void 0) { speed = 0; }
+        var fx = new cc.Node("_centrifugalRingFx");
+        fx.parent = this._fire._tmLayerObstacle;
+        fx.setPosition(cc.v3(pos));
+        fx.zIndex = 5690;
+        fx.opacity = 220;
+        fx.scale = isRelease ? 0.45 : 0.32;
+        var effectColor = color || cc.color(255, 170, 96, 255);
+        var graphics = fx.addComponent(cc.Graphics);
+        graphics.lineWidth = isRelease ? 7 : 5;
+        graphics.strokeColor = effectColor;
+        graphics.circle(0, 0, isRelease ? 26 : 18);
+        graphics.stroke();
+        graphics.lineWidth = 3;
+        graphics.strokeColor = cc.color(255, 255, 255, 210);
+        graphics.circle(0, 0, isRelease ? 12 : 8);
+        graphics.stroke();
+        if (isRelease && dir && dir.magSqr() > 0) {
+            var tail = new cc.Node("_centrifugalRingFxTail");
+            tail.parent = fx;
+            tail.angle = Utils_1.Utils.vectorsToDegress(dir) - 90;
+            var tailGraphics = tail.addComponent(cc.Graphics);
+            tailGraphics.fillColor = cc.color(effectColor.r, effectColor.g, effectColor.b, 160);
+            tailGraphics.moveTo(0, 34 + Math.min(28, speed * 0.6));
+            tailGraphics.lineTo(-10, 8);
+            tailGraphics.lineTo(10, 8);
+            tailGraphics.close();
+            tailGraphics.fill();
+        }
+        fx.runAction(cc.sequence(cc.spawn(cc.scaleTo(isRelease ? 0.18 : 0.12, isRelease ? 1.8 : 1.35), cc.fadeOut(isRelease ? 0.18 : 0.12)), cc.removeSelf()));
     };
     GameMap.prototype._getTestEffectPreviewPos = function () {
         var basePos = this._player && cc.isValid(this._player)
@@ -1453,6 +1767,56 @@ var GameMap = /** @class */ (function (_super) {
         }
         return null;
     };
+    GameMap.prototype._distancePointToSegment = function (point, A, B) {
+        var AB = B.sub(A);
+        var lenSqr = AB.magSqr();
+        if (lenSqr <= 0) {
+            return point.sub(A).mag();
+        }
+        var t = point.sub(A).dot(AB) / lenSqr;
+        t = cc.misc.clampf(t, 0, 1);
+        var projection = A.add(AB.mul(t));
+        return point.sub(projection).mag();
+    };
+    GameMap.prototype.tryTeleportBullet = function (bullet, fromPos, toPos) {
+        if (!this._portalTestMode || !bullet || !this._portalPairs || this._portalPairs.length == 0) {
+            return false;
+        }
+        var ignorePortalId = bullet.getPortalIgnoreId ? bullet.getPortalIgnoreId() : "";
+        for (var i = 0; i < this._portalPairs.length; i++) {
+            var portal = this._portalPairs[i];
+            if (portal.id == ignorePortalId) {
+                continue;
+            }
+            if (this._distancePointToSegment(portal.pos, cc.v2(fromPos), cc.v2(toPos)) > portal.radius) {
+                continue;
+            }
+            var exitOffset = bullet._dir && bullet._dir.magSqr() > 0
+                ? bullet._dir.normalize().mul(portal.radius + Math.max(16, bullet._speed * 1.8))
+                : cc.v2(portal.radius + 18, 0);
+            var exitPos = this.clampMapInnerPosition(portal.exitPos.add(exitOffset), 40);
+            if (bullet.teleportByPortal) {
+                bullet.teleportByPortal(exitPos, portal.exitId);
+            }
+            this._spawnPortalWarpFx(portal.pos, cc.color(110, 255, 245, 255));
+            this._spawnPortalWarpFx(portal.exitPos, cc.color(255, 120, 220, 255));
+            return true;
+        }
+        return false;
+    };
+    GameMap.prototype.tryEnterCentrifugalRing = function (bullet, fromPos, toPos) {
+        if (!this._centrifugalRingTestMode || !bullet || !this._centrifugalRingData) {
+            return false;
+        }
+        if (bullet.hasUsedCentrifugalRing && bullet.hasUsedCentrifugalRing()) {
+            return false;
+        }
+        var ring = this._centrifugalRingData;
+        if (this._distancePointToSegment(ring.center, cc.v2(fromPos), cc.v2(toPos)) > ring.triggerRadius) {
+            return false;
+        }
+        return bullet.enterCentrifugalRing ? bullet.enterCentrifugalRing(ring) : false;
+    };
     //子弹,碰撞检测
     GameMap.prototype.bulletEnemyCollisionTest = function (P, camp) {
         if (camp == "player") {
@@ -1544,6 +1908,10 @@ var GameMap = /** @class */ (function (_super) {
         this._killEffectTestMode = false;
         this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._maxEnemyCount = this._levelConfig.EnemyCount * this._levelId;
         this._timeMaxEnemyCount = this._levelConfig.Max + Math.floor(this._levelId / 5);
         yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
@@ -1567,6 +1935,8 @@ var GameMap = /** @class */ (function (_super) {
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -1593,6 +1963,8 @@ var GameMap = /** @class */ (function (_super) {
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._maxEnemyCount = 5;
         this._timeMaxEnemyCount = 5;
         this._bornEnemyCount = 5;
@@ -1619,6 +1991,8 @@ var GameMap = /** @class */ (function (_super) {
         this._playerHitTestMode = true;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -1645,6 +2019,8 @@ var GameMap = /** @class */ (function (_super) {
         this._playerHitTestMode = false;
         this._upgradeTestMode = true;
         this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
         this._bornEnemyCount = 0;
@@ -1670,6 +2046,8 @@ var GameMap = /** @class */ (function (_super) {
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = true;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -1687,8 +2065,64 @@ var GameMap = /** @class */ (function (_super) {
             func();
         })));
     };
+    GameMap.prototype.startPortalTestGame = function (func) {
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = true;
+        this._centrifugalRingTestMode = false;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
+        yyp.eventCenter.emit("current-enemycount", { enemycount: 1 });
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            self.createPlayer();
+            self.createPortalTestSetup();
+            self._gaming = true;
+            func();
+        })));
+    };
+    GameMap.prototype.startCentrifugalRingTestGame = function (func) {
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = true;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
+        yyp.eventCenter.emit("current-enemycount", { enemycount: 1 });
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            self.createPlayer();
+            self.createCentrifugalRingTestSetup();
+            self._gaming = true;
+            func();
+        })));
+    };
     GameMap.prototype.isTestMode = function () {
-        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode;
+        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode;
     };
     GameMap.prototype.isShootEffectTestMode = function () {
         return this._shootEffectTestMode;
@@ -1850,7 +2284,11 @@ var GameMap = /** @class */ (function (_super) {
         this._playerHitTestMode = false;
         this._upgradeTestMode = false;
         this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._resetKillBroadcastRuntime();
+        this._clearPortalTestNodes();
+        this._clearCentrifugalRingTestNodes();
         if (this._player && cc.isValid(this._player)) {
             this._player.destroy();
             this._player = null;
@@ -1893,7 +2331,16 @@ var GameMap = /** @class */ (function (_super) {
             "_killSkull": true,
             "_killBubble": true,
             "_upgradeFloat": true,
-            "_bulletMutationMedal": true
+            "_bulletMutationMedal": true,
+            "_portalGateA": true,
+            "_portalGateB": true,
+            "_portalLinkFx": true,
+            "_portalHintLabel": true,
+            "_portalWarpFx": true,
+            "_centrifugalRing": true,
+            "_centrifugalRingHint": true,
+            "_centrifugalRingGuide": true,
+            "_centrifugalRingFx": true
         };
         var children = this._fire._tmLayerObstacle.children.slice();
         for (var i = 0; i < children.length; i++) {

@@ -278,15 +278,15 @@ var GameMain = /** @class */ (function (_super) {
         mask.on(cc.Node.EventType.TOUCH_END, this._hideTestPanel, this);
         var dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(520, 590);
+        dialog.setContentSize(520, 740);
         dialog.zIndex = 1;
         var dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-260, -295, 520, 590, 18);
+        dialogGraphics.roundRect(-260, -370, 520, 740, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-260, -295, 520, 590, 18);
+        dialogGraphics.roundRect(-260, -370, 520, 740, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function (event) {
             if (event && event.stopPropagation) {
@@ -303,7 +303,9 @@ var GameMain = /** @class */ (function (_super) {
         this._createTestButton(dialog, "_btnPlayerLowHpTest", "自己血量告急", cc.v2(112, -32), cc.color(255, 110, 110, 255), this._onPlayerLowHpTestClick, 208, 54, 24);
         this._createTestButton(dialog, "_btnEnemyLowHpTest", "敌人血量告急", cc.v2(-112, -98), cc.color(255, 165, 70, 255), this._onEnemyLowHpTestClick, 208, 54, 24);
         this._createTestButton(dialog, "_btnKillBroadcastTest", "击杀广播", cc.v2(112, -98), cc.color(175, 120, 255, 255), this._onKillBroadcastTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -212), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
+        this._createTestButton(dialog, "_btnPortalTest", "传送门测试", cc.v2(0, -164), cc.color(110, 255, 245, 255), this._onPortalTestClick, 300, 54, 24);
+        this._createTestButton(dialog, "_btnCentrifugalRingTest", "离心力圈测试", cc.v2(0, -230), cc.color(255, 160, 90, 255), this._onCentrifugalRingTestClick, 300, 54, 24);
+        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -318), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
     };
     GameMain.prototype._createTestLabel = function (parent, name, text, pos, fontSize, color) {
         var labelNode = new cc.Node(name);
@@ -397,6 +399,18 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._startTestGame("killBroadcast");
     };
+    GameMain.prototype._onPortalTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("portal");
+    };
+    GameMain.prototype._onCentrifugalRingTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("centrifugalRing");
+    };
     GameMain.prototype._startTestGame = function (type) {
         MusicManager_1.MusicManager.playEffect("btn");
         this._hideTestPanel();
@@ -446,6 +460,16 @@ var GameMain = /** @class */ (function (_super) {
         }
         else if (type == "killBroadcast") {
             this._fire._tiled.script.startKillBroadcastTestGame(function () {
+                complete();
+            });
+        }
+        else if (type == "portal") {
+            this._fire._tiled.script.startPortalTestGame(function () {
+                complete();
+            });
+        }
+        else if (type == "centrifugalRing") {
+            this._fire._tiled.script.startCentrifugalRingTestGame(function () {
                 complete();
             });
         }

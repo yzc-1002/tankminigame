@@ -1999,11 +1999,6 @@
     "meta": 1777452280826,
     "relativePath": "resources\\sfx\\chargeShoot.mp3"
   },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1777454009265,
-    "meta": 1777454136593,
-    "relativePath": "script\\BulletE.ts"
-  },
   "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
     "asset": 1777454961109,
     "meta": 1777455091644,
@@ -2059,16 +2054,6 @@
     "meta": 1777547495744,
     "relativePath": "script\\Enemy.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1777544263724,
-    "meta": 1777547495842,
-    "relativePath": "script\\GameMain.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1777544427199,
-    "meta": 1777547496093,
-    "relativePath": "script\\GameMap.ts"
-  },
   "bc87592d-3055-4635-bb55-a57728de0328": {
     "asset": 1778126077253,
     "meta": 1778126813559,
@@ -2078,5 +2063,20 @@
     "asset": 1778126065638,
     "meta": 1778126813753,
     "relativePath": "script\\Player.ts"
+  },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1778127778881,
+    "meta": 1778128012813,
+    "relativePath": "script\\BulletE.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778127761648,
+    "meta": 1778128012928,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778127828050,
+    "meta": 1778128013209,
+    "relativePath": "script\\GameMap.ts"
   }
 }

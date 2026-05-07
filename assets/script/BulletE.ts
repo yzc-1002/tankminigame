@@ -25,6 +25,10 @@ export class Bullet extends BaseComponent {
     _bounceLeft     = 0;
     _penetrateLeft  = 0;
     _hitTargetIds   = {};
+    _portalIgnoreId = "";
+    _portalIgnoreTime = 0;
+    _centrifugalState = null;
+    _centrifugalUsed = false;
 
     _currenBullet   = null;
     _isStop         = false;
@@ -72,6 +76,10 @@ export class Bullet extends BaseComponent {
         this._bounceLeft = 0;
         this._penetrateLeft = 0;
         this._hitTargetIds = {};
+        this._portalIgnoreId = "";
+        this._portalIgnoreTime = 0;
+        this._centrifugalState = null;
+        this._centrifugalUsed = false;
         
         //子弹类型
         if (camp == "enemy") {
@@ -206,12 +214,34 @@ export class Bullet extends BaseComponent {
                     this.doDestroy();
                 }
                 else{
+                    if (this._centrifugalState) {
+                        this._updateCentrifugalMotion(dt);
+                        return;
+                    }
+
+                    if (this._portalIgnoreTime > 0) {
+                        this._portalIgnoreTime -= dt;
+                        if (this._portalIgnoreTime <= 0) {
+                            this._portalIgnoreTime = 0;
+                            this._portalIgnoreId = "";
+                        }
+                    }
+
                     //更新位置
                     let currPosition = this.node.position;
                     let willPosition = currPosition.add(cc.v3(this._dir.mul(this._speed)));
                     this.node.setPosition(willPosition);
                     
                     if (this._map.isMap()) {
+                        if (this._map.tryEnterCentrifugalRing && this._map.tryEnterCentrifugalRing(this, currPosition, willPosition)) {
+                            return;
+                        }
+
+                        if (this._map.tryTeleportBullet && this._map.tryTeleportBullet(this, currPosition, willPosition)) {
+                            willPosition = this.node.position;
+                            currPosition = willPosition;
+                        }
+
                         //子弹和坦克检测
                         let hitTank = this._map.bulletEnemyCollisionTest(willPosition,this._camp);
                         if (hitTank) {
@@ -297,6 +327,114 @@ export class Bullet extends BaseComponent {
             return dir.mul(-1);
         }
         return reflectDir.normalize();
+    }
+
+    getPortalIgnoreId() {
+        return this._portalIgnoreId;
+    }
+
+    teleportByPortal(pos, ignorePortalId = "") {
+        this.node.setPosition(cc.v3(pos));
+        this._portalIgnoreId = ignorePortalId || "";
+        this._portalIgnoreTime = 0.08;
+    }
+
+    hasUsedCentrifugalRing() {
+        return this._centrifugalUsed;
+    }
+
+    enterCentrifugalRing(ringData) {
+        if (this._centrifugalUsed || this._centrifugalState || !ringData || !ringData.center) {
+            return false;
+        }
+
+        let center = cc.v2(ringData.center);
+        let centerToBullet = cc.v2(this.node.position).sub(center);
+        if (centerToBullet.magSqr() <= 1) {
+            centerToBullet = this._dir && this._dir.magSqr() > 0
+                ? this._dir.normalize().mul(-(ringData.orbitRadius || 72))
+                : cc.v2(-(ringData.orbitRadius || 72), 0);
+        }
+
+        let startAngle = Math.atan2(centerToBullet.y, centerToBullet.x);
+        let directionSign = ringData.directionSign == null ? -1 : ringData.directionSign;
+        let rotateAngle = Math.abs(ringData.rotateAngle == null ? Math.PI * 0.5 : ringData.rotateAngle);
+        let orbitRadius = ringData.orbitRadius || Math.max(64, centerToBullet.mag());
+        let angularSpeed = ringData.angularSpeed || Math.PI * 4.2;
+
+        this._centrifugalState = {
+            center: center,
+            orbitRadius: orbitRadius,
+            startAngle: startAngle,
+            currentAngle: startAngle,
+            movedAngle: 0,
+            rotateAngle: rotateAngle,
+            directionSign: directionSign >= 0 ? 1 : -1,
+            angularSpeed: angularSpeed,
+            speedBoost: ringData.speedBoost || 1.85,
+            damageBoost: ringData.damageBoost || 1.7,
+            radiusExpand: ringData.radiusExpand || 18,
+            color: ringData.color || cc.color(255, 165, 90, 255),
+        };
+        this._spawnCentrifugalEnterFx();
+        return true;
+    }
+
+    _updateCentrifugalMotion(dt) {
+        if (!this._centrifugalState) {
+            return;
+        }
+
+        let state = this._centrifugalState;
+        state.movedAngle += state.angularSpeed * dt;
+        if (state.movedAngle > state.rotateAngle) {
+            state.movedAngle = state.rotateAngle;
+        }
+
+        state.currentAngle = state.startAngle + state.directionSign * state.movedAngle;
+        let angleProgress = state.rotateAngle > 0 ? state.movedAngle / state.rotateAngle : 1;
+        let radius = state.orbitRadius + state.radiusExpand * angleProgress;
+        let orbitPos = state.center.add(cc.v2(Math.cos(state.currentAngle), Math.sin(state.currentAngle)).mul(radius));
+        this.node.setPosition(cc.v3(orbitPos));
+
+        let tangentDir = state.directionSign > 0
+            ? cc.v2(-Math.sin(state.currentAngle), Math.cos(state.currentAngle))
+            : cc.v2(Math.sin(state.currentAngle), -Math.cos(state.currentAngle));
+        if (tangentDir.magSqr() > 0) {
+            this._dir = tangentDir.normalize();
+            this.node.angle = Utils.vectorsToDegress(this._dir) - 90;
+        }
+
+        let orbitScale = 1 + 0.24 * angleProgress;
+        if (this._currenBullet) {
+            this._currenBullet.scaleX = orbitScale;
+            this._currenBullet.scaleY = orbitScale;
+            this._currenBullet.color = state.color;
+        }
+
+        if (state.movedAngle >= state.rotateAngle) {
+            this._centrifugalState = null;
+            this._centrifugalUsed = true;
+            this._speed *= state.speedBoost;
+            this._damage *= state.damageBoost;
+            this._destroyTime *= 1.35;
+            this.node.setPosition(cc.v3(orbitPos.add(this._dir.mul(Math.max(18, this._speed * 0.65)))));
+            this._spawnCentrifugalReleaseFx(state.color);
+        }
+    }
+
+    _spawnCentrifugalEnterFx() {
+        if (!this._map || !this._map.spawnCentrifugalRingFx) {
+            return;
+        }
+        this._map.spawnCentrifugalRingFx(cc.v2(this.node.position), false);
+    }
+
+    _spawnCentrifugalReleaseFx(color) {
+        if (!this._map || !this._map.spawnCentrifugalRingFx) {
+            return;
+        }
+        this._map.spawnCentrifugalRingFx(cc.v2(this.node.position), true, color, this._dir, this._speed);
     }
    
     
