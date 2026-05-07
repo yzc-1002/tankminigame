@@ -31,6 +31,7 @@ var JoyStick = /** @class */ (function (_super) {
     function JoyStick() {
         var _this = _super !== null && _super.apply(this, arguments) || this;
         _this._moveDir = cc.v2(0, 1); //移动摇杆方向(向上)
+        _this._shootDir = cc.v2(1, 0); //射击摇杆方向
         _this._moveTouchPos = cc.v2(0, 0); //移动摇杆初始位置
         _this._shootTouchPos = cc.v2(0, 0); //射击摇杆初始位置
         _this._free = true; //自由移动摇杆位置
@@ -79,7 +80,7 @@ var JoyStick = /** @class */ (function (_super) {
         }
         if (controlType == "shoot" && this._shootTouchId == null) {
             this._shootTouchId = touchId;
-            this._pressShootButton();
+            this._pressShootButton(pos);
             return;
         }
         if (this._moveTouchId == null) {
@@ -88,7 +89,7 @@ var JoyStick = /** @class */ (function (_super) {
         }
         else if (this._shootTouchId == null) {
             this._shootTouchId = touchId;
-            this._pressShootButton();
+            this._pressShootButton(pos);
         }
     };
     JoyStick.prototype._onTouchMove = function (event) {
@@ -96,6 +97,9 @@ var JoyStick = /** @class */ (function (_super) {
         var touchId = event.getID();
         if (touchId == this._moveTouchId) {
             this._updateMoveStick(pos, false);
+        }
+        else if (touchId == this._shootTouchId) {
+            this._updateShootStick(pos);
         }
     };
     JoyStick.prototype._onTouchEnd = function (event) {
@@ -152,9 +156,23 @@ var JoyStick = /** @class */ (function (_super) {
             this._moveDir = this._moveDir.normalize();
         }
     };
-    JoyStick.prototype._pressShootButton = function () {
-        // 右侧不再承担方向控制，只作为点击发射按钮使用
+    JoyStick.prototype._pressShootButton = function (pos) {
+        if (pos) {
+            this._updateShootStick(pos);
+            return;
+        }
         this._fire._sprJoystick02.setPosition(this._shootTouchPos);
+    };
+    JoyStick.prototype._updateShootStick = function (pos) {
+        this._fire._sprJoystick02.setPosition(pos);
+        this._shootDir = pos.sub(this._shootTouchPos);
+        if (this._shootDir.magSqr() > 0) {
+            this._shootDir = this._shootDir.normalize();
+        }
+        var shootRatio = this._limitStickRange(this._fire._sprBg02, this._fire._sprJoystick02, this._shootTouchPos, this._shootDir);
+        if (shootRatio > 0) {
+            yyp.eventCenter.emit("joy-stick-shoot", { dir: this._shootDir, ratio: shootRatio });
+        }
     };
     JoyStick.prototype._resetMoveStick = function () {
         this._fire._sprJoystick.setPosition(this._moveTouchPos);

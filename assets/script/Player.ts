@@ -58,6 +58,7 @@ export class Player extends Tank {
     _moveEffectId = -1;
     _lowHpHeartbeatEffectId = -1;
     _lowHpScreenEffect = null;
+    _shootInputDir = cc.v2(1, 0);   //射击摇杆目标方向
 
     onLoad () {
         super.onLoad();
@@ -98,6 +99,7 @@ export class Player extends Tank {
         this._moveEffectId = -1;
         this._lowHpHeartbeatEffectId = -1;
         this._lowHpScreenEffect = null;
+        this._shootInputDir = this._barrelDir;
     }
 
     //设置坦克类型
@@ -153,6 +155,10 @@ export class Player extends Tank {
     //射击摇杆事件
     _doShootJoyStick(event) {
         if (this._inGame == false) return;
+        if (event.dir && event.dir.magSqr() > 0) {
+            this._shootInputDir = event.dir;
+            this._barrelDir = event.dir;
+        }
         if (event.fire === true) {
             this._tryFireOnce();
         }
@@ -800,9 +806,11 @@ export class Player extends Tank {
             this._moveEffectId = -1;
         }
     }
-    // 炮管始终跟随坦克整体方向
+    // 炮管只跟随右侧发射摇杆方向
     _refreshBarrelDir() {
-        this._barrelDir = this._dir;
+        if (this._shootInputDir && this._shootInputDir.magSqr() > 0) {
+            this._barrelDir = this._shootInputDir;
+        }
     }
 
     // 右侧按钮抬起时直接发射一发, 不走按住持续发射逻辑

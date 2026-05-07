@@ -7,6 +7,7 @@ const {ccclass, property} = cc._decorator;
 export class JoyStick extends BaseComponent {
 
     _moveDir = cc.v2(0, 1);         //移动摇杆方向(向上)
+    _shootDir = cc.v2(1, 0);        //射击摇杆方向
     _moveTouchPos = cc.v2(0, 0);    //移动摇杆初始位置
     _shootTouchPos = cc.v2(0, 0);   //射击摇杆初始位置
     _free = true;                   //自由移动摇杆位置
@@ -57,7 +58,7 @@ export class JoyStick extends BaseComponent {
         }
         if (controlType == "shoot" && this._shootTouchId == null) {
             this._shootTouchId = touchId;
-            this._pressShootButton();
+            this._pressShootButton(pos);
             return;
         }
 
@@ -67,7 +68,7 @@ export class JoyStick extends BaseComponent {
         }
         else if (this._shootTouchId == null) {
             this._shootTouchId = touchId;
-            this._pressShootButton();
+            this._pressShootButton(pos);
         }
     }
 
@@ -76,6 +77,9 @@ export class JoyStick extends BaseComponent {
         let touchId = event.getID();
         if (touchId == this._moveTouchId) {
             this._updateMoveStick(pos, false);
+        }
+        else if (touchId == this._shootTouchId) {
+            this._updateShootStick(pos);
         }
     }
 
@@ -140,9 +144,25 @@ export class JoyStick extends BaseComponent {
         }
     }
 
-    _pressShootButton() {
-        // 右侧不再承担方向控制，只作为点击发射按钮使用
+    _pressShootButton(pos) {
+        if (pos) {
+            this._updateShootStick(pos);
+            return;
+        }
         this._fire._sprJoystick02.setPosition(this._shootTouchPos);
+    }
+
+    _updateShootStick(pos) {
+        this._fire._sprJoystick02.setPosition(pos);
+        this._shootDir = pos.sub(this._shootTouchPos);
+        if (this._shootDir.magSqr() > 0) {
+            this._shootDir = this._shootDir.normalize();
+        }
+
+        let shootRatio = this._limitStickRange(this._fire._sprBg02, this._fire._sprJoystick02, this._shootTouchPos, this._shootDir);
+        if (shootRatio > 0) {
+            yyp.eventCenter.emit("joy-stick-shoot",{dir:this._shootDir, ratio:shootRatio});
+        }
     }
 
     _resetMoveStick() {

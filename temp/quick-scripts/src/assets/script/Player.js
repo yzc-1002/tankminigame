@@ -79,6 +79,7 @@ var Player = /** @class */ (function (_super) {
         _this._moveEffectId = -1;
         _this._lowHpHeartbeatEffectId = -1;
         _this._lowHpScreenEffect = null;
+        _this._shootInputDir = cc.v2(1, 0); //射击摇杆目标方向
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -116,6 +117,7 @@ var Player = /** @class */ (function (_super) {
         this._moveEffectId = -1;
         this._lowHpHeartbeatEffectId = -1;
         this._lowHpScreenEffect = null;
+        this._shootInputDir = this._barrelDir;
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -165,6 +167,10 @@ var Player = /** @class */ (function (_super) {
     Player.prototype._doShootJoyStick = function (event) {
         if (this._inGame == false)
             return;
+        if (event.dir && event.dir.magSqr() > 0) {
+            this._shootInputDir = event.dir;
+            this._barrelDir = event.dir;
+        }
         if (event.fire === true) {
             this._tryFireOnce();
         }
@@ -687,9 +693,11 @@ var Player = /** @class */ (function (_super) {
             this._moveEffectId = -1;
         }
     };
-    // 炮管始终跟随坦克整体方向
+    // 炮管只跟随右侧发射摇杆方向
     Player.prototype._refreshBarrelDir = function () {
-        this._barrelDir = this._dir;
+        if (this._shootInputDir && this._shootInputDir.magSqr() > 0) {
+            this._barrelDir = this._shootInputDir;
+        }
     };
     // 右侧按钮抬起时直接发射一发, 不走按住持续发射逻辑
     Player.prototype.fireOnce = function () {

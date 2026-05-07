@@ -1924,11 +1924,6 @@
     "meta": 1777368299323,
     "relativePath": "script\\config\\Bullet.ts"
   },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1777372371839,
-    "meta": 1777372530867,
-    "relativePath": "script\\JoyStick.ts"
-  },
   "619e5825-d4d3-4057-96c4-d47592d96f58": {
     "asset": 1777375011420,
     "meta": 1777375011898,
@@ -2014,11 +2009,6 @@
     "meta": 1777455091644,
     "relativePath": "script\\config\\Music.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1777535593872,
-    "meta": 1777535625980,
-    "relativePath": "script\\Player.ts"
-  },
   "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
     "asset": 1777538639817,
     "meta": 1777538812148,
@@ -2078,5 +2068,15 @@
     "asset": 1777544427199,
     "meta": 1777547496093,
     "relativePath": "script\\GameMap.ts"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778126077253,
+    "meta": 1778126813559,
+    "relativePath": "script\\JoyStick.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778126065638,
+    "meta": 1778126813753,
+    "relativePath": "script\\Player.ts"
   }
 }
