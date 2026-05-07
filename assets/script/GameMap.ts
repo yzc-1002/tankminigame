@@ -19,6 +19,7 @@ const OIL_SPILL_DURATION = 10;
 const OIL_SPILL_RADIUS = 120;
 const OIL_SPILL_SLOW_FACTOR = 0.52;
 const OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
+const COVER_TEST_FRAME_UUID = "f27215a4-32b0-4a3c-b87d-69a3dc03e37a";
 const KILL_TEST_VICTIM_NAMES = ["疾风号", "黑虎机", "钢牙炮手", "赤焰战车", "重锤坦克"];
 const KILL_BADGE_FRAME_UUIDS = {
     1: "91b6ef23-19f3-4d75-9e4c-4ee246eee6f7",
@@ -105,6 +106,7 @@ export class GameMap extends BaseComponent {
     _shootEffectTestMode = false; //子弹射击测试模式
     _portalTestMode = false; //传送门测试模式
     _centrifugalRingTestMode = false; //离心力圈测试模式
+    _coverTestMode = false; //掩体测试模式
     _levelId        = 1;        //当前关卡id
     _levelConfig    = null;     //当前关卡配置
 
@@ -129,6 +131,11 @@ export class GameMap extends BaseComponent {
     _oilSpillFrame = null;
     _oilSpillFrameLoading = false;
     _oilSpillFrameCallbacks = [];
+    _coverTestCovers = [];
+    _coverTestFrame = null;
+    _coverTestFrameLoading = false;
+    _coverTestFrameCallbacks = [];
+    _coverTestEnemy = null;
 
     //加载完成
     onLoad () {
@@ -155,6 +162,7 @@ export class GameMap extends BaseComponent {
         this._preloadRippleDistortionEffect();
         this._preloadKillBroadcastBadgeFrames();
         this._preloadOilSpillFrame();
+        this._preloadCoverTestFrame();
 
     }
 
@@ -1327,6 +1335,42 @@ export class GameMap extends BaseComponent {
         });
     }
 
+    _preloadCoverTestFrame() {
+        if (!COVER_TEST_FRAME_UUID || !cc.assetManager || !cc.assetManager.loadAny) {
+            return;
+        }
+        this._loadCoverTestFrame();
+    }
+
+    _loadCoverTestFrame(callback = null) {
+        if (this._coverTestFrame) {
+            if (callback) {
+                callback(this._coverTestFrame);
+            }
+            return;
+        }
+
+        if (callback) {
+            this._coverTestFrameCallbacks.push(callback);
+        }
+        if (this._coverTestFrameLoading) {
+            return;
+        }
+
+        this._coverTestFrameLoading = true;
+        cc.assetManager.loadAny({uuid: COVER_TEST_FRAME_UUID}, (err, asset) => {
+            this._coverTestFrameLoading = false;
+            if (!err && asset) {
+                this._coverTestFrame = asset instanceof cc.SpriteFrame ? asset : asset;
+            }
+            let callbacks = this._coverTestFrameCallbacks.slice();
+            this._coverTestFrameCallbacks = [];
+            for (let i = 0; i < callbacks.length; i++) {
+                callbacks[i](this._coverTestFrame);
+            }
+        });
+    }
+
     _getKillBadgeColor(streak) {
         let color = KILL_BADGE_TINTS[streak] || KILL_BADGE_TINTS[1];
         return cc.color(color[0], color[1], color[2], 255);
@@ -1711,6 +1755,196 @@ export class GameMap extends BaseComponent {
         pickup.script.setInGame(18);
         this._skills.push(pickup);
         return pickup;
+    }
+
+    createCoverTestEnemy() {
+        if (!this._player || !cc.isValid(this._player)) {
+            return null;
+        }
+
+        let enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        enemy.position = cc.v3(this._getCoverTestEnemyPos());
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._config = Object.assign({}, enemy.script._config);
+        enemy.script._config.AttackRadius = 880;
+        enemy.script._config.BulletCodeTime = 0.32;
+        enemy.script._config.Speed = 0;
+        enemy.script._bulletCodeTime = enemy.script._config.BulletCodeTime;
+        enemy.script._codeTime = 99999;
+        enemy.script._walkPaths = [];
+        enemy.script._willPos = null;
+        enemy.stopAllActions();
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._coverTestEnemy = enemy;
+        this._enemys.push(enemy);
+        return enemy;
+    }
+
+    _getCoverTestEnemyPos() {
+        let playerPos = this._player && cc.isValid(this._player)
+            ? cc.v2(this._player.position)
+            : cc.v2(this._playerBornPos || cc.v2(0, 0));
+        let dirs = [
+            cc.v2(1, 0.12),
+            cc.v2(1, -0.16),
+            cc.v2(0.86, 0.38),
+            cc.v2(0.86, -0.38),
+        ];
+        for (let i = 0; i < dirs.length; i++) {
+            let dir = dirs[i].normalize();
+            let pos = this.clampMapInnerPosition(playerPos.add(dir.mul(420 + i * 20)), 86);
+            if (this.testColliders(pos, 52).length == 0 && this.lineLinePassColliders(pos, playerPos) == false) {
+                return pos;
+            }
+        }
+        return this.clampMapInnerPosition(playerPos.add(cc.v2(420, 0)), 86);
+    }
+
+    spawnCoverTestCovers(count = 6) {
+        this._coverTestCovers = [];
+        let playerPos = this._player && cc.isValid(this._player)
+            ? cc.v2(this._player.position)
+            : cc.v2(this._playerBornPos || cc.v2(0, 0));
+        for (let i = 0; i < count; i++) {
+            this._createCoverTestCover(this._getCoverTestCoverSpawnPos(playerPos, i, count));
+        }
+    }
+
+    _getCoverTestCoverSpawnPos(playerPos, index, count) {
+        for (let i = 0; i < 24; i++) {
+            let baseAngle = Math.PI * 2 * ((index + i * 0.37) % count) / count;
+            let angle = baseAngle + (Math.random() - 0.5) * 0.9;
+            let distance = 110 + Math.random() * 180;
+            let pos = cc.v2(playerPos).add(cc.v2(Math.cos(angle) * distance, Math.sin(angle) * distance));
+            pos = this.clampMapInnerPosition(pos, 48);
+            if (this.testColliders(pos, 38).length > 0) {
+                continue;
+            }
+            if (pos.sub(playerPos).mag() < 90) {
+                continue;
+            }
+            if (this._coverTestEnemy && cc.isValid(this._coverTestEnemy) && pos.sub(this._coverTestEnemy.position).mag() < 120) {
+                continue;
+            }
+
+            let blocked = false;
+            for (let j = 0; j < this._coverTestCovers.length; j++) {
+                let cover = this._coverTestCovers[j];
+                if (cover && cover.node && cc.isValid(cover.node) && pos.sub(cover.node.position).mag() < 86) {
+                    blocked = true;
+                    break;
+                }
+            }
+            if (!blocked) {
+                return pos;
+            }
+        }
+
+        return this.clampMapInnerPosition(playerPos.add(cc.v2(140 + index * 18, index % 2 == 0 ? 90 : -90)), 48);
+    }
+
+    _createCoverTestCover(pos) {
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+
+        let root = new cc.Node("_coverTestCrate");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(pos));
+        root.zIndex = this.judgezIndex(pos.y) + 1;
+
+        let shadow = new cc.Node("_coverTestCrateShadow");
+        shadow.parent = root;
+        shadow.setPosition(0, -9);
+        let shadowGraphics = shadow.addComponent(cc.Graphics);
+        shadowGraphics.fillColor = cc.color(0, 0, 0, 68);
+        shadowGraphics.ellipse(0, 0, 24, 12);
+        shadowGraphics.fill();
+
+        let spriteNode = new cc.Node("_coverSprite");
+        spriteNode.parent = root;
+        spriteNode.setContentSize(70, 70);
+        let sprite = spriteNode.addComponent(cc.Sprite);
+        sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+        this._loadCoverTestFrame((spriteFrame) => {
+            if (sprite && cc.isValid(sprite) && spriteFrame) {
+                sprite.spriteFrame = spriteFrame;
+            }
+        });
+
+        let crack = new cc.Node("_coverCrack");
+        crack.parent = root;
+        crack.zIndex = 2;
+        crack["$Graphics"] = crack.addComponent(cc.Graphics);
+
+        let hpNode = new cc.Node("_coverHp");
+        hpNode.parent = root;
+        hpNode.setPosition(0, 48);
+        hpNode.color = cc.color(255, 243, 214, 255);
+        let hpLabel = hpNode.addComponent(cc.Label);
+        hpLabel.fontSize = 20;
+        hpLabel.lineHeight = 22;
+        hpLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        hpLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        let cover:any = {
+            node: root,
+            radius: 34,
+            hp: 5,
+            maxHp: 5,
+            attached: false,
+            owner: null,
+            attachOffset: cc.v2(0, 0),
+        };
+        root["__coverTestData"] = cover;
+        root["$Crack"] = crack;
+        root["$HpLabel"] = hpLabel;
+        this._coverTestCovers.push(cover);
+        this._refreshCoverTestCoverVisual(cover);
+        return cover;
+    }
+
+    _refreshCoverTestCoverVisual(cover) {
+        if (!cover || !cover.node || !cc.isValid(cover.node)) {
+            return;
+        }
+
+        let lostHp = cover.maxHp - cover.hp;
+        let spriteNode = cover.node.getChildByName("_coverSprite");
+        if (spriteNode) {
+            spriteNode.scale = 1 - lostHp * 0.03;
+            spriteNode.color = cc.color(255, 255 - lostHp * 14, 255 - lostHp * 22, 255);
+        }
+        if (cover.node["$HpLabel"]) {
+            cover.node["$HpLabel"].string = cover.hp + "/" + cover.maxHp;
+        }
+        if (cover.node["$Crack"] && cover.node["$Crack"]["$Graphics"]) {
+            let graphics = cover.node["$Crack"]["$Graphics"];
+            graphics.clear();
+            if (lostHp > 0) {
+                graphics.lineWidth = 2 + Math.min(2, lostHp * 0.35);
+                graphics.strokeColor = cc.color(70, 42, 18, 220);
+                graphics.moveTo(-10, 18);
+                graphics.lineTo(-4, 7);
+                graphics.lineTo(-11, -7);
+                graphics.stroke();
+                if (lostHp >= 2) {
+                    graphics.moveTo(6, 17);
+                    graphics.lineTo(1, 1);
+                    graphics.lineTo(11, -12);
+                    graphics.stroke();
+                }
+                if (lostHp >= 4) {
+                    graphics.moveTo(-18, 2);
+                    graphics.lineTo(-4, -5);
+                    graphics.lineTo(8, -20);
+                    graphics.stroke();
+                }
+            }
+        }
     }
 
     _getOilTestPickupPos() {
@@ -2350,6 +2584,255 @@ export class GameMap extends BaseComponent {
         return point.sub(projection).mag();
     }
 
+    _cleanupInvalidCoverTestCovers() {
+        for (let i = this._coverTestCovers.length - 1; i >= 0; i--) {
+            let cover = this._coverTestCovers[i];
+            if (!cover || !cover.node || !cc.isValid(cover.node)) {
+                this._coverTestCovers.splice(i, 1);
+            }
+        }
+    }
+
+    _getAttachedCoverTestCover(player = null) {
+        this._cleanupInvalidCoverTestCovers();
+        let ownerNode = player && player.node ? player.node : null;
+        for (let i = 0; i < this._coverTestCovers.length; i++) {
+            let cover = this._coverTestCovers[i];
+            if (cover && cover.attached) {
+                if (!ownerNode || cover.owner == ownerNode) {
+                    return cover;
+                }
+            }
+        }
+        return null;
+    }
+
+    _getNearestAttachableCover(player) {
+        if (!player || !player.node || !cc.isValid(player.node)) {
+            return null;
+        }
+
+        this._cleanupInvalidCoverTestCovers();
+        let playerPos = cc.v2(player.node.position);
+        let nearest = null;
+        let nearestLen = 0;
+        for (let i = 0; i < this._coverTestCovers.length; i++) {
+            let cover = this._coverTestCovers[i];
+            if (!cover || !cover.node || !cc.isValid(cover.node) || cover.attached) {
+                continue;
+            }
+            let len = playerPos.sub(cover.node.position).mag();
+            if (len <= 110 && (nearest == null || len < nearestLen)) {
+                nearest = cover;
+                nearestLen = len;
+            }
+        }
+        return nearest;
+    }
+
+    refreshCoverTestButton(player) {
+        if (!this._coverTestMode || !player || !player.node || !cc.isValid(player.node)) {
+            yyp.eventCenter.emit("cover-button-state",{visible:false});
+            return;
+        }
+
+        let attached = this._getAttachedCoverTestCover(player);
+        if (attached) {
+            yyp.eventCenter.emit("cover-button-state",{visible:true, mode:"detach"});
+            return;
+        }
+
+        let nearest = this._getNearestAttachableCover(player);
+        yyp.eventCenter.emit("cover-button-state",{visible:!!nearest, mode:"attach"});
+    }
+
+    tryToggleCoverTestAttachment(player) {
+        if (!this._coverTestMode || !player || !player.node || !cc.isValid(player.node)) {
+            return false;
+        }
+
+        let attached = this._getAttachedCoverTestCover(player);
+        if (attached) {
+            this._detachCoverTestCover(attached);
+            this.refreshCoverTestButton(player);
+            return true;
+        }
+
+        let nearest = this._getNearestAttachableCover(player);
+        if (!nearest) {
+            if (player._showSacrificeTip) {
+                player._showSacrificeTip("靠近掩体后才能吸附");
+            }
+            this.refreshCoverTestButton(player);
+            return false;
+        }
+
+        this._attachCoverTestCover(nearest, player);
+        this.refreshCoverTestButton(player);
+        return true;
+    }
+
+    _attachCoverTestCover(cover, player) {
+        if (!cover || !cover.node || !cc.isValid(cover.node) || !player || !player.node || !cc.isValid(player.node)) {
+            return;
+        }
+
+        let offset = cc.v2(cover.node.position).sub(player.node.position);
+        if (offset.magSqr() <= 25) {
+            offset = player._dir && player._dir.magSqr() > 0 ? player._dir.normalize().mul(70) : cc.v2(70, 0);
+        }
+        else{
+            offset = offset.normalize().mul(Math.max(60, Math.min(84, offset.mag())));
+        }
+
+        cover.attached = true;
+        cover.owner = player.node;
+        cover.attachOffset = offset;
+        this.syncAttachedCoverTestCover(player);
+    }
+
+    _detachCoverTestCover(cover) {
+        if (!cover) {
+            return;
+        }
+        cover.attached = false;
+        cover.owner = null;
+    }
+
+    forceDetachCoverTestFromPlayer(player) {
+        let attached = this._getAttachedCoverTestCover(player);
+        if (attached) {
+            this._detachCoverTestCover(attached);
+        }
+        yyp.eventCenter.emit("cover-button-state",{visible:false});
+    }
+
+    syncAttachedCoverTestCover(player) {
+        if (!this._coverTestMode || !player || !player.node || !cc.isValid(player.node)) {
+            return;
+        }
+
+        let cover = this._getAttachedCoverTestCover(player);
+        if (!cover || !cover.attachOffset) {
+            return;
+        }
+
+        let pos = cc.v2(player.node.position).add(cover.attachOffset);
+        pos = this.clampMapInnerPosition(pos, cover.radius + 6);
+        cover.node.setPosition(cc.v3(pos));
+        cover.node.zIndex = this.judgezIndex(pos.y) + 1;
+    }
+
+    tryHandleCoverBulletCollision(fromPos, toPos, bullet) {
+        if (!this._coverTestMode || !bullet || bullet._camp != "enemy") {
+            return false;
+        }
+
+        this._cleanupInvalidCoverTestCovers();
+        let hitCover = null;
+        let hitLen = 0;
+        for (let i = 0; i < this._coverTestCovers.length; i++) {
+            let cover = this._coverTestCovers[i];
+            if (!cover || !cover.node || !cc.isValid(cover.node)) {
+                continue;
+            }
+            let distance = this._distancePointToSegment(cc.v2(cover.node.position), cc.v2(fromPos), cc.v2(toPos));
+            if (distance <= cover.radius + 4) {
+                let len = cc.v2(cover.node.position).sub(fromPos).magSqr();
+                if (hitCover == null || len < hitLen) {
+                    hitCover = cover;
+                    hitLen = len;
+                }
+            }
+        }
+
+        if (!hitCover) {
+            return false;
+        }
+
+        this._damageCoverTestCover(hitCover, bullet);
+        return true;
+    }
+
+    _damageCoverTestCover(cover, bullet = null) {
+        if (!cover || !cover.node || !cc.isValid(cover.node)) {
+            return;
+        }
+
+        cover.hp = Math.max(0, cover.hp - 1);
+        this._refreshCoverTestCoverVisual(cover);
+        this._playCoverTestHitEffect(cover);
+        if (bullet) {
+            if (bullet.doDestroy) {
+                bullet.doDestroy();
+            }
+            else if (bullet.node && cc.isValid(bullet.node)) {
+                bullet.node.destroy();
+            }
+        }
+
+        if (cover.hp <= 0) {
+            this._breakCoverTestCover(cover);
+        }
+        else if (this._player && cc.isValid(this._player) && this._player.script && this._coverTestMode) {
+            this.refreshCoverTestButton(this._player.script);
+        }
+    }
+
+    _playCoverTestHitEffect(cover) {
+        let flash = new cc.Node("_coverHitFx");
+        flash.parent = cover.node;
+        flash.opacity = 190;
+        flash.scale = 0.72;
+        let graphics = flash.addComponent(cc.Graphics);
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(255, 220, 160, 220);
+        graphics.rect(-24, -24, 48, 48);
+        graphics.stroke();
+        flash.runAction(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(0.08, 1.12),
+                cc.fadeOut(0.08)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
+    _breakCoverTestCover(cover) {
+        if (!cover || !cover.node || !cc.isValid(cover.node)) {
+            return;
+        }
+
+        let breakPos = cc.v2(cover.node.position);
+        this._detachCoverTestCover(cover);
+        for (let i = 0; i < 6; i++) {
+            let shard = new cc.Node("_coverShard");
+            shard.parent = this._fire._tmLayerObstacle;
+            shard.setPosition(cc.v3(breakPos));
+            shard.zIndex = this.judgezIndex(breakPos.y) + 3;
+            let graphics = shard.addComponent(cc.Graphics);
+            graphics.fillColor = cc.color(158 + Math.floor(Math.random() * 32), 112, 68, 240);
+            graphics.rect(-5, -5, 10, 10);
+            graphics.fill();
+            let angle = Math.PI * 2 * i / 6 + Math.random() * 0.4;
+            let distance = 26 + Math.random() * 22;
+            shard.runAction(cc.sequence(
+                cc.spawn(
+                    cc.moveBy(0.22, Math.cos(angle) * distance, Math.sin(angle) * distance + 10),
+                    cc.rotateBy(0.22, 150 + Math.random() * 180),
+                    cc.fadeOut(0.22)
+                ),
+                cc.removeSelf()
+            ));
+        }
+
+        cover.node.destroy();
+        this._cleanupInvalidCoverTestCovers();
+        if (this._player && cc.isValid(this._player) && this._player.script) {
+            this.refreshCoverTestButton(this._player.script);
+        }
+    }
+
     tryTeleportBullet(bullet, fromPos, toPos) {
         if (!this._portalTestMode || !bullet || !this._portalPairs || this._portalPairs.length == 0) {
             return false;
@@ -2501,6 +2984,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = false;
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
         this._maxEnemyCount = this._levelConfig.EnemyCount * this._levelId;
         this._timeMaxEnemyCount = this._levelConfig.Max + Math.floor(this._levelId/5);
         yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
@@ -2532,6 +3016,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = false;
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -2565,6 +3050,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = false;
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
         this._maxEnemyCount = 5;
         this._timeMaxEnemyCount = 5;
         this._bornEnemyCount = 5;
@@ -2598,6 +3084,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = false;
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -2631,6 +3118,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = false;
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
         this._bornEnemyCount = 0;
@@ -2663,6 +3151,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = true;
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -2696,6 +3185,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = false;
         this._portalTestMode = true;
         this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -2729,6 +3219,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = false;
         this._portalTestMode = false;
         this._centrifugalRingTestMode = true;
+        this._coverTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -2751,8 +3242,43 @@ export class GameMap extends BaseComponent {
         ));
     }
 
+    startCoverTestGame(func){
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = true;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
+        yyp.eventCenter.emit("current-enemycount",{enemycount:1});
+
+        this._roamFlg = false;
+        let will = this._correctMapPosition(cc.v2(-this._playerBornPos.x,-this._playerBornPos.y));
+        let self = this;
+        this.node.runAction(cc.sequence(
+            cc.moveTo(0.2,will),
+            cc.callFunc(function(){
+                self.createPlayer();
+                self.createCoverTestEnemy();
+                self.spawnCoverTestCovers(6);
+                self._gaming = true;
+                func();
+            })
+        ));
+    }
+
     isTestMode() {
-        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode;
+        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode || this._coverTestMode;
     }
 
     isShootEffectTestMode() {
@@ -2977,6 +3503,7 @@ export class GameMap extends BaseComponent {
         this._shootEffectTestMode = false;
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
         this._resetKillBroadcastRuntime();
         this._clearPortalTestNodes();
         this._clearCentrifugalRingTestNodes();
@@ -3013,6 +3540,9 @@ export class GameMap extends BaseComponent {
             }
         }
         this._oilSpills = [];
+        this._coverTestCovers = [];
+        this._coverTestEnemy = null;
+        yyp.eventCenter.emit("cover-button-state",{visible:false});
 
         this._bornEnemyCount = 0;
         this._deathEnemyCount = 0;
@@ -3055,7 +3585,11 @@ export class GameMap extends BaseComponent {
             "_centrifugalRingHint": true,
             "_centrifugalRingGuide": true,
             "_centrifugalRingFx": true,
-            "_oilSpill": true
+            "_oilSpill": true,
+            "_coverTestCrate": true,
+            "_coverTestCrateShadow": true,
+            "_coverHitFx": true,
+            "_coverShard": true
         };
         let children = this._fire._tmLayerObstacle.children.slice();
         for (let i = 0; i < children.length; i++) {

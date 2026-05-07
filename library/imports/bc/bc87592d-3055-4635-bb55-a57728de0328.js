@@ -39,7 +39,10 @@ var JoyStick = /** @class */ (function (_super) {
         _this._shootTouchId = null;
         _this._skillTouchId = null;
         _this._sacrificeTouchId = null;
+        _this._coverTouchId = null;
         _this._sacrificeEnabled = false;
+        _this._coverButtonVisible = false;
+        _this._coverButtonMode = "attach";
         _this._skillMode = "charge";
         _this._chargeProgressValue = 0;
         _this._chargeProgressColor = cc.color(255, 90, 55, 255);
@@ -51,12 +54,14 @@ var JoyStick = /** @class */ (function (_super) {
         this._initSkillButton();
         this._setSkillButtonMode("charge");
         this._initSacrificeButton();
+        this._initCoverButton();
         yyp.eventCenter.on("charge-cannon-progress", this._onChargeProgress, this);
         yyp.eventCenter.on("charge-cannon-cooldown", this._onChargeCooldown, this);
         yyp.eventCenter.on("charge-cannon-ready", this._onChargeReady, this);
         yyp.eventCenter.on("charge-cannon-clear", this._onChargeClear, this);
         yyp.eventCenter.on("skill-button-mode", this._onSkillButtonMode, this);
         yyp.eventCenter.on("sacrifice-button-visible", this._onSacrificeButtonVisible, this);
+        yyp.eventCenter.on("cover-button-state", this._onCoverButtonState, this);
         this.node.on(cc.Node.EventType.TOUCH_START, this._onTouchStart, this);
         this.node.on(cc.Node.EventType.TOUCH_MOVE, this._onTouchMove, this);
         this.node.on(cc.Node.EventType.TOUCH_END, this._onTouchEnd, this);
@@ -73,6 +78,7 @@ var JoyStick = /** @class */ (function (_super) {
         yyp.eventCenter.off("charge-cannon-clear", this._onChargeClear, this);
         yyp.eventCenter.off("skill-button-mode", this._onSkillButtonMode, this);
         yyp.eventCenter.off("sacrifice-button-visible", this._onSacrificeButtonVisible, this);
+        yyp.eventCenter.off("cover-button-state", this._onCoverButtonState, this);
     };
     JoyStick.prototype._onTouchStart = function (event) {
         var pos = this.node.convertToNodeSpaceAR(event.getLocation());
@@ -92,6 +98,11 @@ var JoyStick = /** @class */ (function (_super) {
         if (controlType == "sacrifice" && this._sacrificeEnabled && this._sacrificeTouchId == null) {
             this._sacrificeTouchId = touchId;
             this._setSacrificeButtonPressed(true);
+            return;
+        }
+        if (controlType == "cover" && this._coverButtonVisible && this._coverTouchId == null) {
+            this._coverTouchId = touchId;
+            this._setCoverButtonPressed(true);
             return;
         }
         if (controlType == "move" && this._moveTouchId == null) {
@@ -146,6 +157,11 @@ var JoyStick = /** @class */ (function (_super) {
             this._setSacrificeButtonPressed(false);
             yyp.eventCenter.emit("trigger-sacrifice", {});
         }
+        else if (touchId == this._coverTouchId) {
+            this._coverTouchId = null;
+            this._setCoverButtonPressed(false);
+            yyp.eventCenter.emit("trigger-cover-action", {});
+        }
     };
     JoyStick.prototype.update = function (dt) {
         var moveRatio = this._limitStickRange(this._fire._sprBg, this._fire._sprJoystick, this._moveTouchPos, this._moveDir);
@@ -158,10 +174,12 @@ var JoyStick = /** @class */ (function (_super) {
         this._shootTouchId = null;
         this._skillTouchId = null;
         this._sacrificeTouchId = null;
+        this._coverTouchId = null;
         this._resetMoveStick();
         this._resetShootStick();
         this._refreshChargeProgress(this._chargeProgressValue, this._chargeProgressColor);
         this._setSacrificeButtonPressed(false);
+        this._setCoverButtonPressed(false);
         yyp.eventCenter.emit("joy-stick", { dir: this._moveDir, ratio: 0 });
     };
     JoyStick.prototype._getCurrentSkillButton = function () {
@@ -175,6 +193,12 @@ var JoyStick = /** @class */ (function (_super) {
             var sacrificeDistance = pos.sub(this._fire._sacrificeBtn.position).mag();
             if (sacrificeDistance <= this._fire._sacrificeBtn.width / 2) {
                 return "sacrifice";
+            }
+        }
+        if (this._coverButtonVisible && this._fire._fenli_xifu && this._fire._fenli_xifu.active) {
+            var coverDistance = pos.sub(this._fire._fenli_xifu.position).mag();
+            if (coverDistance <= this._fire._fenli_xifu.width / 2) {
+                return "cover";
             }
         }
         var skillBtn = this._getCurrentSkillButton();
@@ -317,6 +341,15 @@ var JoyStick = /** @class */ (function (_super) {
         this._setSacrificeButtonPressed(false);
         this._setSacrificeButtonVisible(false);
     };
+    JoyStick.prototype._initCoverButton = function () {
+        if (!this._fire._fenli_xifu) {
+            return;
+        }
+        this._fire._fenli_xifu.opacity = 255;
+        this._fire._fenli_xifu.scale = 1;
+        this._setCoverButtonMode("attach");
+        this._setCoverButtonVisible(false);
+    };
     JoyStick.prototype._setSacrificeButtonPressed = function (pressed) {
         if (!this._fire._sacrificeBtn || !this._fire._sacrificeBtn.$Graphics) {
             return;
@@ -355,8 +388,36 @@ var JoyStick = /** @class */ (function (_super) {
             this._setSacrificeButtonPressed(false);
         }
     };
+    JoyStick.prototype._setCoverButtonPressed = function (pressed) {
+        if (!this._fire._fenli_xifu) {
+            return;
+        }
+        this._fire._fenli_xifu.scale = pressed ? 0.94 : 1;
+        this._fire._fenli_xifu.opacity = pressed ? 215 : 255;
+    };
+    JoyStick.prototype._setCoverButtonMode = function (mode) {
+        this._coverButtonMode = mode == "detach" ? "detach" : "attach";
+        if (this._fire._btnLabel && this._fire._btnLabel.$Label) {
+            this._fire._btnLabel.$Label.string = this._coverButtonMode == "detach" ? "分离" : "吸附";
+        }
+    };
+    JoyStick.prototype._setCoverButtonVisible = function (visible) {
+        this._coverButtonVisible = !!visible;
+        if (!this._fire._fenli_xifu) {
+            return;
+        }
+        this._fire._fenli_xifu.active = this._coverButtonVisible;
+        if (!this._coverButtonVisible) {
+            this._coverTouchId = null;
+            this._setCoverButtonPressed(false);
+        }
+    };
     JoyStick.prototype._onSacrificeButtonVisible = function (event) {
         this._setSacrificeButtonVisible(event && event.visible === true);
+    };
+    JoyStick.prototype._onCoverButtonState = function (event) {
+        this._setCoverButtonMode(event && event.mode ? event.mode : "attach");
+        this._setCoverButtonVisible(event && event.visible === true);
     };
     JoyStick.prototype._refreshChargeProgress = function (progress, color) {
         if (color === void 0) { color = cc.color(255, 90, 55, 255); }

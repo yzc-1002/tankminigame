@@ -274,6 +274,10 @@ var Bullet = /** @class */ (function (_super) {
                             }
                         }
                         else {
+                            if (this._map.tryHandleCoverBulletCollision
+                                && this._map.tryHandleCoverBulletCollision(currPosition, willPosition, this)) {
+                                return;
+                            }
                             //子弹和坦克检测
                             var hitTank = this._map.bulletEnemyCollisionTest(willPosition, this._camp);
                             if (hitTank) {

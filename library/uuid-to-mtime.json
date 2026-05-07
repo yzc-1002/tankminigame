@@ -555,8 +555,8 @@
     "relativePath": "prefab\\GameMap.prefab"
   },
   "099f4dde-58f4-4a3e-b662-48642286555d": {
-    "asset": 1778140610919,
-    "meta": 1778140610920,
+    "asset": 1778148607807,
+    "meta": 1778148607808,
     "relativePath": "prefab\\JoyStick.prefab"
   },
   "7aefe2c8-be5c-46a7-a3d9-dae9628bdd2b": {
@@ -2064,34 +2064,44 @@
     "meta": 1778140066048,
     "relativePath": "script\\Enemy.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778139854122,
-    "meta": 1778140066142,
-    "relativePath": "script\\GameMain.ts"
-  },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1778139877242,
-    "meta": 1778140066535,
-    "relativePath": "script\\JoyStick.ts"
-  },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778139870782,
-    "meta": 1778140066669,
-    "relativePath": "script\\Player.ts"
-  },
   "f60d2c9a-5abd-4e9e-a544-4c2bd3a90006": {
     "asset": 1778139626414,
     "meta": 1778140066684,
     "relativePath": "script\\OilPickup.ts"
   },
+  "c06376b0-cddb-41b4-99c0-c83e2b286204": {
+    "asset": 1778148349135,
+    "meta": 1778148349161,
+    "relativePath": "texture\\crateWood.png"
+  },
+  "f5a69fd4-5c2b-4b8e-8f57-c25861505cbc": {
+    "asset": 1778148453618,
+    "meta": 1778148460174,
+    "relativePath": "texture\\fenli.png"
+  },
   "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1778140158205,
-    "meta": 1778140234304,
+    "asset": 1778148895809,
+    "meta": 1778149319795,
     "relativePath": "script\\BulletE.ts"
   },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778141216600,
-    "meta": 1778141299818,
+    "asset": 1778149057472,
+    "meta": 1778149320273,
     "relativePath": "script\\GameMap.ts"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778148881585,
+    "meta": 1778149320355,
+    "relativePath": "script\\JoyStick.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778148891047,
+    "meta": 1778149320510,
+    "relativePath": "script\\Player.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778149500630,
+    "meta": 1778149576493,
+    "relativePath": "script\\GameMain.ts"
   }
 }

@@ -137,6 +137,7 @@ export class Player extends Tank {
         yyp.eventCenter.on('charge-cannon-release',this._doChargeCannonRelease,this); //蓄力炮松开
         yyp.eventCenter.on('oil-shell-trigger',this._doOilShellTrigger,this); //焦油弹发射
         yyp.eventCenter.on('trigger-sacrifice',this._doSacrifice,this); //献祭按钮
+        yyp.eventCenter.on('trigger-cover-action',this._doCoverAction,this); //掩体吸附/分离
         yyp.eventCenter.on('trigger-skill',this._doSkill,this);     //触发技能
     }
        
@@ -148,6 +149,7 @@ export class Player extends Tank {
         yyp.eventCenter.off('charge-cannon-release',this._doChargeCannonRelease,this); //蓄力炮松开
         yyp.eventCenter.off('oil-shell-trigger',this._doOilShellTrigger,this); //焦油弹发射
         yyp.eventCenter.off('trigger-sacrifice',this._doSacrifice,this); //献祭按钮
+        yyp.eventCenter.off('trigger-cover-action',this._doCoverAction,this); //掩体吸附/分离
         yyp.eventCenter.off('trigger-skill',this._doSkill,this);    //触发技能
     }
     
@@ -215,6 +217,13 @@ export class Player extends Tank {
             return;
         }
         this._fireOilShell();
+    }
+
+    _doCoverAction() {
+        if (this._inGame == false || !this._map || !this._map.tryToggleCoverTestAttachment) {
+            return;
+        }
+        this._map.tryToggleCoverTestAttachment(this);
     }
     
     //触发技能
@@ -505,6 +514,12 @@ export class Player extends Tank {
             this._refreshMoveEffect();
             this._refreshBarrelDir();
             this._refreshAngle(dt, false);
+            if (this._map && this._map.syncAttachedCoverTestCover) {
+                this._map.syncAttachedCoverTestCover(this);
+            }
+            if (this._map && this._map.refreshCoverTestButton) {
+                this._map.refreshCoverTestButton(this);
+            }
     
             // 技能2(超级子弹)
             this._skill2Time -= dt;
@@ -1556,6 +1571,9 @@ export class Player extends Tank {
     
     //执行死亡
     doDeath(){
+        if (this._map && this._map.forceDetachCoverTestFromPlayer) {
+            this._map.forceDetachCoverTestFromPlayer(this);
+        }
         this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
         this._oilShellCount = 0;

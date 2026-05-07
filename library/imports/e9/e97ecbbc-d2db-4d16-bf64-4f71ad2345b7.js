@@ -151,6 +151,7 @@ var Player = /** @class */ (function (_super) {
         yyp.eventCenter.on('charge-cannon-release', this._doChargeCannonRelease, this); //蓄力炮松开
         yyp.eventCenter.on('oil-shell-trigger', this._doOilShellTrigger, this); //焦油弹发射
         yyp.eventCenter.on('trigger-sacrifice', this._doSacrifice, this); //献祭按钮
+        yyp.eventCenter.on('trigger-cover-action', this._doCoverAction, this); //掩体吸附/分离
         yyp.eventCenter.on('trigger-skill', this._doSkill, this); //触发技能
     };
     //销毁事件
@@ -161,6 +162,7 @@ var Player = /** @class */ (function (_super) {
         yyp.eventCenter.off('charge-cannon-release', this._doChargeCannonRelease, this); //蓄力炮松开
         yyp.eventCenter.off('oil-shell-trigger', this._doOilShellTrigger, this); //焦油弹发射
         yyp.eventCenter.off('trigger-sacrifice', this._doSacrifice, this); //献祭按钮
+        yyp.eventCenter.off('trigger-cover-action', this._doCoverAction, this); //掩体吸附/分离
         yyp.eventCenter.off('trigger-skill', this._doSkill, this); //触发技能
     };
     //摇杆事件
@@ -219,6 +221,12 @@ var Player = /** @class */ (function (_super) {
             return;
         }
         this._fireOilShell();
+    };
+    Player.prototype._doCoverAction = function () {
+        if (this._inGame == false || !this._map || !this._map.tryToggleCoverTestAttachment) {
+            return;
+        }
+        this._map.tryToggleCoverTestAttachment(this);
     };
     //触发技能
     Player.prototype._doSkill = function (event) {
@@ -457,6 +465,12 @@ var Player = /** @class */ (function (_super) {
             this._refreshMoveEffect();
             this._refreshBarrelDir();
             this._refreshAngle(dt, false);
+            if (this._map && this._map.syncAttachedCoverTestCover) {
+                this._map.syncAttachedCoverTestCover(this);
+            }
+            if (this._map && this._map.refreshCoverTestButton) {
+                this._map.refreshCoverTestButton(this);
+            }
             // 技能2(超级子弹)
             this._skill2Time -= dt;
             this._skill2Time = this._skill2Time < 0 ? 0 : this._skill2Time;
@@ -1266,6 +1280,9 @@ var Player = /** @class */ (function (_super) {
     };
     //执行死亡
     Player.prototype.doDeath = function () {
+        if (this._map && this._map.forceDetachCoverTestFromPlayer) {
+            this._map.forceDetachCoverTestFromPlayer(this);
+        }
         this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
         this._oilShellCount = 0;

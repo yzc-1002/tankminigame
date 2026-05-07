@@ -183,6 +183,7 @@ var GameMain = /** @class */ (function (_super) {
     //准备开始
     GameMain.prototype._prepare = function (event) {
         yyp.eventCenter.emit("sacrifice-button-visible", { visible: false });
+        yyp.eventCenter.emit("cover-button-state", { visible: false });
         yyp.eventCenter.emit("skill-button-mode", { mode: "charge" });
         this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
         this._fire._lyStart.active = true;
@@ -211,6 +212,7 @@ var GameMain = /** @class */ (function (_super) {
     GameMain.prototype._onStartClick = function () {
         MusicManager_1.MusicManager.playEffect("btn");
         yyp.eventCenter.emit("sacrifice-button-visible", { visible: false });
+        yyp.eventCenter.emit("cover-button-state", { visible: false });
         yyp.eventCenter.emit("skill-button-mode", { mode: "charge" });
         this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
         //隐藏开始按钮
@@ -282,36 +284,42 @@ var GameMain = /** @class */ (function (_super) {
         mask.on(cc.Node.EventType.TOUCH_END, this._hideTestPanel, this);
         var dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(520, 940);
+        dialog.setContentSize(1060, 700);
         dialog.zIndex = 1;
         var dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-260, -470, 520, 940, 18);
+        dialogGraphics.roundRect(-530, -350, 1060, 700, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-260, -470, 520, 940, 18);
+        dialogGraphics.roundRect(-530, -350, 1060, 700, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function (event) {
             if (event && event.stopPropagation) {
                 event.stopPropagation();
             }
         }, this);
-        this._createTestLabel(dialog, "_lbTestTitle", "测试面板", cc.v2(0, 208), 34, cc.color(255, 255, 255, 255));
-        this._createTestLabel(dialog, "_lbTestTips", "会先重置当前游戏状态，再进入测试场景", cc.v2(0, 170), 22, cc.color(210, 210, 220, 255));
-        this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(-112, 100), cc.color(255, 90, 70, 255), this._onKillTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(112, 100), cc.color(80, 180, 255, 255), this._onHitTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnUpgradeTest", "升级测试", cc.v2(-112, 34), cc.color(115, 255, 170, 255), this._onUpgradeTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnMutationTest", "子弹质变测试", cc.v2(112, 34), cc.color(255, 120, 210, 255), this._onBulletMutationTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnShootEffectTest", "子弹射击测试", cc.v2(-112, -32), cc.color(255, 205, 90, 255), this._onShootEffectTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnPlayerLowHpTest", "自己血量告急", cc.v2(112, -32), cc.color(255, 110, 110, 255), this._onPlayerLowHpTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnEnemyLowHpTest", "敌人血量告急", cc.v2(-112, -98), cc.color(255, 165, 70, 255), this._onEnemyLowHpTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnKillBroadcastTest", "击杀广播", cc.v2(112, -98), cc.color(175, 120, 255, 255), this._onKillBroadcastTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnSacrificeTest", "献祭测试", cc.v2(0, -164), cc.color(255, 92, 92, 255), this._onSacrificeTestClick, 300, 54, 24);
-        this._createTestButton(dialog, "_btnPortalTest", "传送门测试", cc.v2(0, -230), cc.color(110, 255, 245, 255), this._onPortalTestClick, 300, 54, 24);
-        this._createTestButton(dialog, "_btnCentrifugalRingTest", "离心力圈测试", cc.v2(0, -296), cc.color(255, 160, 90, 255), this._onCentrifugalRingTestClick, 300, 54, 24);
-        this._createTestButton(dialog, "_btnOilSpillTest", "焦油弹测试", cc.v2(0, -362), cc.color(165, 118, 72, 255), this._onOilSpillTestClick, 300, 54, 24);
-        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -428), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
+        this._createTestLabel(dialog, "_lbTestTitle", "测试面板", cc.v2(0, 276), 34, cc.color(255, 255, 255, 255));
+        this._createTestLabel(dialog, "_lbTestTips", "会先重置当前游戏状态，再进入测试场景", cc.v2(0, 234), 22, cc.color(210, 210, 220, 255));
+        var buttonWidth = 220;
+        var buttonHeight = 54;
+        var buttonFontSize = 22;
+        var columns = [-360, -120, 120, 360];
+        var rows = [144, 72, 0, -72];
+        this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(columns[0], rows[0]), cc.color(255, 90, 70, 255), this._onKillTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(columns[1], rows[0]), cc.color(80, 180, 255, 255), this._onHitTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnUpgradeTest", "升级测试", cc.v2(columns[2], rows[0]), cc.color(115, 255, 170, 255), this._onUpgradeTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnMutationTest", "子弹质变测试", cc.v2(columns[3], rows[0]), cc.color(255, 120, 210, 255), this._onBulletMutationTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnShootEffectTest", "子弹射击测试", cc.v2(columns[0], rows[1]), cc.color(255, 205, 90, 255), this._onShootEffectTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnPlayerLowHpTest", "自己血量告急", cc.v2(columns[1], rows[1]), cc.color(255, 110, 110, 255), this._onPlayerLowHpTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnEnemyLowHpTest", "敌人血量告急", cc.v2(columns[2], rows[1]), cc.color(255, 165, 70, 255), this._onEnemyLowHpTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnKillBroadcastTest", "击杀广播", cc.v2(columns[3], rows[1]), cc.color(175, 120, 255, 255), this._onKillBroadcastTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnSacrificeTest", "献祭测试", cc.v2(columns[0], rows[2]), cc.color(255, 92, 92, 255), this._onSacrificeTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnPortalTest", "传送门测试", cc.v2(columns[1], rows[2]), cc.color(110, 255, 245, 255), this._onPortalTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnCentrifugalRingTest", "离心力圈测试", cc.v2(columns[2], rows[2]), cc.color(255, 160, 90, 255), this._onCentrifugalRingTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnOilSpillTest", "焦油弹测试", cc.v2(columns[3], rows[2]), cc.color(165, 118, 72, 255), this._onOilSpillTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnCoverTest", "掩体测试", cc.v2(columns[1], rows[3]), cc.color(199, 151, 96, 255), this._onCoverTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(columns[2], rows[3]), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
     };
     GameMain.prototype._createTestLabel = function (parent, name, text, pos, fontSize, color) {
         var labelNode = new cc.Node(name);
@@ -429,12 +437,19 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._startTestGame("oilSpill");
     };
+    GameMain.prototype._onCoverTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("cover");
+    };
     GameMain.prototype._startTestGame = function (type) {
         MusicManager_1.MusicManager.playEffect("btn");
         this._hideTestPanel();
         this._hideUpgradeChoicePanel(false);
         this._resetGameBeforeTest();
         yyp.eventCenter.emit("sacrifice-button-visible", { visible: type == "sacrifice" });
+        yyp.eventCenter.emit("cover-button-state", { visible: false });
         yyp.eventCenter.emit("skill-button-mode", { mode: "charge" });
         var self = this;
         var complete = function () {
@@ -506,12 +521,18 @@ var GameMain = /** @class */ (function (_super) {
                 }
             });
         }
+        else if (type == "cover") {
+            this._fire._tiled.script.startCoverTestGame(function () {
+                complete();
+            });
+        }
         else {
             this._fire._tiled.script.startPlayerHitTestGame(complete);
         }
     };
     GameMain.prototype._resetGameBeforeTest = function () {
         yyp.eventCenter.emit("sacrifice-button-visible", { visible: false });
+        yyp.eventCenter.emit("cover-button-state", { visible: false });
         this._fire._recommendBtns.runAction(cc.moveTo(0.1, 600, 120));
         this._fire._lyStart.active = false;
         this._fire._joystick.active = false;
