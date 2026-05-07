@@ -555,8 +555,8 @@
     "relativePath": "prefab\\GameMap.prefab"
   },
   "099f4dde-58f4-4a3e-b662-48642286555d": {
-    "asset": 1777368619008,
-    "meta": 1777368619010,
+    "asset": 1778139080861,
+    "meta": 1778139080863,
     "relativePath": "prefab\\JoyStick.prefab"
   },
   "7aefe2c8-be5c-46a7-a3d9-dae9628bdd2b": {
@@ -2054,29 +2054,39 @@
     "meta": 1777547495744,
     "relativePath": "script\\Enemy.ts"
   },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1778126077253,
-    "meta": 1778126813559,
-    "relativePath": "script\\JoyStick.ts"
-  },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778126065638,
-    "meta": 1778126813753,
-    "relativePath": "script\\Player.ts"
-  },
   "57473783-53bb-4668-9e13-3d2242e0eae2": {
     "asset": 1778127778881,
     "meta": 1778128012813,
     "relativePath": "script\\BulletE.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778127761648,
-    "meta": 1778128012928,
-    "relativePath": "script\\GameMain.ts"
-  },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
     "asset": 1778127828050,
     "meta": 1778128013209,
     "relativePath": "script\\GameMap.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778128414779,
+    "meta": 1778128809788,
+    "relativePath": "script\\Player.ts"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778137625125,
+    "meta": 1778137686413,
+    "relativePath": "script\\JoyStick.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778137847928,
+    "meta": 1778137912040,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "1b2700f9-8441-4e16-9fad-080032464c47": {
+    "asset": 1778139033666,
+    "meta": 1778139033693,
+    "relativePath": "texture\\skilloilBtn.png"
+  },
+  "9c808127-b265-4dd7-972f-83b5ba2b7774": {
+    "asset": 1778139313285,
+    "meta": 1778139313307,
+    "relativePath": "texture\\oilSpill_large.png"
   }
 }

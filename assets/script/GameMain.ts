@@ -193,6 +193,7 @@ export default class GameMain extends BaseComponent {
     
     //准备开始
     _prepare(event){
+        yyp.eventCenter.emit("sacrifice-button-visible",{visible:false});
         this._fire._recommendBtns.runAction(cc.moveTo(0.1,600,120));
 
         this._fire._lyStart.active = true;
@@ -224,6 +225,7 @@ export default class GameMain extends BaseComponent {
     //开始按钮
     _onStartClick(){
         MusicManager.playEffect("btn");
+        yyp.eventCenter.emit("sacrifice-button-visible",{visible:false});
         this._fire._recommendBtns.runAction(cc.moveTo(0.1,600,120));
 
         //隐藏开始按钮
@@ -308,15 +310,15 @@ export default class GameMain extends BaseComponent {
 
         let dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(520, 740);
+        dialog.setContentSize(520, 820);
         dialog.zIndex = 1;
         let dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-260, -370, 520, 740, 18);
+        dialogGraphics.roundRect(-260, -410, 520, 820, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-260, -370, 520, 740, 18);
+        dialogGraphics.roundRect(-260, -410, 520, 820, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function(event){
             if (event && event.stopPropagation) {
@@ -334,9 +336,10 @@ export default class GameMain extends BaseComponent {
         this._createTestButton(dialog, "_btnPlayerLowHpTest", "自己血量告急", cc.v2(112, -32), cc.color(255, 110, 110, 255), this._onPlayerLowHpTestClick, 208, 54, 24);
         this._createTestButton(dialog, "_btnEnemyLowHpTest", "敌人血量告急", cc.v2(-112, -98), cc.color(255, 165, 70, 255), this._onEnemyLowHpTestClick, 208, 54, 24);
         this._createTestButton(dialog, "_btnKillBroadcastTest", "击杀广播", cc.v2(112, -98), cc.color(175, 120, 255, 255), this._onKillBroadcastTestClick, 208, 54, 24);
-        this._createTestButton(dialog, "_btnPortalTest", "传送门测试", cc.v2(0, -164), cc.color(110, 255, 245, 255), this._onPortalTestClick, 300, 54, 24);
-        this._createTestButton(dialog, "_btnCentrifugalRingTest", "离心力圈测试", cc.v2(0, -230), cc.color(255, 160, 90, 255), this._onCentrifugalRingTestClick, 300, 54, 24);
-        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -318), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
+        this._createTestButton(dialog, "_btnSacrificeTest", "献祭测试", cc.v2(0, -164), cc.color(255, 92, 92, 255), this._onSacrificeTestClick, 300, 54, 24);
+        this._createTestButton(dialog, "_btnPortalTest", "传送门测试", cc.v2(0, -230), cc.color(110, 255, 245, 255), this._onPortalTestClick, 300, 54, 24);
+        this._createTestButton(dialog, "_btnCentrifugalRingTest", "离心力圈测试", cc.v2(0, -296), cc.color(255, 160, 90, 255), this._onCentrifugalRingTestClick, 300, 54, 24);
+        this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(0, -372), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
     }
 
     _createTestLabel(parent, name, text, pos, fontSize, color) {
@@ -456,11 +459,19 @@ export default class GameMain extends BaseComponent {
         this._startTestGame("centrifugalRing");
     }
 
+    _onSacrificeTestClick(event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("sacrifice");
+    }
+
     _startTestGame(type) {
         MusicManager.playEffect("btn");
         this._hideTestPanel();
         this._hideUpgradeChoicePanel(false);
         this._resetGameBeforeTest();
+        yyp.eventCenter.emit("sacrifice-button-visible",{visible:type == "sacrifice"});
 
         let self = this;
         let complete = function(){
@@ -505,6 +516,11 @@ export default class GameMain extends BaseComponent {
                 }
             });
         }
+        else if (type == "sacrifice") {
+            this._fire._tiled.script.startUpgradeTestGame(function(){
+                complete();
+            });
+        }
         else if (type == "killBroadcast") {
             this._fire._tiled.script.startKillBroadcastTestGame(function(){
                 complete();
@@ -526,6 +542,7 @@ export default class GameMain extends BaseComponent {
     }
 
     _resetGameBeforeTest() {
+        yyp.eventCenter.emit("sacrifice-button-visible",{visible:false});
         this._fire._recommendBtns.runAction(cc.moveTo(0.1,600,120));
         this._fire._lyStart.active = false;
         this._fire._joystick.active = false;

@@ -46,6 +46,7 @@ var SHOOT_RECOIL_OUT_TIME = 0.04;
 var SHOOT_RECOIL_RETURN_TIME = 0.11;
 var SHOOT_FLASH_FADE_IN = 0.02;
 var SHOOT_FLASH_FADE_OUT = 0.07;
+var SACRIFICE_HP_RATIO = 0.5;
 var Player = /** @class */ (function (_super) {
     __extends(Player, _super);
     function Player() {
@@ -144,6 +145,7 @@ var Player = /** @class */ (function (_super) {
         yyp.eventCenter.on('joy-stick-shoot', this._doShootJoyStick, this); //射击摇杆事件
         yyp.eventCenter.on('charge-cannon-press', this._doChargeCannonPress, this); //蓄力炮按下
         yyp.eventCenter.on('charge-cannon-release', this._doChargeCannonRelease, this); //蓄力炮松开
+        yyp.eventCenter.on('trigger-sacrifice', this._doSacrifice, this); //献祭按钮
         yyp.eventCenter.on('trigger-skill', this._doSkill, this); //触发技能
     };
     //销毁事件
@@ -152,6 +154,7 @@ var Player = /** @class */ (function (_super) {
         yyp.eventCenter.off('joy-stick-shoot', this._doShootJoyStick, this); //射击摇杆事件
         yyp.eventCenter.off('charge-cannon-press', this._doChargeCannonPress, this); //蓄力炮按下
         yyp.eventCenter.off('charge-cannon-release', this._doChargeCannonRelease, this); //蓄力炮松开
+        yyp.eventCenter.off('trigger-sacrifice', this._doSacrifice, this); //献祭按钮
         yyp.eventCenter.off('trigger-skill', this._doSkill, this); //触发技能
     };
     //摇杆事件
@@ -194,6 +197,12 @@ var Player = /** @class */ (function (_super) {
             this._fireChargeCannon();
         }
         this._resetChargeCannon();
+    };
+    Player.prototype._doSacrifice = function () {
+        if (this._inGame == false) {
+            return;
+        }
+        this._trySacrificeHpForEnergy();
     };
     //触发技能
     Player.prototype._doSkill = function (event) {
@@ -279,6 +288,23 @@ var Player = /** @class */ (function (_super) {
         }
         this._refreshEnergyUI();
     };
+    Player.prototype._trySacrificeHpForEnergy = function () {
+        if (this._hp <= 1) {
+            this._showSacrificeTip("血量过低,无法献祭");
+            return;
+        }
+        var maxSacrificeHp = this._hp - 1;
+        var sacrificeHp = Math.min(this._hp * SACRIFICE_HP_RATIO, maxSacrificeHp);
+        if (sacrificeHp <= 0) {
+            this._showSacrificeTip("当前无法献祭");
+            return;
+        }
+        this._hp -= sacrificeHp;
+        this.refreshHp();
+        this._addEnergyExp(sacrificeHp);
+        this._refreshEnergyUI();
+        this._playSacrificeFeedback();
+    };
     Player.prototype._addEnergyExp = function (exp) {
         this._energyExp += exp;
         while (this._energyExp >= this._energyNeedExp) {
@@ -356,6 +382,41 @@ var Player = /** @class */ (function (_super) {
         else if (this._fire._expBar && this._fire._expBar.$ProgressBar) {
             this._fire._expBar.$ProgressBar.progress = this._energyNeedExp > 0 ? this._energyExp / this._energyNeedExp : 0;
         }
+    };
+    Player.prototype._showSacrificeTip = function (text) {
+        var channel = SDKManager_1.default.getChannel();
+        if (channel && channel.showToast) {
+            channel.showToast(text);
+        }
+        else {
+            cc.log(text);
+        }
+    };
+    Player.prototype._playSacrificeFeedback = function () {
+        MusicManager_1.MusicManager.playEffect("playerHit");
+        Utils_1.Utils.vibrate();
+        var wave = new cc.Node("_sacrificeWave");
+        wave.parent = this.node;
+        wave.setPosition(0, 0);
+        wave.zIndex = 286;
+        wave.opacity = 210;
+        wave.scale = 0.72;
+        var waveGraphics = wave.addComponent(cc.Graphics);
+        waveGraphics.lineWidth = 7;
+        waveGraphics.strokeColor = cc.color(255, 88, 82, 235);
+        waveGraphics.circle(0, 0, this._radius + 16);
+        waveGraphics.stroke();
+        wave.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.26, 2.3), cc.fadeOut(0.26)), cc.removeSelf()));
+        var glow = new cc.Node("_sacrificeGlow");
+        glow.parent = this.node;
+        glow.setPosition(0, 0);
+        glow.zIndex = 285;
+        glow.opacity = 0;
+        var glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(255, 72, 68, 70);
+        glowGraphics.circle(0, 0, this._radius + 20);
+        glowGraphics.fill();
+        glow.runAction(cc.sequence(cc.spawn(cc.fadeTo(0.1, 190), cc.scaleTo(0.1, 1.22)), cc.spawn(cc.fadeOut(0.18), cc.scaleTo(0.18, 1.78)), cc.removeSelf()));
     };
     Player.prototype.update = function (dt) {
         if (this._inGame) {
