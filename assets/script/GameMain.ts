@@ -354,6 +354,7 @@ export default class GameMain extends BaseComponent {
         this._createTestButton(dialog, "_btnCentrifugalRingTest", "离心力圈测试", cc.v2(columns[2], rows[2]), cc.color(255, 160, 90, 255), this._onCentrifugalRingTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnOilSpillTest", "焦油弹测试", cc.v2(columns[3], rows[2]), cc.color(165, 118, 72, 255), this._onOilSpillTestClick, buttonWidth, buttonHeight, buttonFontSize);
 
+        this._createTestButton(dialog, "_btnEnergyEggTest", "能量蛋收藏", cc.v2(columns[0], rows[3]), cc.color(126, 232, 143, 255), this._onEnergyEggTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnCoverTest", "掩体测试", cc.v2(columns[1], rows[3]), cc.color(199, 151, 96, 255), this._onCoverTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(columns[2], rows[3]), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
     }
@@ -496,6 +497,13 @@ export default class GameMain extends BaseComponent {
         this._startTestGame("cover");
     }
 
+    _onEnergyEggTestClick(event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("energyEgg");
+    }
+
     _startTestGame(type) {
         MusicManager.playEffect("btn");
         this._hideTestPanel();
@@ -578,6 +586,11 @@ export default class GameMain extends BaseComponent {
         }
         else if (type == "cover") {
             this._fire._tiled.script.startCoverTestGame(function(){
+                complete();
+            });
+        }
+        else if (type == "energyEgg") {
+            this._fire._tiled.script.startEnergyEggTestGame(function(){
                 complete();
             });
         }

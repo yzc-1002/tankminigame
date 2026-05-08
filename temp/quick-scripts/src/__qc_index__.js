@@ -4,6 +4,7 @@ require('./assets/resources/shader/flash-light');
 require('./assets/script/BulletE');
 require('./assets/script/CoinItem');
 require('./assets/script/Enemy');
+require('./assets/script/EnergyEgg');
 require('./assets/script/EnergyItem');
 require('./assets/script/Finish');
 require('./assets/script/GameMain');

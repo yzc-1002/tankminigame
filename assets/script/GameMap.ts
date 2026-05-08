@@ -2,6 +2,7 @@ import {BaseComponent} from "./base/BaseComponent";
 import {Utils} from "./base/Utils";
 import {LocalizedData} from "./base/LocalizedData";
 import {EnergyItem} from "./EnergyItem";
+import {EnergyEgg} from "./EnergyEgg";
 import { MusicManager } from "./base/MusicManager";
 import RippleShockwave from "./effect/RippleShockwave";
 import {OilPickup} from "./OilPickup";
@@ -20,6 +21,8 @@ const OIL_SPILL_RADIUS = 120;
 const OIL_SPILL_SLOW_FACTOR = 0.52;
 const OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
 const COVER_TEST_FRAME_UUID = "f27215a4-32b0-4a3c-b87d-69a3dc03e37a";
+const ENERGY_EGG_FRAME_UUID = "5c9b12c3-9fd1-4472-b633-d31d7ce29bf2";
+const TREE_GREEN_LARGE_FRAME_UUID = "8d3f2edb-e27b-4029-af69-6c0bb54a056d";
 const KILL_TEST_VICTIM_NAMES = ["疾风号", "黑虎机", "钢牙炮手", "赤焰战车", "重锤坦克"];
 const KILL_BADGE_FRAME_UUIDS = {
     1: "91b6ef23-19f3-4d75-9e4c-4ee246eee6f7",
@@ -107,6 +110,7 @@ export class GameMap extends BaseComponent {
     _portalTestMode = false; //传送门测试模式
     _centrifugalRingTestMode = false; //离心力圈测试模式
     _coverTestMode = false; //掩体测试模式
+    _energyEggTestMode = false; //能量蛋收藏测试模式
     _levelId        = 1;        //当前关卡id
     _levelConfig    = null;     //当前关卡配置
 
@@ -136,6 +140,14 @@ export class GameMap extends BaseComponent {
     _coverTestFrameLoading = false;
     _coverTestFrameCallbacks = [];
     _coverTestEnemy = null;
+    _energyEggFrame = null;
+    _energyEggFrameLoading = false;
+    _energyEggFrameCallbacks = [];
+    _energyEggBushFrame = null;
+    _energyEggBushFrameLoading = false;
+    _energyEggBushFrameCallbacks = [];
+    _energyEggs = [];
+    _energyEggBushes = [];
 
     //加载完成
     onLoad () {
@@ -163,6 +175,8 @@ export class GameMap extends BaseComponent {
         this._preloadKillBroadcastBadgeFrames();
         this._preloadOilSpillFrame();
         this._preloadCoverTestFrame();
+        this._preloadEnergyEggFrame();
+        this._preloadEnergyEggBushFrame();
 
     }
 
@@ -1371,6 +1385,78 @@ export class GameMap extends BaseComponent {
         });
     }
 
+    _preloadEnergyEggFrame() {
+        if (!ENERGY_EGG_FRAME_UUID || !cc.assetManager || !cc.assetManager.loadAny) {
+            return;
+        }
+        this._loadEnergyEggFrame();
+    }
+
+    _loadEnergyEggFrame(callback = null) {
+        if (this._energyEggFrame) {
+            if (callback) {
+                callback(this._energyEggFrame);
+            }
+            return;
+        }
+
+        if (callback) {
+            this._energyEggFrameCallbacks.push(callback);
+        }
+        if (this._energyEggFrameLoading) {
+            return;
+        }
+
+        this._energyEggFrameLoading = true;
+        cc.assetManager.loadAny({uuid: ENERGY_EGG_FRAME_UUID}, (err, asset) => {
+            this._energyEggFrameLoading = false;
+            if (!err && asset) {
+                this._energyEggFrame = asset instanceof cc.SpriteFrame ? asset : asset;
+            }
+            let callbacks = this._energyEggFrameCallbacks.slice();
+            this._energyEggFrameCallbacks = [];
+            for (let i = 0; i < callbacks.length; i++) {
+                callbacks[i](this._energyEggFrame);
+            }
+        });
+    }
+
+    _preloadEnergyEggBushFrame() {
+        if (!TREE_GREEN_LARGE_FRAME_UUID || !cc.assetManager || !cc.assetManager.loadAny) {
+            return;
+        }
+        this._loadEnergyEggBushFrame();
+    }
+
+    _loadEnergyEggBushFrame(callback = null) {
+        if (this._energyEggBushFrame) {
+            if (callback) {
+                callback(this._energyEggBushFrame);
+            }
+            return;
+        }
+
+        if (callback) {
+            this._energyEggBushFrameCallbacks.push(callback);
+        }
+        if (this._energyEggBushFrameLoading) {
+            return;
+        }
+
+        this._energyEggBushFrameLoading = true;
+        cc.assetManager.loadAny({uuid: TREE_GREEN_LARGE_FRAME_UUID}, (err, asset) => {
+            this._energyEggBushFrameLoading = false;
+            if (!err && asset) {
+                this._energyEggBushFrame = asset instanceof cc.SpriteFrame ? asset : asset;
+            }
+            let callbacks = this._energyEggBushFrameCallbacks.slice();
+            this._energyEggBushFrameCallbacks = [];
+            for (let i = 0; i < callbacks.length; i++) {
+                callbacks[i](this._energyEggBushFrame);
+            }
+        });
+    }
+
     _getKillBadgeColor(streak) {
         let color = KILL_BADGE_TINTS[streak] || KILL_BADGE_TINTS[1];
         return cc.color(color[0], color[1], color[2], 255);
@@ -1740,6 +1826,159 @@ export class GameMap extends BaseComponent {
         energyScript.init(this._getEnergyConfig("Value", 10), this._getEnergyConfig("LifeTime", 12));
         this._energys.push(energy);
         return energy;
+    }
+
+    createEnergyEggTestSetup() {
+        let setup = this._getEnergyEggTestSetupPositions();
+        this.spawnEnergyEggBush(setup.bushPos, 94);
+        this.spawnEnergyEggAt(setup.eggPos, {
+            lifeTime: 10,
+            radius: 34,
+            energyCount: 18,
+            energyScatterRadius: 136
+        });
+        this.node.runAction(cc.sequence(
+            cc.delayTime(0.45),
+            cc.callFunc(() => {
+                this._showPlayerBubble("把能量蛋推进草丛");
+            })
+        ));
+    }
+
+    _getEnergyEggTestSetupPositions() {
+        let basePos = this._player && cc.isValid(this._player)
+            ? cc.v2(this._player.position)
+            : cc.v2(this._playerBornPos || cc.v2(0, 0));
+        let dirs = [
+            cc.v2(1, 0),
+            cc.v2(0.82, 0.32),
+            cc.v2(0.82, -0.32),
+            cc.v2(0.2, 1),
+        ];
+        for (let i = 0; i < dirs.length; i++) {
+            let dir = dirs[i].normalize();
+            let eggPos = this.clampMapInnerPosition(basePos.add(dir.mul(150)), 68);
+            let bushPos = this.clampMapInnerPosition(basePos.add(dir.mul(300)), 96);
+            if (this.testColliders(eggPos, 38).length > 0 || this.testColliders(bushPos, 52).length > 0) {
+                continue;
+            }
+            return {
+                eggPos: eggPos,
+                bushPos: bushPos,
+            };
+        }
+
+        return {
+            eggPos: this.clampMapInnerPosition(basePos.add(cc.v2(150, 0)), 68),
+            bushPos: this.clampMapInnerPosition(basePos.add(cc.v2(300, 0)), 96),
+        };
+    }
+
+    spawnEnergyEggBush(pos, radius = 94) {
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+
+        let root = new cc.Node("_energyEggBush");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(pos));
+        root.zIndex = this.judgezIndex(pos.y) + 2;
+
+        let shadow = new cc.Node("_energyEggBushShadow");
+        shadow.parent = root;
+        shadow.setPosition(0, -14);
+        let shadowGraphics = shadow.addComponent(cc.Graphics);
+        shadowGraphics.fillColor = cc.color(0, 0, 0, 60);
+        shadowGraphics.ellipse(0, 0, radius * 0.62, radius * 0.22);
+        shadowGraphics.fill();
+
+        let spriteNode = new cc.Node("_energyEggBushSprite");
+        spriteNode.parent = root;
+        spriteNode.setPosition(0, 8);
+        spriteNode.setContentSize(radius * 1.95, radius * 1.95);
+        let sprite = spriteNode.addComponent(cc.Sprite);
+        sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+        this._loadEnergyEggBushFrame((spriteFrame) => {
+            if (sprite && cc.isValid(sprite) && spriteFrame) {
+                sprite.spriteFrame = spriteFrame;
+            }
+        });
+
+        let bush:any = {
+            node: root,
+            radius: radius,
+        };
+        this._energyEggBushes.push(bush);
+        return bush;
+    }
+
+    spawnEnergyEggAt(pos, options: any = {}) {
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+
+        let root = new cc.Node("EnergyEgg");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(pos));
+        root.zIndex = this.judgezIndex(pos.y) + 1;
+
+        let eggScript = root.addComponent(EnergyEgg);
+        let egg:any = {
+            node: root,
+            script: eggScript,
+            radius: options.radius == null ? 34 : options.radius,
+            energyCount: options.energyCount == null ? 16 : options.energyCount,
+            energyScatterRadius: options.energyScatterRadius == null ? 130 : options.energyScatterRadius,
+            burstDone: false,
+        };
+        eggScript.init({
+            lifeTime: options.lifeTime == null ? 10 : options.lifeTime,
+            radius: egg.radius,
+            onMature: () => {
+                this._handleEnergyEggMature(egg);
+            }
+        });
+        this._loadEnergyEggFrame((spriteFrame) => {
+            if (eggScript && cc.isValid(eggScript)) {
+                eggScript.setSpriteFrame(spriteFrame);
+            }
+        });
+        this._energyEggs.push(egg);
+        return egg;
+    }
+
+    _handleEnergyEggMature(egg) {
+        if (!egg || egg.burstDone || !egg.node || !cc.isValid(egg.node)) {
+            return;
+        }
+
+        egg.burstDone = true;
+        let origin = cc.v2(egg.node.position);
+        let count = egg.energyCount || 16;
+        let scatterRadius = egg.energyScatterRadius || 130;
+        for (let i = 0; i < count; i++) {
+            let angle = Math.PI * 2 * i / count + Math.random() * 0.42;
+            let distance = 40 + Math.random() * scatterRadius;
+            let targetPos = this.clampMapInnerPosition(origin.add(cc.v2(Math.cos(angle) * distance, Math.sin(angle) * distance)), 42);
+            if (this.testColliders(targetPos, 18).length > 0) {
+                targetPos = this.clampMapInnerPosition(origin.add(cc.v2(Math.cos(angle) * 42, Math.sin(angle) * 42)), 42);
+            }
+            let energy = this.createEnergyAt(origin);
+            energy.scale = 0.18;
+            energy.runAction(cc.spawn(
+                cc.scaleTo(0.32, 1),
+                cc.jumpTo(0.36 + Math.random() * 0.08, targetPos, 42 + Math.random() * 18, 1)
+            ));
+        }
+        this.playKillExplosionEffectAt(origin);
+        if (this._player && cc.isValid(this._player)) {
+            this.node.runAction(cc.sequence(
+                cc.delayTime(0.2),
+                cc.callFunc(() => {
+                    this._showPlayerBubble("成熟了, 回来收能量");
+                })
+            ));
+        }
     }
 
     spawnOilTestPickup(pos = null) {
@@ -2296,6 +2535,7 @@ export class GameMap extends BaseComponent {
 
         this._updateKillBroadcastEntries();
         this._updateOilSpills(dt);
+        this._updateEnergyEggTest();
         if (this._killStreakRemain > 0) {
             this._killStreakRemain -= dt;
             if (this._killStreakRemain <= 0) {
@@ -2468,6 +2708,101 @@ export class GameMap extends BaseComponent {
             }
         }
         return factor;
+    }
+
+    _updateEnergyEggTest() {
+        if (this._energyEggs.length <= 0 && this._energyEggBushes.length <= 0) {
+            return;
+        }
+
+        for (let i = this._energyEggBushes.length - 1; i >= 0; i--) {
+            let bush = this._energyEggBushes[i];
+            if (!bush || !bush.node || !cc.isValid(bush.node)) {
+                this._energyEggBushes.splice(i, 1);
+                continue;
+            }
+            bush.node.zIndex = this.judgezIndex(bush.node.y) + 2;
+        }
+
+        for (let i = this._energyEggs.length - 1; i >= 0; i--) {
+            let egg = this._energyEggs[i];
+            if (!egg || !egg.node || !cc.isValid(egg.node) || !egg.script) {
+                this._energyEggs.splice(i, 1);
+                continue;
+            }
+
+            let hidden = false;
+            for (let j = 0; j < this._energyEggBushes.length; j++) {
+                let bush = this._energyEggBushes[j];
+                if (!bush || !bush.node || !cc.isValid(bush.node)) {
+                    continue;
+                }
+                if (cc.v2(egg.node.position).sub(bush.node.position).mag() <= bush.radius * 0.78) {
+                    hidden = true;
+                    break;
+                }
+            }
+            egg.script.setHiddenInBush(hidden);
+            egg.node.zIndex = this.judgezIndex(egg.node.y) + 1;
+        }
+
+        if (this._player && cc.isValid(this._player) && this._player.script) {
+            this._pushEnergyEggsByPlayer(this._player.script);
+        }
+    }
+
+    _pushEnergyEggsByPlayer(player) {
+        if (!player || !player.node || !cc.isValid(player.node) || player._currentSpeed <= 0.25) {
+            return;
+        }
+
+        let playerPos = cc.v2(player.node.position);
+        let playerDir = player._dir && player._dir.magSqr() > 0 ? cc.v2(player._dir).normalize() : cc.v2(1, 0);
+        let playerRadius = player.getRadius ? player.getRadius() : 38;
+        for (let i = 0; i < this._energyEggs.length; i++) {
+            let egg = this._energyEggs[i];
+            if (!egg || !egg.node || !cc.isValid(egg.node) || !egg.script) {
+                continue;
+            }
+
+            let eggPos = cc.v2(egg.node.position);
+            let offset = eggPos.sub(playerPos);
+            let minDistance = playerRadius * 0.48 + egg.script.getRadius() + 8;
+            if (offset.mag() > minDistance) {
+                continue;
+            }
+
+            let pushDir = offset.magSqr() > 9 ? offset.normalize() : playerDir;
+            if (pushDir.dot(playerDir) < -0.2) {
+                continue;
+            }
+
+            let pushDistance = Math.max(1.6, player._currentSpeed * (egg.script.isMature() ? 0.42 : 0.62));
+            let nextPos = this.clampMapInnerPosition(eggPos.add(pushDir.mul(pushDistance)), egg.script.getRadius() + 8);
+            if (this.testColliders(nextPos, egg.script.getRadius() + 3).length > 0) {
+                continue;
+            }
+            if (this._isEnergyEggBlockedByOtherEgg(egg, nextPos)) {
+                continue;
+            }
+
+            egg.node.setPosition(cc.v3(nextPos));
+            egg.node.zIndex = this.judgezIndex(nextPos.y) + 1;
+        }
+    }
+
+    _isEnergyEggBlockedByOtherEgg(currentEgg, nextPos) {
+        for (let i = 0; i < this._energyEggs.length; i++) {
+            let other = this._energyEggs[i];
+            if (other == currentEgg || !other || !other.node || !cc.isValid(other.node) || !other.script) {
+                continue;
+            }
+            let limit = currentEgg.script.getRadius() + other.script.getRadius() + 8;
+            if (cc.v2(other.node.position).sub(nextPos).mag() < limit) {
+                return true;
+            }
+        }
+        return false;
     }
 
     _getViewportSize() {
@@ -2985,6 +3320,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = this._levelConfig.EnemyCount * this._levelId;
         this._timeMaxEnemyCount = this._levelConfig.Max + Math.floor(this._levelId/5);
         yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
@@ -3017,6 +3353,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3051,6 +3388,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = 5;
         this._timeMaxEnemyCount = 5;
         this._bornEnemyCount = 5;
@@ -3085,6 +3423,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3119,6 +3458,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
         this._bornEnemyCount = 0;
@@ -3152,6 +3492,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3186,6 +3527,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = true;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3220,6 +3562,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = true;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3254,6 +3597,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = true;
+        this._energyEggTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3277,8 +3621,43 @@ export class GameMap extends BaseComponent {
         ));
     }
 
+    startEnergyEggTestGame(func){
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
+        this._energyEggTestMode = true;
+        this._maxEnemyCount = 0;
+        this._timeMaxEnemyCount = 0;
+        this._bornEnemyCount = 0;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
+        yyp.eventCenter.emit("current-enemycount",{enemycount:0});
+
+        this._roamFlg = false;
+        let will = this._correctMapPosition(cc.v2(-this._playerBornPos.x,-this._playerBornPos.y));
+        let self = this;
+        this.node.runAction(cc.sequence(
+            cc.moveTo(0.2,will),
+            cc.callFunc(function(){
+                self.createPlayer();
+                self.createEnergyEggTestSetup();
+                self._gaming = true;
+                func();
+            })
+        ));
+    }
+
     isTestMode() {
-        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode || this._coverTestMode;
+        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode || this._coverTestMode || this._energyEggTestMode;
     }
 
     isShootEffectTestMode() {
@@ -3504,6 +3883,7 @@ export class GameMap extends BaseComponent {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._energyEggTestMode = false;
         this._resetKillBroadcastRuntime();
         this._clearPortalTestNodes();
         this._clearCentrifugalRingTestNodes();
@@ -3542,6 +3922,20 @@ export class GameMap extends BaseComponent {
         this._oilSpills = [];
         this._coverTestCovers = [];
         this._coverTestEnemy = null;
+        for (let i = 0; i < this._energyEggs.length; i++) {
+            let egg = this._energyEggs[i];
+            if (egg && egg.node && cc.isValid(egg.node)) {
+                egg.node.destroy();
+            }
+        }
+        this._energyEggs = [];
+        for (let i = 0; i < this._energyEggBushes.length; i++) {
+            let bush = this._energyEggBushes[i];
+            if (bush && bush.node && cc.isValid(bush.node)) {
+                bush.node.destroy();
+            }
+        }
+        this._energyEggBushes = [];
         yyp.eventCenter.emit("cover-button-state",{visible:false});
 
         this._bornEnemyCount = 0;
@@ -3589,7 +3983,12 @@ export class GameMap extends BaseComponent {
             "_coverTestCrate": true,
             "_coverTestCrateShadow": true,
             "_coverHitFx": true,
-            "_coverShard": true
+            "_coverShard": true,
+            "EnergyEgg": true,
+            "_energyEggBush": true,
+            "_energyEggBushShadow": true,
+            "_energyEggLeaf": true,
+            "_energyEggBushCore": true
         };
         let children = this._fire._tmLayerObstacle.children.slice();
         for (let i = 0; i < children.length; i++) {
