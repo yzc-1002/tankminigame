@@ -284,15 +284,15 @@ var GameMain = /** @class */ (function (_super) {
         mask.on(cc.Node.EventType.TOUCH_END, this._hideTestPanel, this);
         var dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(1060, 760);
+        dialog.setContentSize(1060, 820);
         dialog.zIndex = 1;
         var dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-530, -380, 1060, 760, 18);
+        dialogGraphics.roundRect(-530, -410, 1060, 820, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-530, -380, 1060, 760, 18);
+        dialogGraphics.roundRect(-530, -410, 1060, 820, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function (event) {
             if (event && event.stopPropagation) {
@@ -305,7 +305,7 @@ var GameMain = /** @class */ (function (_super) {
         var buttonHeight = 54;
         var buttonFontSize = 22;
         var columns = [-360, -120, 120, 360];
-        var rows = [144, 72, 0, -72, -144];
+        var rows = [144, 72, 0, -72, -144, -216];
         this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(columns[0], rows[0]), cc.color(255, 90, 70, 255), this._onKillTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(columns[1], rows[0]), cc.color(80, 180, 255, 255), this._onHitTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnUpgradeTest", "升级测试", cc.v2(columns[2], rows[0]), cc.color(115, 255, 170, 255), this._onUpgradeTestClick, buttonWidth, buttonHeight, buttonFontSize);
@@ -325,6 +325,8 @@ var GameMain = /** @class */ (function (_super) {
         this._createTestButton(dialog, "_btnSpeedDoubleTest", "速度翻倍区域", cc.v2(columns[0], rows[4]), cc.color(50, 150, 255, 255), this._onSpeedDoubleTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnSpreadBulletTest", "子弹扩散区域", cc.v2(columns[1], rows[4]), cc.color(50, 230, 100, 255), this._onSpreadBulletTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnBounceObstacleTest", "子弹反弹障碍", cc.v2(columns[2], rows[4]), cc.color(255, 100, 200, 255), this._onBounceObstacleTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnBlackHoleTest", "黑洞区域", cc.v2(columns[3], rows[4]), cc.color(120, 40, 180, 255), this._onBlackHoleTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnClusterBombTest", "集束炸弹", cc.v2(columns[0], rows[5]), cc.color(220, 160, 40, 255), this._onClusterBombTestClick, buttonWidth, buttonHeight, buttonFontSize);
     };
     GameMain.prototype._createTestLabel = function (parent, name, text, pos, fontSize, color) {
         var labelNode = new cc.Node(name);
@@ -478,6 +480,18 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._startTestGame("bounceObstacle");
     };
+    GameMain.prototype._onBlackHoleTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("blackHole");
+    };
+    GameMain.prototype._onClusterBombTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("clusterBomb");
+    };
     GameMain.prototype._startTestGame = function (type) {
         MusicManager_1.MusicManager.playEffect("btn");
         this._hideTestPanel();
@@ -583,6 +597,16 @@ var GameMain = /** @class */ (function (_super) {
         }
         else if (type == "bounceObstacle") {
             this._fire._tiled.script.startBounceObstacleTestGame(function () {
+                complete();
+            });
+        }
+        else if (type == "blackHole") {
+            this._fire._tiled.script.startBlackHoleTestGame(function () {
+                complete();
+            });
+        }
+        else if (type == "clusterBomb") {
+            this._fire._tiled.script.startClusterBombTestGame(function () {
                 complete();
             });
         }

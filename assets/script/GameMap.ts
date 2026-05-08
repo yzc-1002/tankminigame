@@ -119,6 +119,9 @@ export class GameMap extends BaseComponent {
     _spreadBulletAreaData = null;
     _bounceObstacleTestMode = false; //子弹反弹障碍测试模式
     _bounceObstacles = [];
+    _blackHoleTestMode = false; //黑洞区域测试模式
+    _blackHoleAreaData = null;
+    _clusterBombTestMode = false; //集束炸弹测试模式
     _levelId        = 1;        //当前关卡id
     _levelConfig    = null;     //当前关卡配置
 
@@ -1574,6 +1577,233 @@ export class GameMap extends BaseComponent {
         }
 
         return false;
+    }
+
+    _clearBlackHoleTestNodes() {
+        this._blackHoleAreaData = null;
+        let children = this._fire._tmLayerObstacle.children.slice();
+        for (let i = 0; i < children.length; i++) {
+            let child = children[i];
+            if (!cc.isValid(child)) {
+                continue;
+            }
+            if (child.name == "_blackHoleArea" || child.name == "_blackHoleFx") {
+                child.destroy();
+            }
+        }
+    }
+
+    _createBlackHoleAreaNode(pos, radius, destroyRadius, color) {
+        let area = new cc.Node("_blackHoleArea");
+        area.parent = this._fire._tmLayerObstacle;
+        area.setPosition(cc.v3(pos));
+        area.zIndex = 5650;
+
+        // Outer glow
+        let glow = new cc.Node("_blackHoleGlow");
+        glow.parent = area;
+        let glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(60, 20, 100, 25);
+        glowGraphics.circle(0, 0, radius + 30);
+        glowGraphics.fill();
+        glow.opacity = 140;
+        glow.scale = 0.82;
+        glow.runAction(cc.repeatForever(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(0.8, 1.12),
+                cc.fadeTo(0.8, 210)
+            ),
+            cc.spawn(
+                cc.scaleTo(0.8, 0.82),
+                cc.fadeTo(0.8, 110)
+            )
+        )));
+
+        // Outer ring
+        let graphics = area.addComponent(cc.Graphics);
+        graphics.lineWidth = 5;
+        graphics.strokeColor = cc.color(100, 40, 180, 200);
+        graphics.circle(0, 0, radius);
+        graphics.stroke();
+        graphics.fillColor = cc.color(40, 10, 80, 35);
+        graphics.circle(0, 0, radius - 3);
+        graphics.fill();
+
+        // Inner accretion disk rings
+        let ringCount = 4;
+        for (let i = 0; i < ringCount; i++) {
+            let ringRadius = radius - (radius - destroyRadius) * (i + 1) / (ringCount + 1);
+            let ringNode = new cc.Node("_blackHoleRing" + i);
+            ringNode.parent = area;
+            let ringGraphics = ringNode.addComponent(cc.Graphics);
+            ringGraphics.lineWidth = 3 - i * 0.5;
+            let alpha = 180 - i * 35;
+            ringGraphics.strokeColor = cc.color(120, 50, 200, alpha);
+            ringGraphics.circle(0, 0, ringRadius);
+            ringGraphics.stroke();
+            ringNode.runAction(cc.repeatForever(cc.rotateBy(1.5 + i * 0.3, 90 + i * 30)));
+        }
+
+        // Dark core
+        let core = new cc.Node("_blackHoleCore");
+        core.parent = area;
+        let coreGraphics = core.addComponent(cc.Graphics);
+        coreGraphics.fillColor = cc.color(0, 0, 0, 220);
+        coreGraphics.circle(0, 0, destroyRadius);
+        coreGraphics.fill();
+        coreGraphics.lineWidth = 2;
+        coreGraphics.strokeColor = cc.color(180, 100, 255, 100);
+        coreGraphics.circle(0, 0, destroyRadius);
+        coreGraphics.stroke();
+
+        // Label
+        let labelNode = new cc.Node("_blackHoleLabel");
+        labelNode.parent = area;
+        labelNode.setContentSize(140, 48);
+        labelNode.color = cc.color(180, 120, 255, 220);
+        let label = labelNode.addComponent(cc.Label);
+        label.string = "黑洞";
+        label.fontSize = 30;
+        label.lineHeight = 36;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        // Hint
+        let hint = new cc.Node("_blackHoleHint");
+        hint.parent = area;
+        hint.setPosition(cc.v2(0, radius + 36));
+        hint.setContentSize(320, 40);
+        hint.color = cc.color(200, 180, 255, 200);
+        let hintLabel = hint.addComponent(cc.Label);
+        hintLabel.string = "子弹靠近会被吸引吞噬";
+        hintLabel.fontSize = 20;
+        hintLabel.lineHeight = 26;
+        hintLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        hintLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        return area;
+    }
+
+    createBlackHoleTestEnemy(pos) {
+        let enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._hp = 99999;
+        enemy.script._maxHp = 99999;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+        return enemy;
+    }
+
+    createBlackHoleTestSetup() {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+
+        this._clearBlackHoleTestNodes();
+
+        let playerPos = cc.v2(this._player.position);
+        let center = this.clampMapInnerPosition(playerPos.add(cc.v2(300, 0)), 120);
+        let radius = 100;
+        let destroyRadius = 14;
+        let color = cc.color(80, 30, 160, 200);
+        let enemyPos = this.clampMapInnerPosition(center.add(cc.v2(280, 100)), 90);
+
+        this._createBlackHoleAreaNode(center, radius, destroyRadius, color);
+        this.createBlackHoleTestEnemy(enemyPos);
+
+        this._blackHoleAreaData = {
+            center: center,
+            radius: radius,
+            destroyRadius: destroyRadius,
+            gravityStrength: 160,
+        };
+    }
+
+    tryEnterBlackHoleArea(bullet, fromPos, toPos) {
+        if (!this._blackHoleTestMode || !bullet || !this._blackHoleAreaData) {
+            return false;
+        }
+
+        let pos = cc.v2(bullet.node.position);
+        let dist = pos.sub(this._blackHoleAreaData.center).mag();
+        return dist < this._blackHoleAreaData.radius;
+    }
+
+    spawnBlackHoleSwallowFx(pos) {
+        let fx = new cc.Node("_blackHoleFx");
+        fx.parent = this._fire._tmLayerObstacle;
+        fx.setPosition(cc.v3(pos));
+        fx.zIndex = 5700;
+        fx.opacity = 220;
+
+        let graphics = fx.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(80, 30, 160, 180);
+        graphics.circle(0, 0, 10);
+        graphics.fill();
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(180, 100, 255, 200);
+        graphics.circle(0, 0, 18);
+        graphics.stroke();
+
+        fx.runAction(cc.sequence(
+            cc.spawn(
+                cc.scaleTo(0.25, 0),
+                cc.fadeOut(0.25)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
+    createClusterBombTestEnemies() {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+
+        let playerPos = cc.v2(this._player.position);
+        let startPos = playerPos.add(cc.v2(500, -120));
+        let cols = 4;
+        let rows = 3;
+        let spacingX = 80;
+        let spacingY = 70;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                let pos = this.clampMapInnerPosition(cc.v2(startPos.x + c * spacingX, startPos.y + r * spacingY), 50);
+                let enemy = cc.instantiate(this.enemyPrefab);
+                enemy.parent = this._fire._tmLayerObstacle;
+                enemy.position = cc.v3(pos);
+                enemy.script.setMap(this);
+                enemy.script.setTarget(this._player);
+                enemy.script.setEnemyType(11, this._levelId);
+                enemy.script._hp = 30;
+                enemy.script._maxHp = 30;
+                enemy.script.refreshHp();
+                enemy.script.enabled = false;
+                enemy.zIndex = this.judgezIndex(enemy.y);
+                this._enemys.push(enemy);
+            }
+        }
+    }
+
+    createClusterBombTestSetup() {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+
+        // Override player's bullet type to fire cluster bombs
+        let playerScript = this._player.script;
+        if (playerScript._config) {
+            playerScript._config.BType1 = 101;
+            playerScript._config.BType2 = 101;
+        }
+
+        this.createClusterBombTestEnemies();
     }
 
     _getTestEffectPreviewPos() {
@@ -4029,6 +4259,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = this._levelConfig.EnemyCount * this._levelId;
         this._timeMaxEnemyCount = this._levelConfig.Max + Math.floor(this._levelId/5);
         yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
@@ -4066,6 +4298,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -4105,6 +4339,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 5;
         this._timeMaxEnemyCount = 5;
         this._bornEnemyCount = 5;
@@ -4144,6 +4380,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -4183,6 +4421,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
         this._bornEnemyCount = 0;
@@ -4221,6 +4461,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -4260,6 +4502,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -4299,6 +4543,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -4338,6 +4584,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -4377,6 +4625,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._energyEggTestMode = true;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
@@ -4417,6 +4667,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -4456,6 +4708,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = true;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -4494,6 +4748,8 @@ export class GameMap extends BaseComponent {
         this._damageDoubleTestMode = false;
         this._speedDoubleTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._spreadBulletTestMode = true;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
@@ -4556,8 +4812,90 @@ export class GameMap extends BaseComponent {
         ));
     }
 
+    startBlackHoleTestGame(func){
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
+        this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
+        this._clusterBombTestMode = false;
+        this._blackHoleTestMode = true;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
+        yyp.eventCenter.emit("current-enemycount",{enemycount:1});
+
+        this._roamFlg = false;
+        let will = this._correctMapPosition(cc.v2(-this._playerBornPos.x,-this._playerBornPos.y));
+        let self = this;
+        this.node.runAction(cc.sequence(
+            cc.moveTo(0.2,will),
+            cc.callFunc(function(){
+                self.createPlayer();
+                self.createBlackHoleTestSetup();
+                self._gaming = true;
+                func();
+            })
+        ));
+    }
+
+    startClusterBombTestGame(func){
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData.getIntItem("_level1_",1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
+        this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = true;
+        this._maxEnemyCount = 12;
+        this._timeMaxEnemyCount = 12;
+        this._bornEnemyCount = 12;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid",{levelid:this._levelId});
+        yyp.eventCenter.emit("current-enemycount",{enemycount:12});
+
+        this._roamFlg = false;
+        let will = this._correctMapPosition(cc.v2(-this._playerBornPos.x,-this._playerBornPos.y));
+        let self = this;
+        this.node.runAction(cc.sequence(
+            cc.moveTo(0.2,will),
+            cc.callFunc(function(){
+                self.createPlayer();
+                self.createClusterBombTestSetup();
+                self._gaming = true;
+                func();
+            })
+        ));
+    }
+
     isTestMode() {
-        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode || this._coverTestMode || this._energyEggTestMode || this._damageDoubleTestMode || this._speedDoubleTestMode || this._spreadBulletTestMode || this._bounceObstacleTestMode;
+        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode || this._coverTestMode || this._energyEggTestMode || this._damageDoubleTestMode || this._speedDoubleTestMode || this._spreadBulletTestMode || this._bounceObstacleTestMode || this._blackHoleTestMode || this._clusterBombTestMode;
     }
 
     isShootEffectTestMode() {
@@ -4788,6 +5126,8 @@ export class GameMap extends BaseComponent {
         this._speedDoubleTestMode = false;
         this._spreadBulletTestMode = false;
         this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
         this._resetKillBroadcastRuntime();
         this._clearPortalTestNodes();
         this._clearCentrifugalRingTestNodes();
@@ -4795,6 +5135,7 @@ export class GameMap extends BaseComponent {
         this._clearSpeedDoubleTestNodes();
         this._clearSpreadBulletTestNodes();
         this._clearBounceObstacleTestNodes();
+        this._clearBlackHoleTestNodes();
         if (this._player && cc.isValid(this._player)){
             this._player.destroy();
             this._player = null;
@@ -4904,7 +5245,9 @@ export class GameMap extends BaseComponent {
             "_spreadBulletArea": true,
             "_spreadBulletFx": true,
             "_bounceObstacleCircle": true,
-            "_bounceObstacleLine": true
+            "_bounceObstacleLine": true,
+            "_blackHoleArea": true,
+            "_blackHoleFx": true
         };
         let children = this._fire._tmLayerObstacle.children.slice();
         for (let i = 0; i < children.length; i++) {

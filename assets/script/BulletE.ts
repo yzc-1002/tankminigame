@@ -32,6 +32,9 @@ export class Bullet extends BaseComponent {
     _damageDoubleUsed = false;
     _speedDoubleUsed = false;
     _spreadBulletUsed = false;
+    _isClusterBomb = false;
+    _clusterBombDistance = 0;
+    _clusterBombSplitDistance = 0;
 
     _currenBullet   = null;
     _isStop         = false;
@@ -86,7 +89,10 @@ export class Bullet extends BaseComponent {
         this._damageDoubleUsed = false;
         this._speedDoubleUsed = false;
         this._spreadBulletUsed = false;
-        
+        this._isClusterBomb = false;
+        this._clusterBombDistance = 0;
+        this._clusterBombSplitDistance = 0;
+
         //子弹类型
         if (camp == "enemy") {
             this._bulletType = 0;
@@ -116,6 +122,12 @@ export class Bullet extends BaseComponent {
         this._inGame = true;
         this.setBulletType(this._bulletType);
         this._applyMutationData(mutationData);
+
+        if (this._bulletType == 101) {
+            this._isClusterBomb = true;
+            this._clusterBombDistance = 0;
+            this._clusterBombSplitDistance = this._gunshot * 0.65;
+        }
     }
 
     setBulletType(type){
@@ -212,6 +224,19 @@ export class Bullet extends BaseComponent {
             graphics.fill();
             bullet.scale = 1.2;
         }
+        else if (type == 101) {
+            graphics.fillColor = cc.color(200, 140, 30, 240);
+            graphics.circle(0, 0, 22);
+            graphics.fill();
+            graphics.lineWidth = 3;
+            graphics.strokeColor = cc.color(255, 200, 50, 220);
+            graphics.circle(0, 0, 22);
+            graphics.stroke();
+            graphics.fillColor = cc.color(255, 180, 40, 200);
+            graphics.circle(0, 0, 10);
+            graphics.fill();
+            bullet.scale = 1.3;
+        }
         else{
             graphics.fillColor = cc.color(255, 240, 0, 240);
             graphics.circle(0, 0, 14);
@@ -241,6 +266,10 @@ export class Bullet extends BaseComponent {
                         this._landOilSpill(this.node.position);
                         this._destroyImmediately();
                     }
+                    else if (this._isClusterBomb) {
+                        this._spawnClusterSubBullets();
+                        this._destroyImmediately();
+                    }
                     else{
                         //销毁
                         this.doDestroy();
@@ -264,8 +293,40 @@ export class Bullet extends BaseComponent {
                     let currPosition = this.node.position;
                     let willPosition = currPosition.add(cc.v3(this._dir.mul(this._speed)));
                     this.node.setPosition(willPosition);
-                    
-                    if (this._map.isMap()) {
+
+                    //黑洞引力
+                    if (this._map && this._map._blackHoleTestMode && this._map._blackHoleAreaData) {
+                        let bhData = this._map._blackHoleAreaData;
+                        let bulletPos = cc.v2(this.node.position);
+                        let toCenter = bhData.center.sub(bulletPos);
+                        let dist = toCenter.mag();
+                        if (dist < bhData.radius) {
+                            if (dist < bhData.destroyRadius) {
+                                if (this._map.spawnBlackHoleSwallowFx) {
+                                    this._map.spawnBlackHoleSwallowFx(cc.v2(this.node.position));
+                                }
+                                this.doDestroy();
+                                return;
+                            }
+                            else {
+                                let pullDir = toCenter.normalize();
+                                let strength = bhData.gravityStrength / Math.max(dist, 8);
+                                this._dir = this._dir.add(pullDir.mul(strength * dt)).normalize();
+                                this.node.angle = Utils.vectorsToDegress(this._dir) - 90;
+                            }
+                        }
+                    }
+
+                    //集束炸弹：飞行中不碰撞，到达距离后分裂
+                    if (this._isClusterBomb) {
+                        this._clusterBombDistance += this._speed * dt * 60;
+                        if (this._clusterBombDistance >= this._clusterBombSplitDistance) {
+                            this._spawnClusterSubBullets();
+                            this._destroyImmediately();
+                            return;
+                        }
+                    }
+                    else if (this._map.isMap()) {
                         if (this._map.tryEnterDamageDoubleArea && this._map.tryEnterDamageDoubleArea(this, currPosition, willPosition)) {
                             return;
                         }
@@ -588,9 +649,30 @@ export class Bullet extends BaseComponent {
         }
         this._map.spawnCentrifugalRingFx(cc.v2(this.node.position), true, color, this._dir, this._speed);
     }
-   
-    
-    
+
+    _spawnClusterSubBullets() {
+        if (!this._map) return;
+
+        let count = 8;
+        let spreadAngle = 45;
+        let startAngle = -(spreadAngle / 2);
+        let step = spreadAngle / (count - 1);
+        let parentNode = this.node.parent;
+        let pos = cc.v2(this.node.position);
+        let subGunshot = this._gunshot * 0.4;
+        let subDamage = this._damage * 0.5;
+        let subSpeed = this._speed * 1.2;
+
+        for (let i = 0; i < count; i++) {
+            let angle = startAngle + i * step;
+            let bdir = Utils.vectorsRotateDegress(this._dir, angle);
+            let bpos = pos.add(bdir.mul(16));
+            let offset = (i - (count - 1) / 2) * 6;
+            bpos = bpos.add(cc.v2(-bdir.y, bdir.x).mul(offset));
+            Bullet.createBullet(bpos, bdir, subGunshot, subDamage, subSpeed, this._camp, parentNode, this._map, null, null);
+        }
+    }
+
     //创建子弹
     static createBullet(pos,dir,gunshot,atk,speed,camp,parentNode,map,bulletType = null, mutationData = null){
         speed = (camp == "enemy") ? speed*0.8 : speed;
@@ -660,6 +742,12 @@ export class Bullet extends BaseComponent {
                 break;
             }
             case 100:{
+                bdir = bdir;
+                bpos = cc.v2(pos).add(bdir.mul(wipeLen));
+                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType,mutationData);
+                break;
+            }
+            case 101:{
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
                 bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType,mutationData);

@@ -2105,18 +2105,18 @@
     "relativePath": "script\\EnergyEgg.ts"
   },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778214046921,
-    "meta": 1778214076407,
+    "asset": 1778224876674,
+    "meta": 1778225653714,
     "relativePath": "script\\GameMain.ts"
   },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1778214507855,
-    "meta": 1778214509579,
-    "relativePath": "script\\BulletE.ts"
-  },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778214869284,
-    "meta": 1778214967132,
+    "asset": 1778225060653,
+    "meta": 1778225654250,
     "relativePath": "script\\GameMap.ts"
+  },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1778225769911,
+    "meta": 1778226055564,
+    "relativePath": "script\\BulletE.ts"
   }
 }

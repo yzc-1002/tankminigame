@@ -57,6 +57,9 @@ var Bullet = /** @class */ (function (_super) {
         _this._damageDoubleUsed = false;
         _this._speedDoubleUsed = false;
         _this._spreadBulletUsed = false;
+        _this._isClusterBomb = false;
+        _this._clusterBombDistance = 0;
+        _this._clusterBombSplitDistance = 0;
         _this._currenBullet = null;
         _this._isStop = false;
         return _this;
@@ -108,6 +111,9 @@ var Bullet = /** @class */ (function (_super) {
         this._damageDoubleUsed = false;
         this._speedDoubleUsed = false;
         this._spreadBulletUsed = false;
+        this._isClusterBomb = false;
+        this._clusterBombDistance = 0;
+        this._clusterBombSplitDistance = 0;
         //子弹类型
         if (camp == "enemy") {
             this._bulletType = 0;
@@ -134,6 +140,11 @@ var Bullet = /** @class */ (function (_super) {
         this._inGame = true;
         this.setBulletType(this._bulletType);
         this._applyMutationData(mutationData);
+        if (this._bulletType == 101) {
+            this._isClusterBomb = true;
+            this._clusterBombDistance = 0;
+            this._clusterBombSplitDistance = this._gunshot * 0.65;
+        }
     };
     Bullet.prototype.setBulletType = function (type) {
         var _this = this;
@@ -218,6 +229,19 @@ var Bullet = /** @class */ (function (_super) {
             graphics.fill();
             bullet.scale = 1.2;
         }
+        else if (type == 101) {
+            graphics.fillColor = cc.color(200, 140, 30, 240);
+            graphics.circle(0, 0, 22);
+            graphics.fill();
+            graphics.lineWidth = 3;
+            graphics.strokeColor = cc.color(255, 200, 50, 220);
+            graphics.circle(0, 0, 22);
+            graphics.stroke();
+            graphics.fillColor = cc.color(255, 180, 40, 200);
+            graphics.circle(0, 0, 10);
+            graphics.fill();
+            bullet.scale = 1.3;
+        }
         else {
             graphics.fillColor = cc.color(255, 240, 0, 240);
             graphics.circle(0, 0, 14);
@@ -241,6 +265,10 @@ var Bullet = /** @class */ (function (_super) {
                         this._landOilSpill(this.node.position);
                         this._destroyImmediately();
                     }
+                    else if (this._isClusterBomb) {
+                        this._spawnClusterSubBullets();
+                        this._destroyImmediately();
+                    }
                     else {
                         //销毁
                         this.doDestroy();
@@ -262,7 +290,38 @@ var Bullet = /** @class */ (function (_super) {
                     var currPosition = this.node.position;
                     var willPosition = currPosition.add(cc.v3(this._dir.mul(this._speed)));
                     this.node.setPosition(willPosition);
-                    if (this._map.isMap()) {
+                    //黑洞引力
+                    if (this._map && this._map._blackHoleTestMode && this._map._blackHoleAreaData) {
+                        var bhData = this._map._blackHoleAreaData;
+                        var bulletPos = cc.v2(this.node.position);
+                        var toCenter = bhData.center.sub(bulletPos);
+                        var dist = toCenter.mag();
+                        if (dist < bhData.radius) {
+                            if (dist < bhData.destroyRadius) {
+                                if (this._map.spawnBlackHoleSwallowFx) {
+                                    this._map.spawnBlackHoleSwallowFx(cc.v2(this.node.position));
+                                }
+                                this.doDestroy();
+                                return;
+                            }
+                            else {
+                                var pullDir = toCenter.normalize();
+                                var strength = bhData.gravityStrength / Math.max(dist, 8);
+                                this._dir = this._dir.add(pullDir.mul(strength * dt)).normalize();
+                                this.node.angle = Utils_1.Utils.vectorsToDegress(this._dir) - 90;
+                            }
+                        }
+                    }
+                    //集束炸弹：飞行中不碰撞，到达距离后分裂
+                    if (this._isClusterBomb) {
+                        this._clusterBombDistance += this._speed * dt * 60;
+                        if (this._clusterBombDistance >= this._clusterBombSplitDistance) {
+                            this._spawnClusterSubBullets();
+                            this._destroyImmediately();
+                            return;
+                        }
+                    }
+                    else if (this._map.isMap()) {
                         if (this._map.tryEnterDamageDoubleArea && this._map.tryEnterDamageDoubleArea(this, currPosition, willPosition)) {
                             return;
                         }
@@ -532,6 +591,27 @@ var Bullet = /** @class */ (function (_super) {
         }
         this._map.spawnCentrifugalRingFx(cc.v2(this.node.position), true, color, this._dir, this._speed);
     };
+    Bullet.prototype._spawnClusterSubBullets = function () {
+        if (!this._map)
+            return;
+        var count = 8;
+        var spreadAngle = 45;
+        var startAngle = -(spreadAngle / 2);
+        var step = spreadAngle / (count - 1);
+        var parentNode = this.node.parent;
+        var pos = cc.v2(this.node.position);
+        var subGunshot = this._gunshot * 0.4;
+        var subDamage = this._damage * 0.5;
+        var subSpeed = this._speed * 1.2;
+        for (var i = 0; i < count; i++) {
+            var angle = startAngle + i * step;
+            var bdir = Utils_1.Utils.vectorsRotateDegress(this._dir, angle);
+            var bpos = pos.add(bdir.mul(16));
+            var offset = (i - (count - 1) / 2) * 6;
+            bpos = bpos.add(cc.v2(-bdir.y, bdir.x).mul(offset));
+            Bullet_1.createBullet(bpos, bdir, subGunshot, subDamage, subSpeed, this._camp, parentNode, this._map, null, null);
+        }
+    };
     //创建子弹
     Bullet.createBullet = function (pos, dir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData) {
         if (bulletType === void 0) { bulletType = null; }
@@ -599,6 +679,12 @@ var Bullet = /** @class */ (function (_super) {
                 break;
             }
             case 100: {
+                bdir = bdir;
+                bpos = cc.v2(pos).add(bdir.mul(wipeLen));
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData);
+                break;
+            }
+            case 101: {
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
                 bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData);
