@@ -114,6 +114,14 @@ var GameMap = /** @class */ (function (_super) {
         _this._centrifugalRingTestMode = false; //离心力圈测试模式
         _this._coverTestMode = false; //掩体测试模式
         _this._energyEggTestMode = false; //能量蛋收藏测试模式
+        _this._damageDoubleTestMode = false; //伤害翻倍区域测试模式
+        _this._damageDoubleAreaData = null;
+        _this._speedDoubleTestMode = false; //速度翻倍区域测试模式
+        _this._speedDoubleAreaData = null;
+        _this._spreadBulletTestMode = false; //子弹扩散区域测试模式
+        _this._spreadBulletAreaData = null;
+        _this._bounceObstacleTestMode = false; //子弹反弹障碍测试模式
+        _this._bounceObstacles = [];
         _this._levelId = 1; //当前关卡id
         _this._levelConfig = null; //当前关卡配置
         _this._roamFlg = false; //漫游标记
@@ -759,6 +767,567 @@ var GameMap = /** @class */ (function (_super) {
             tailGraphics.fill();
         }
         fx.runAction(cc.sequence(cc.spawn(cc.scaleTo(isRelease ? 0.18 : 0.12, isRelease ? 1.8 : 1.35), cc.fadeOut(isRelease ? 0.18 : 0.12)), cc.removeSelf()));
+    };
+    GameMap.prototype._clearDamageDoubleTestNodes = function () {
+        this._damageDoubleAreaData = null;
+        var children = this._fire._tmLayerObstacle.children.slice();
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (!cc.isValid(child)) {
+                continue;
+            }
+            if (child.name == "_damageDoubleArea" || child.name == "_damageDoubleFx") {
+                child.destroy();
+            }
+        }
+    };
+    GameMap.prototype._createDamageDoubleAreaNode = function (pos, radius, color) {
+        var area = new cc.Node("_damageDoubleArea");
+        area.parent = this._fire._tmLayerObstacle;
+        area.setPosition(cc.v3(pos));
+        area.zIndex = 5650;
+        var glow = new cc.Node("_damageDoubleGlow");
+        glow.parent = area;
+        var glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(255, 0, 0, 35);
+        glowGraphics.circle(0, 0, radius + 20);
+        glowGraphics.fill();
+        glow.opacity = 160;
+        glow.scale = 0.85;
+        glow.runAction(cc.repeatForever(cc.sequence(cc.spawn(cc.scaleTo(0.5, 1.08), cc.fadeTo(0.5, 220)), cc.spawn(cc.scaleTo(0.5, 0.85), cc.fadeTo(0.5, 120)))));
+        var graphics = area.addComponent(cc.Graphics);
+        graphics.lineWidth = 6;
+        graphics.strokeColor = cc.color(255, 30, 30, 255);
+        graphics.circle(0, 0, radius);
+        graphics.stroke();
+        graphics.fillColor = cc.color(255, 0, 0, 30);
+        graphics.circle(0, 0, radius - 4);
+        graphics.fill();
+        var innerRing = new cc.Node("_damageDoubleInnerRing");
+        innerRing.parent = area;
+        var innerGraphics = innerRing.addComponent(cc.Graphics);
+        innerGraphics.lineWidth = 3;
+        innerGraphics.strokeColor = cc.color(255, 100, 100, 150);
+        var segments = 24;
+        var dashLen = Math.PI * 2 / segments;
+        for (var i = 0; i < segments; i += 2) {
+            var startAngle = i * dashLen;
+            var endAngle = (i + 1) * dashLen;
+            innerGraphics.arc(0, 0, radius - 12, startAngle, endAngle, false);
+            innerGraphics.stroke();
+        }
+        innerRing.runAction(cc.repeatForever(cc.rotateBy(2.0, 90)));
+        var labelNode = new cc.Node("_damageDoubleLabel");
+        labelNode.parent = area;
+        labelNode.setContentSize(140, 48);
+        labelNode.color = cc.color(255, 255, 60, 255);
+        var label = labelNode.addComponent(cc.Label);
+        label.string = "x2";
+        label.fontSize = 34;
+        label.lineHeight = 40;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        var hint = new cc.Node("_damageDoubleHint");
+        hint.parent = area;
+        hint.setPosition(cc.v2(0, radius + 36));
+        hint.setContentSize(300, 40);
+        hint.color = cc.color(255, 220, 220, 220);
+        var hintLabel = hint.addComponent(cc.Label);
+        hintLabel.string = "子弹穿过 伤害x2 体积增大";
+        hintLabel.fontSize = 20;
+        hintLabel.lineHeight = 26;
+        hintLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        hintLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        return area;
+    };
+    GameMap.prototype.createDamageDoubleTestEnemy = function (pos) {
+        var enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._hp = 99999;
+        enemy.script._maxHp = 99999;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+        return enemy;
+    };
+    GameMap.prototype.createDamageDoubleTestSetup = function () {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        this._clearDamageDoubleTestNodes();
+        var playerPos = cc.v2(this._player.position);
+        var center = this.clampMapInnerPosition(playerPos.add(cc.v2(220, 0)), 100);
+        var radius = 60;
+        var color = cc.color(255, 40, 40, 255);
+        var enemyPos = this.clampMapInnerPosition(center.add(cc.v2(radius + 40, 0)), 90);
+        this._createDamageDoubleAreaNode(center, radius, color);
+        this.createDamageDoubleTestEnemy(enemyPos);
+        this._damageDoubleAreaData = {
+            center: center,
+            radius: radius,
+            damageMultiplier: 2,
+            scaleMultiplier: 1.5,
+        };
+    };
+    GameMap.prototype.tryEnterDamageDoubleArea = function (bullet, fromPos, toPos) {
+        if (!this._damageDoubleTestMode || !bullet || !this._damageDoubleAreaData) {
+            return false;
+        }
+        if (bullet.hasUsedDamageDoubleArea && bullet.hasUsedDamageDoubleArea()) {
+            return false;
+        }
+        var area = this._damageDoubleAreaData;
+        if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
+            return false;
+        }
+        return bullet.enterDamageDoubleArea ? bullet.enterDamageDoubleArea(area) : false;
+    };
+    GameMap.prototype.spawnDamageDoubleFx = function (pos) {
+        var fx = new cc.Node("_damageDoubleFx");
+        fx.parent = this._fire._tmLayerObstacle;
+        fx.setPosition(cc.v3(pos));
+        fx.zIndex = 5700;
+        fx.opacity = 220;
+        fx.scale = 0.4;
+        var graphics = fx.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(255, 50, 50, 180);
+        graphics.circle(0, 0, 20);
+        graphics.fill();
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(255, 200, 50, 220);
+        graphics.circle(0, 0, 26);
+        graphics.stroke();
+        fx.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.2, 1.6), cc.fadeOut(0.2)), cc.removeSelf()));
+    };
+    GameMap.prototype._clearSpeedDoubleTestNodes = function () {
+        this._speedDoubleAreaData = null;
+        var children = this._fire._tmLayerObstacle.children.slice();
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (!cc.isValid(child)) {
+                continue;
+            }
+            if (child.name == "_speedDoubleArea" || child.name == "_speedDoubleFx") {
+                child.destroy();
+            }
+        }
+    };
+    GameMap.prototype._createSpeedDoubleAreaNode = function (pos, radius, color) {
+        var area = new cc.Node("_speedDoubleArea");
+        area.parent = this._fire._tmLayerObstacle;
+        area.setPosition(cc.v3(pos));
+        area.zIndex = 5650;
+        var glow = new cc.Node("_speedDoubleGlow");
+        glow.parent = area;
+        var glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(0, 80, 255, 35);
+        glowGraphics.circle(0, 0, radius + 20);
+        glowGraphics.fill();
+        glow.opacity = 160;
+        glow.scale = 0.85;
+        glow.runAction(cc.repeatForever(cc.sequence(cc.spawn(cc.scaleTo(0.5, 1.08), cc.fadeTo(0.5, 220)), cc.spawn(cc.scaleTo(0.5, 0.85), cc.fadeTo(0.5, 120)))));
+        var graphics = area.addComponent(cc.Graphics);
+        graphics.lineWidth = 6;
+        graphics.strokeColor = cc.color(30, 130, 255, 255);
+        graphics.circle(0, 0, radius);
+        graphics.stroke();
+        graphics.fillColor = cc.color(0, 80, 255, 30);
+        graphics.circle(0, 0, radius - 4);
+        graphics.fill();
+        var innerRing = new cc.Node("_speedDoubleInnerRing");
+        innerRing.parent = area;
+        var innerGraphics = innerRing.addComponent(cc.Graphics);
+        innerGraphics.lineWidth = 3;
+        innerGraphics.strokeColor = cc.color(100, 180, 255, 150);
+        var segments = 24;
+        var dashLen = Math.PI * 2 / segments;
+        for (var i = 0; i < segments; i += 2) {
+            var startAngle = i * dashLen;
+            var endAngle = (i + 1) * dashLen;
+            innerGraphics.arc(0, 0, radius - 12, startAngle, endAngle, false);
+            innerGraphics.stroke();
+        }
+        innerRing.runAction(cc.repeatForever(cc.rotateBy(2.0, -90)));
+        var labelNode = new cc.Node("_speedDoubleLabel");
+        labelNode.parent = area;
+        labelNode.setContentSize(140, 48);
+        labelNode.color = cc.color(100, 200, 255, 255);
+        var label = labelNode.addComponent(cc.Label);
+        label.string = "x2";
+        label.fontSize = 34;
+        label.lineHeight = 40;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        var hint = new cc.Node("_speedDoubleHint");
+        hint.parent = area;
+        hint.setPosition(cc.v2(0, radius + 36));
+        hint.setContentSize(300, 40);
+        hint.color = cc.color(200, 220, 255, 220);
+        var hintLabel = hint.addComponent(cc.Label);
+        hintLabel.string = "子弹穿过 速度x3";
+        hintLabel.fontSize = 20;
+        hintLabel.lineHeight = 26;
+        hintLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        hintLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        return area;
+    };
+    GameMap.prototype.createSpeedDoubleTestEnemy = function (pos) {
+        var enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._hp = 99999;
+        enemy.script._maxHp = 99999;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+        return enemy;
+    };
+    GameMap.prototype.createSpeedDoubleTestSetup = function () {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        this._clearSpeedDoubleTestNodes();
+        var playerPos = cc.v2(this._player.position);
+        var center = this.clampMapInnerPosition(playerPos.add(cc.v2(220, 0)), 100);
+        var radius = 60;
+        var color = cc.color(30, 130, 255, 255);
+        var enemyPos = this.clampMapInnerPosition(center.add(cc.v2(radius + 40, 0)), 90);
+        this._createSpeedDoubleAreaNode(center, radius, color);
+        this.createSpeedDoubleTestEnemy(enemyPos);
+        this._speedDoubleAreaData = {
+            center: center,
+            radius: radius,
+            speedMultiplier: 3,
+        };
+    };
+    GameMap.prototype.tryEnterSpeedDoubleArea = function (bullet, fromPos, toPos) {
+        if (!this._speedDoubleTestMode || !bullet || !this._speedDoubleAreaData) {
+            return false;
+        }
+        if (bullet.hasUsedSpeedDoubleArea && bullet.hasUsedSpeedDoubleArea()) {
+            return false;
+        }
+        var area = this._speedDoubleAreaData;
+        if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
+            return false;
+        }
+        return bullet.enterSpeedDoubleArea ? bullet.enterSpeedDoubleArea(area) : false;
+    };
+    GameMap.prototype.spawnSpeedDoubleFx = function (pos) {
+        var fx = new cc.Node("_speedDoubleFx");
+        fx.parent = this._fire._tmLayerObstacle;
+        fx.setPosition(cc.v3(pos));
+        fx.zIndex = 5700;
+        fx.opacity = 220;
+        fx.scale = 0.4;
+        var graphics = fx.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(50, 150, 255, 180);
+        graphics.circle(0, 0, 20);
+        graphics.fill();
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(100, 200, 255, 220);
+        graphics.circle(0, 0, 26);
+        graphics.stroke();
+        fx.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.2, 1.6), cc.fadeOut(0.2)), cc.removeSelf()));
+    };
+    GameMap.prototype._clearSpreadBulletTestNodes = function () {
+        this._spreadBulletAreaData = null;
+        var children = this._fire._tmLayerObstacle.children.slice();
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (!cc.isValid(child)) {
+                continue;
+            }
+            if (child.name == "_spreadBulletArea" || child.name == "_spreadBulletFx") {
+                child.destroy();
+            }
+        }
+    };
+    GameMap.prototype._createSpreadBulletAreaNode = function (pos, radius, color) {
+        var area = new cc.Node("_spreadBulletArea");
+        area.parent = this._fire._tmLayerObstacle;
+        area.setPosition(cc.v3(pos));
+        area.zIndex = 5650;
+        var glow = new cc.Node("_spreadBulletGlow");
+        glow.parent = area;
+        var glowGraphics = glow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(0, 200, 80, 35);
+        glowGraphics.circle(0, 0, radius + 20);
+        glowGraphics.fill();
+        glow.opacity = 160;
+        glow.scale = 0.85;
+        glow.runAction(cc.repeatForever(cc.sequence(cc.spawn(cc.scaleTo(0.5, 1.08), cc.fadeTo(0.5, 220)), cc.spawn(cc.scaleTo(0.5, 0.85), cc.fadeTo(0.5, 120)))));
+        var graphics = area.addComponent(cc.Graphics);
+        graphics.lineWidth = 6;
+        graphics.strokeColor = cc.color(30, 230, 100, 255);
+        graphics.circle(0, 0, radius);
+        graphics.stroke();
+        graphics.fillColor = cc.color(0, 200, 80, 30);
+        graphics.circle(0, 0, radius - 4);
+        graphics.fill();
+        var innerRing = new cc.Node("_spreadBulletInnerRing");
+        innerRing.parent = area;
+        var innerGraphics = innerRing.addComponent(cc.Graphics);
+        innerGraphics.lineWidth = 3;
+        innerGraphics.strokeColor = cc.color(100, 255, 150, 150);
+        var segments = 24;
+        var dashLen = Math.PI * 2 / segments;
+        for (var i = 0; i < segments; i += 2) {
+            var startAngle = i * dashLen;
+            var endAngle = (i + 1) * dashLen;
+            innerGraphics.arc(0, 0, radius - 12, startAngle, endAngle, false);
+            innerGraphics.stroke();
+        }
+        innerRing.runAction(cc.repeatForever(cc.rotateBy(2.0, 60)));
+        var labelNode = new cc.Node("_spreadBulletLabel");
+        labelNode.parent = area;
+        labelNode.setContentSize(140, 48);
+        labelNode.color = cc.color(100, 255, 140, 255);
+        var label = labelNode.addComponent(cc.Label);
+        label.string = "x3";
+        label.fontSize = 34;
+        label.lineHeight = 40;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        var hint = new cc.Node("_spreadBulletHint");
+        hint.parent = area;
+        hint.setPosition(cc.v2(0, radius + 36));
+        hint.setContentSize(300, 40);
+        hint.color = cc.color(200, 255, 220, 220);
+        var hintLabel = hint.addComponent(cc.Label);
+        hintLabel.string = "子弹穿过 1变3";
+        hintLabel.fontSize = 20;
+        hintLabel.lineHeight = 26;
+        hintLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        hintLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        return area;
+    };
+    GameMap.prototype.createSpreadBulletTestEnemy = function (pos) {
+        var enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._hp = 99999;
+        enemy.script._maxHp = 99999;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+        return enemy;
+    };
+    GameMap.prototype.createSpreadBulletTestSetup = function () {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        this._clearSpreadBulletTestNodes();
+        var playerPos = cc.v2(this._player.position);
+        var center = this.clampMapInnerPosition(playerPos.add(cc.v2(220, 0)), 100);
+        var radius = 60;
+        var color = cc.color(30, 230, 100, 255);
+        var enemyPos = this.clampMapInnerPosition(center.add(cc.v2(200, 0)), 90);
+        this._createSpreadBulletAreaNode(center, radius, color);
+        this.createSpreadBulletTestEnemy(enemyPos);
+        this._spreadBulletAreaData = {
+            center: center,
+            radius: radius,
+            spreadCount: 2,
+            spreadAngle: 20,
+            _splitTriggered: false,
+        };
+    };
+    GameMap.prototype.tryEnterSpreadBulletArea = function (bullet, fromPos, toPos) {
+        if (!this._spreadBulletTestMode || !bullet || !this._spreadBulletAreaData) {
+            return false;
+        }
+        var area = this._spreadBulletAreaData;
+        if (area._splitTriggered) {
+            return false;
+        }
+        if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
+            return false;
+        }
+        area._splitTriggered = true;
+        return bullet.enterSpreadBulletArea ? bullet.enterSpreadBulletArea(area) : false;
+    };
+    GameMap.prototype.spawnSpreadBulletFx = function (pos) {
+        var fx = new cc.Node("_spreadBulletFx");
+        fx.parent = this._fire._tmLayerObstacle;
+        fx.setPosition(cc.v3(pos));
+        fx.zIndex = 5700;
+        fx.opacity = 220;
+        fx.scale = 0.4;
+        var graphics = fx.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(50, 230, 100, 180);
+        graphics.circle(0, 0, 20);
+        graphics.fill();
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(100, 255, 150, 220);
+        graphics.circle(0, 0, 26);
+        graphics.stroke();
+        fx.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.2, 1.6), cc.fadeOut(0.2)), cc.removeSelf()));
+    };
+    GameMap.prototype._clearBounceObstacleTestNodes = function () {
+        this._bounceObstacles = [];
+        var children = this._fire._tmLayerObstacle.children.slice();
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (!cc.isValid(child)) {
+                continue;
+            }
+            if (child.name.indexOf("_bounceObstacle") == 0) {
+                child.destroy();
+            }
+        }
+    };
+    GameMap.prototype._createBounceCircleObstacle = function (pos, radius) {
+        var node = new cc.Node("_bounceObstacleCircle");
+        node.parent = this._fire._tmLayerObstacle;
+        node.setPosition(cc.v3(pos));
+        node.zIndex = 5600;
+        var graphics = node.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(255, 120, 180, 60);
+        graphics.circle(0, 0, radius);
+        graphics.fill();
+        graphics.lineWidth = 5;
+        graphics.strokeColor = cc.color(255, 80, 180, 255);
+        graphics.circle(0, 0, radius);
+        graphics.stroke();
+        this._bounceObstacles.push({
+            type: "circle",
+            center: cc.v2(pos),
+            radius: radius,
+            node: node,
+        });
+        return node;
+    };
+    GameMap.prototype._createBounceLineObstacle = function (fromPos, toPos) {
+        var node = new cc.Node("_bounceObstacleLine");
+        node.parent = this._fire._tmLayerObstacle;
+        node.zIndex = 5600;
+        var graphics = node.addComponent(cc.Graphics);
+        graphics.lineWidth = 8;
+        graphics.strokeColor = cc.color(255, 80, 180, 255);
+        graphics.moveTo(fromPos.x, fromPos.y);
+        graphics.lineTo(toPos.x, toPos.y);
+        graphics.stroke();
+        var A = cc.v2(fromPos);
+        var B = cc.v2(toPos);
+        var dir = B.sub(A).normalize();
+        var normal = cc.v2(-dir.y, dir.x);
+        this._bounceObstacles.push({
+            type: "line",
+            A: A,
+            B: B,
+            normal: normal,
+            node: node,
+        });
+        return node;
+    };
+    GameMap.prototype.createBounceObstacleTestSetup = function () {
+        if (!this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        this._clearBounceObstacleTestNodes();
+        var playerPos = cc.v2(this._player.position);
+        this._createBounceCircleObstacle(this.clampMapInnerPosition(playerPos.add(cc.v2(180, 40)), 80), 36);
+        this._createBounceCircleObstacle(this.clampMapInnerPosition(playerPos.add(cc.v2(180, -50)), 80), 28);
+        this._createBounceLineObstacle(this.clampMapInnerPosition(playerPos.add(cc.v2(320, -80)), 60), this.clampMapInnerPosition(playerPos.add(cc.v2(320, 80)), 60));
+        var enemyPos = this.clampMapInnerPosition(playerPos.add(cc.v2(480, 0)), 90);
+        this.createBounceObstacleTestEnemy(enemyPos);
+    };
+    GameMap.prototype.createBounceObstacleTestEnemy = function (pos) {
+        var enemy = cc.instantiate(this.enemyPrefab);
+        enemy.parent = this._fire._tmLayerObstacle;
+        enemy.position = cc.v3(this.clampMapInnerPosition(pos, 90));
+        enemy.script.setMap(this);
+        enemy.script.setTarget(this._player);
+        enemy.script.setEnemyType(11, this._levelId);
+        enemy.script._hp = 99999;
+        enemy.script._maxHp = 99999;
+        enemy.script.refreshHp();
+        enemy.script.enabled = false;
+        enemy.zIndex = this.judgezIndex(enemy.y);
+        this._enemys.push(enemy);
+        return enemy;
+    };
+    GameMap.prototype.tryBounceBulletOnObstacle = function (bullet, fromPos, toPos) {
+        if (!this._bounceObstacleTestMode || !bullet || this._bounceObstacles.length == 0) {
+            return false;
+        }
+        var from = cc.v2(fromPos);
+        var to = cc.v2(toPos);
+        var dirBullet = to.sub(from);
+        for (var i = 0; i < this._bounceObstacles.length; i++) {
+            var obstacle = this._bounceObstacles[i];
+            if (obstacle.type == "circle") {
+                var center = obstacle.center;
+                var radius = obstacle.radius;
+                var AC = center.sub(from);
+                var lenSqr = dirBullet.magSqr();
+                if (lenSqr <= 0)
+                    continue;
+                var t = AC.dot(dirBullet) / lenSqr;
+                t = cc.misc.clampf(t, 0, 1);
+                var closest = from.add(dirBullet.mul(t));
+                var dist = center.sub(closest).mag();
+                if (dist >= radius)
+                    continue;
+                // Surface normal points from center outward to the hit point on circumference
+                var surfaceNormal = closest.sub(center).normalize();
+                if (surfaceNormal.magSqr() <= 0) {
+                    surfaceNormal = cc.v2(1, 0);
+                }
+                // surfaceNormal should point toward the incoming bullet
+                var dot = bullet._dir.dot(surfaceNormal);
+                if (dot > 0) {
+                    surfaceNormal = surfaceNormal.mul(-1);
+                    dot = -dot;
+                }
+                var reflectDir = bullet._dir.sub(surfaceNormal.mul(2 * dot));
+                bullet._dir = reflectDir.normalize();
+                bullet.node.angle = Utils_1.Utils.vectorsToDegress(bullet._dir) - 90;
+                // Place bullet on the circumference at the hit point, then push outward
+                var hitPoint = center.add(closest.sub(center).normalize().mul(radius));
+                bullet.node.setPosition(cc.v3(hitPoint.add(bullet._dir.mul(8))));
+                return true;
+            }
+            else if (obstacle.type == "line") {
+                var A = obstacle.A;
+                var B = obstacle.B;
+                var dirObstacle = B.sub(A);
+                // Cross product to check segment intersection
+                var denom = dirBullet.x * dirObstacle.y - dirBullet.y * dirObstacle.x;
+                if (Math.abs(denom) < 0.0001)
+                    continue;
+                var t1 = ((A.x - from.x) * dirObstacle.y - (A.y - from.y) * dirObstacle.x) / denom;
+                var t2 = ((A.x - from.x) * dirBullet.y - (A.y - from.y) * dirBullet.x) / denom;
+                if (t1 < 0 || t1 > 1 || t2 < 0 || t2 > 1)
+                    continue;
+                var normal = obstacle.normal;
+                var dot = bullet._dir.dot(normal);
+                if (dot > 0) {
+                    normal = normal.mul(-1);
+                    dot = -dot;
+                }
+                var reflectDir = bullet._dir.sub(normal.mul(2 * dot));
+                bullet._dir = reflectDir.normalize();
+                bullet.node.angle = Utils_1.Utils.vectorsToDegress(bullet._dir) - 90;
+                bullet.node.setPosition(cc.v3(from.add(bullet._dir.mul(8))));
+                return true;
+            }
+        }
+        return false;
     };
     GameMap.prototype._getTestEffectPreviewPos = function () {
         var basePos = this._player && cc.isValid(this._player)
@@ -2831,6 +3400,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = this._levelConfig.EnemyCount * this._levelId;
         this._timeMaxEnemyCount = this._levelConfig.Max + Math.floor(this._levelId / 5);
         yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
@@ -2858,6 +3431,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -2888,6 +3465,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = 5;
         this._timeMaxEnemyCount = 5;
         this._bornEnemyCount = 5;
@@ -2918,6 +3499,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -2948,6 +3533,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
         this._bornEnemyCount = 0;
@@ -2977,6 +3566,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3007,6 +3600,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3037,6 +3634,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = true;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3067,6 +3668,10 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = true;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._maxEnemyCount = 1;
         this._timeMaxEnemyCount = 1;
         this._bornEnemyCount = 1;
@@ -3097,6 +3702,10 @@ var GameMap = /** @class */ (function (_super) {
         this._portalTestMode = false;
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._energyEggTestMode = true;
         this._maxEnemyCount = 0;
         this._timeMaxEnemyCount = 0;
@@ -3115,8 +3724,144 @@ var GameMap = /** @class */ (function (_super) {
             func();
         })));
     };
+    GameMap.prototype.startDamageDoubleTestGame = function (func) {
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
+        this._energyEggTestMode = false;
+        this._damageDoubleTestMode = true;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
+        yyp.eventCenter.emit("current-enemycount", { enemycount: 1 });
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            self.createPlayer();
+            self.createDamageDoubleTestSetup();
+            self._gaming = true;
+            func();
+        })));
+    };
+    GameMap.prototype.startSpeedDoubleTestGame = function (func) {
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
+        this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = true;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
+        yyp.eventCenter.emit("current-enemycount", { enemycount: 1 });
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            self.createPlayer();
+            self.createSpeedDoubleTestSetup();
+            self._gaming = true;
+            func();
+        })));
+    };
+    GameMap.prototype.startSpreadBulletTestGame = function (func) {
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
+        this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._bounceObstacleTestMode = false;
+        this._spreadBulletTestMode = true;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
+        yyp.eventCenter.emit("current-enemycount", { enemycount: 1 });
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            self.createPlayer();
+            self.createSpreadBulletTestSetup();
+            self._gaming = true;
+            func();
+        })));
+    };
+    GameMap.prototype.startBounceObstacleTestGame = function (func) {
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._resetKillBroadcastRuntime();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
+        this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = true;
+        this._maxEnemyCount = 1;
+        this._timeMaxEnemyCount = 1;
+        this._bornEnemyCount = 1;
+        this._deathEnemyCount = 0;
+        this._bornCdTime = 0;
+        yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
+        yyp.eventCenter.emit("current-enemycount", { enemycount: 1 });
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            self.createPlayer();
+            self.createBounceObstacleTestSetup();
+            self._gaming = true;
+            func();
+        })));
+    };
     GameMap.prototype.isTestMode = function () {
-        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode || this._coverTestMode || this._energyEggTestMode;
+        return this._killEffectTestMode || this._killBroadcastTestMode || this._playerHitTestMode || this._upgradeTestMode || this._shootEffectTestMode || this._portalTestMode || this._centrifugalRingTestMode || this._coverTestMode || this._energyEggTestMode || this._damageDoubleTestMode || this._speedDoubleTestMode || this._spreadBulletTestMode || this._bounceObstacleTestMode;
     };
     GameMap.prototype.isShootEffectTestMode = function () {
         return this._shootEffectTestMode;
@@ -3282,9 +4027,17 @@ var GameMap = /** @class */ (function (_super) {
         this._centrifugalRingTestMode = false;
         this._coverTestMode = false;
         this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
         this._resetKillBroadcastRuntime();
         this._clearPortalTestNodes();
         this._clearCentrifugalRingTestNodes();
+        this._clearDamageDoubleTestNodes();
+        this._clearSpeedDoubleTestNodes();
+        this._clearSpreadBulletTestNodes();
+        this._clearBounceObstacleTestNodes();
         if (this._player && cc.isValid(this._player)) {
             this._player.destroy();
             this._player = null;
@@ -3380,7 +4133,15 @@ var GameMap = /** @class */ (function (_super) {
             "_energyEggBush": true,
             "_energyEggBushShadow": true,
             "_energyEggLeaf": true,
-            "_energyEggBushCore": true
+            "_energyEggBushCore": true,
+            "_damageDoubleArea": true,
+            "_damageDoubleFx": true,
+            "_speedDoubleArea": true,
+            "_speedDoubleFx": true,
+            "_spreadBulletArea": true,
+            "_spreadBulletFx": true,
+            "_bounceObstacleCircle": true,
+            "_bounceObstacleLine": true
         };
         var children = this._fire._tmLayerObstacle.children.slice();
         for (var i = 0; i < children.length; i++) {

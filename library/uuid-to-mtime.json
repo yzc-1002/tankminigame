@@ -2079,11 +2079,6 @@
     "meta": 1778148460174,
     "relativePath": "texture\\fenli.png"
   },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1778148895809,
-    "meta": 1778149319795,
-    "relativePath": "script\\BulletE.ts"
-  },
   "bc87592d-3055-4635-bb55-a57728de0328": {
     "asset": 1778148881585,
     "meta": 1778149320355,
@@ -2104,19 +2099,24 @@
     "meta": 1778150312197,
     "relativePath": "texture\\energyEgg.png"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778150664966,
-    "meta": 1778150902299,
-    "relativePath": "script\\GameMain.ts"
-  },
   "a6c0f4fb-f74d-4c7a-9f3f-8df0b45a9c6f": {
     "asset": 1778150847409,
     "meta": 1778150902774,
     "relativePath": "script\\EnergyEgg.ts"
   },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778214046921,
+    "meta": 1778214076407,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1778214507855,
+    "meta": 1778214509579,
+    "relativePath": "script\\BulletE.ts"
+  },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778151140942,
-    "meta": 1778151174224,
+    "asset": 1778214869284,
+    "meta": 1778214967132,
     "relativePath": "script\\GameMap.ts"
   }
 }

@@ -29,6 +29,9 @@ export class Bullet extends BaseComponent {
     _portalIgnoreTime = 0;
     _centrifugalState = null;
     _centrifugalUsed = false;
+    _damageDoubleUsed = false;
+    _speedDoubleUsed = false;
+    _spreadBulletUsed = false;
 
     _currenBullet   = null;
     _isStop         = false;
@@ -80,6 +83,9 @@ export class Bullet extends BaseComponent {
         this._portalIgnoreTime = 0;
         this._centrifugalState = null;
         this._centrifugalUsed = false;
+        this._damageDoubleUsed = false;
+        this._speedDoubleUsed = false;
+        this._spreadBulletUsed = false;
         
         //子弹类型
         if (camp == "enemy") {
@@ -260,6 +266,18 @@ export class Bullet extends BaseComponent {
                     this.node.setPosition(willPosition);
                     
                     if (this._map.isMap()) {
+                        if (this._map.tryEnterDamageDoubleArea && this._map.tryEnterDamageDoubleArea(this, currPosition, willPosition)) {
+                            return;
+                        }
+
+                        if (this._map.tryEnterSpeedDoubleArea && this._map.tryEnterSpeedDoubleArea(this, currPosition, willPosition)) {
+                            return;
+                        }
+
+                        if (this._map.tryEnterSpreadBulletArea && this._map.tryEnterSpreadBulletArea(this, currPosition, willPosition)) {
+                            return;
+                        }
+
                         if (this._map.tryEnterCentrifugalRing && this._map.tryEnterCentrifugalRing(this, currPosition, willPosition)) {
                             return;
                         }
@@ -295,6 +313,10 @@ export class Bullet extends BaseComponent {
                                     : (this._map.bulletObstacleCollisionTest(currPosition,willPosition) ? {} : null);
                                 if (colliderSegment){
                                     this._handleObstacleCollision(currPosition, colliderSegment);
+                                }
+                                else if (this._map.tryBounceBulletOnObstacle
+                                    && this._map.tryBounceBulletOnObstacle(this, currPosition, willPosition)) {
+                                    // bounced off pink obstacle
                                 }
                             }
                         }
@@ -394,6 +416,83 @@ export class Bullet extends BaseComponent {
 
     hasUsedCentrifugalRing() {
         return this._centrifugalUsed;
+    }
+
+    hasUsedDamageDoubleArea() {
+        return this._damageDoubleUsed;
+    }
+
+    enterDamageDoubleArea(areaData) {
+        if (this._damageDoubleUsed || !areaData) {
+            return false;
+        }
+
+        this._damageDoubleUsed = true;
+        this._damage *= (areaData.damageMultiplier || 2);
+
+        let scaleUp = areaData.scaleMultiplier || 1.5;
+        if (this._currenBullet) {
+            this._currenBullet.scaleX = Math.abs(this._currenBullet.scaleX) * scaleUp;
+            this._currenBullet.scaleY = Math.abs(this._currenBullet.scaleY) * scaleUp;
+        }
+
+        if (this._map && this._map.spawnDamageDoubleFx) {
+            this._map.spawnDamageDoubleFx(cc.v2(this.node.position));
+        }
+
+        return true;
+    }
+
+    hasUsedSpeedDoubleArea() {
+        return this._speedDoubleUsed;
+    }
+
+    enterSpeedDoubleArea(areaData) {
+        if (this._speedDoubleUsed || !areaData) {
+            return false;
+        }
+
+        this._speedDoubleUsed = true;
+        let speedMul = areaData.speedMultiplier || 3;
+        this._speed *= speedMul;
+
+        if (this._currenBullet) {
+            this._currenBullet.color = cc.color(80, 180, 255, 255);
+        }
+
+        if (this._map && this._map.spawnSpeedDoubleFx) {
+            this._map.spawnSpeedDoubleFx(cc.v2(this.node.position));
+        }
+
+        return true;
+    }
+
+    hasUsedSpreadBulletArea() {
+        return this._spreadBulletUsed;
+    }
+
+    enterSpreadBulletArea(areaData) {
+        if (this._spreadBulletUsed || !areaData) {
+            return false;
+        }
+
+        this._spreadBulletUsed = true;
+        let spreadAngle = areaData.spreadAngle || 20;
+        let parentNode = this.node.parent;
+        let map = this._map;
+
+        for (let i = 0; i < 2; i++) {
+            let angle = (i == 0 ? -1 : 1) * spreadAngle;
+            let bdir = Utils.vectorsRotateDegress(this._dir, angle);
+            let bpos = cc.v2(this.node.position).add(bdir.mul(12));
+            Bullet.createBullet(bpos, bdir, this._gunshot, this._damage, this._speed, this._camp, parentNode, map, this._bulletType, this._mutationData);
+        }
+
+        if (this._map && this._map.spawnSpreadBulletFx) {
+            this._map.spawnSpreadBulletFx(cc.v2(this.node.position));
+        }
+
+        return true;
     }
 
     enterCentrifugalRing(ringData) {

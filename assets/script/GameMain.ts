@@ -314,15 +314,15 @@ export default class GameMain extends BaseComponent {
 
         let dialog = new cc.Node("_testDialog");
         dialog.parent = panel;
-        dialog.setContentSize(1060, 700);
+        dialog.setContentSize(1060, 760);
         dialog.zIndex = 1;
         let dialogGraphics = dialog.addComponent(cc.Graphics);
         dialogGraphics.fillColor = cc.color(35, 36, 45, 245);
-        dialogGraphics.roundRect(-530, -350, 1060, 700, 18);
+        dialogGraphics.roundRect(-530, -380, 1060, 760, 18);
         dialogGraphics.fill();
         dialogGraphics.lineWidth = 3;
         dialogGraphics.strokeColor = cc.color(255, 255, 255, 180);
-        dialogGraphics.roundRect(-530, -350, 1060, 700, 18);
+        dialogGraphics.roundRect(-530, -380, 1060, 760, 18);
         dialogGraphics.stroke();
         dialog.on(cc.Node.EventType.TOUCH_END, function(event){
             if (event && event.stopPropagation) {
@@ -337,7 +337,7 @@ export default class GameMain extends BaseComponent {
         let buttonHeight = 54;
         let buttonFontSize = 22;
         let columns = [-360, -120, 120, 360];
-        let rows = [144, 72, 0, -72];
+        let rows = [144, 72, 0, -72, -144];
 
         this._createTestButton(dialog, "_btnKillEffectTest", "击杀效果测试", cc.v2(columns[0], rows[0]), cc.color(255, 90, 70, 255), this._onKillTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnHitTest", "受击效果测试", cc.v2(columns[1], rows[0]), cc.color(80, 180, 255, 255), this._onHitTestClick, buttonWidth, buttonHeight, buttonFontSize);
@@ -357,6 +357,10 @@ export default class GameMain extends BaseComponent {
         this._createTestButton(dialog, "_btnEnergyEggTest", "能量蛋收藏", cc.v2(columns[0], rows[3]), cc.color(126, 232, 143, 255), this._onEnergyEggTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnCoverTest", "掩体测试", cc.v2(columns[1], rows[3]), cc.color(199, 151, 96, 255), this._onCoverTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnCloseTest", "关闭", cc.v2(columns[2], rows[3]), cc.color(180, 180, 190, 255), this._hideTestPanel, 180, 48, 24);
+        this._createTestButton(dialog, "_btnDamageDoubleTest", "伤害翻倍区域", cc.v2(columns[3], rows[3]), cc.color(255, 50, 50, 255), this._onDamageDoubleTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnSpeedDoubleTest", "速度翻倍区域", cc.v2(columns[0], rows[4]), cc.color(50, 150, 255, 255), this._onSpeedDoubleTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnSpreadBulletTest", "子弹扩散区域", cc.v2(columns[1], rows[4]), cc.color(50, 230, 100, 255), this._onSpreadBulletTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnBounceObstacleTest", "子弹反弹障碍", cc.v2(columns[2], rows[4]), cc.color(255, 100, 200, 255), this._onBounceObstacleTestClick, buttonWidth, buttonHeight, buttonFontSize);
     }
 
     _createTestLabel(parent, name, text, pos, fontSize, color) {
@@ -504,6 +508,34 @@ export default class GameMain extends BaseComponent {
         this._startTestGame("energyEgg");
     }
 
+    _onDamageDoubleTestClick(event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("damageDouble");
+    }
+
+    _onSpeedDoubleTestClick(event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("speedDouble");
+    }
+
+    _onSpreadBulletTestClick(event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("spreadBullet");
+    }
+
+    _onBounceObstacleTestClick(event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._startTestGame("bounceObstacle");
+    }
+
     _startTestGame(type) {
         MusicManager.playEffect("btn");
         this._hideTestPanel();
@@ -591,6 +623,26 @@ export default class GameMain extends BaseComponent {
         }
         else if (type == "energyEgg") {
             this._fire._tiled.script.startEnergyEggTestGame(function(){
+                complete();
+            });
+        }
+        else if (type == "damageDouble") {
+            this._fire._tiled.script.startDamageDoubleTestGame(function(){
+                complete();
+            });
+        }
+        else if (type == "speedDouble") {
+            this._fire._tiled.script.startSpeedDoubleTestGame(function(){
+                complete();
+            });
+        }
+        else if (type == "spreadBullet") {
+            this._fire._tiled.script.startSpreadBulletTestGame(function(){
+                complete();
+            });
+        }
+        else if (type == "bounceObstacle") {
+            this._fire._tiled.script.startBounceObstacleTestGame(function(){
                 complete();
             });
         }
