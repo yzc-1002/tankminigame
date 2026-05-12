@@ -125,6 +125,9 @@ var GameMap = /** @class */ (function (_super) {
         _this._blackHoleTestMode = false; //黑洞区域测试模式
         _this._blackHoleAreaData = null;
         _this._clusterBombTestMode = false; //集束炸弹测试模式
+        _this._multiplayerMode = false; //多人模式
+        _this._multiplayerPlayers = []; //多人玩家列表
+        _this._localPlayerId = 0; //本地玩家ID
         _this._levelId = 1; //当前关卡id
         _this._levelConfig = null; //当前关卡配置
         _this._roamFlg = false; //漫游标记
@@ -4442,6 +4445,111 @@ var GameMap = /** @class */ (function (_super) {
                 child.destroy();
             }
         }
+    };
+    GameMap.prototype.createMultiplayerPlayer = function (playerIdx, playerCount) {
+        var playerType = LocalizedData_1.LocalizedData.getIntItem("_current_player_type_", 1);
+        var playerLevel = LocalizedData_1.LocalizedData.getIntItem("_player_" + playerType + "_", 1);
+        var player = cc.instantiate(this.playerPrefab);
+        player.parent = this._fire._tmLayerObstacle;
+        player.zIndex = 100;
+        // Spread spawn positions
+        var spawnOffset = cc.v2((playerIdx - (playerCount - 1) / 2) * 180, 0);
+        var spawnPos = this.clampMapInnerPosition(this._playerBornPos.add(spawnOffset), 60);
+        player.position = cc.v3(spawnPos);
+        player.script.setMap(this);
+        player.script.setPlayerType(playerType, playerLevel);
+        player.script.setInGame();
+        // Mark remote players (no UI controls)
+        if (playerIdx !== 0) {
+            player.script._multiplayerRemote = true;
+        }
+        player.script._multiplayerMode = true;
+        // Visually distinguish players: P0=green tint, P1=blue tint
+        var colorTint = playerIdx === 0 ? cc.color(180, 255, 180, 255) : cc.color(160, 200, 255, 255);
+        var tryNames = ['_sprBg1', '_sprBg2', '_sprBg3', '_sprBg4', '_sprBg'];
+        tryNames.forEach(function (name) {
+            var n = player._fire ? player._fire[name] : null;
+            if (n && cc.isValid(n)) {
+                try {
+                    n.color = colorTint;
+                }
+                catch (e) { }
+            }
+        });
+        this._multiplayerPlayers.push(player);
+        if (playerIdx === 0) {
+            this._player = player;
+        }
+        return player;
+    };
+    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, onReady) {
+        this._multiplayerMode = true;
+        this._multiplayerPlayers = [];
+        this._localPlayerId = localPlayerId || 0;
+        this._levelConfig = yyp.config.Level[0];
+        this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
+        this._clearAllTestNodes();
+        this._killEffectTestMode = false;
+        this._killBroadcastTestMode = false;
+        this._playerHitTestMode = false;
+        this._upgradeTestMode = false;
+        this._shootEffectTestMode = false;
+        this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
+        this._coverTestMode = false;
+        this._energyEggTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
+        this._bounceObstacleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clusterBombTestMode = false;
+        this._roamFlg = false;
+        var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
+        var self = this;
+        this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
+            for (var i = 0; i < playerCount; i++) {
+                self.createMultiplayerPlayer(i, playerCount);
+            }
+            self._gaming = true;
+            // Center camera on local player immediately
+            self._centerOnLocalPlayer();
+            if (onReady)
+                onReady();
+        })));
+    };
+    GameMap.prototype.simulateFrame = function (frameData) {
+        if (!this._multiplayerMode)
+            return;
+        for (var i = 0; i < frameData.inputs.length; i++) {
+            var entry = frameData.inputs[i];
+            var player = this._multiplayerPlayers[entry.playerId];
+            if (player && player.script && player.script.setFrameInput) {
+                player.script.setFrameInput(entry.inputs);
+            }
+        }
+        this._centerOnLocalPlayer();
+    };
+    GameMap.prototype._centerOnLocalPlayer = function () {
+        if (!this._multiplayerMode)
+            return;
+        var player = this._multiplayerPlayers[this._localPlayerId];
+        if (!player || !cc.isValid(player))
+            return;
+        var pos = player.position;
+        if (!pos)
+            return;
+        var will = this._correctMapPosition(cc.v2(-pos.x, -pos.y));
+        this.node.setPosition(will);
+    };
+    GameMap.prototype._clearAllTestNodes = function () {
+        this._clearPortalTestNodes();
+        this._clearCentrifugalRingTestNodes();
+        this._clearDamageDoubleTestNodes();
+        this._clearSpeedDoubleTestNodes();
+        this._clearSpreadBulletTestNodes();
+        this._clearBounceObstacleTestNodes();
+        this._clearBlackHoleTestNodes();
     };
     GameMap.prototype.isMap = function () {
         return true;

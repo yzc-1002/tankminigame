@@ -63,6 +63,9 @@ export class Player extends Tank {
     _lowHpHeartbeatEffectId = -1;
     _lowHpScreenEffect = null;
     _shootInputDir = cc.v2(1, 0);   //射击摇杆目标方向
+    _frameInput = null;             //网络帧输入(多人)
+    _multiplayerMode = false;       //多人模式(禁用本地摇杆)
+    _energyLevel = 1;           //局内能量等级
 
     onLoad () {
         super.onLoad();
@@ -155,6 +158,7 @@ export class Player extends Tank {
     
     //摇杆事件
     _doJoyStick(event) {
+        if (this._multiplayerMode) return;
         if (this._inGame) {
             if (event.dir && event.dir.magSqr() > 0) {
                 this._moveInputDir = event.dir;      //方向
@@ -165,12 +169,33 @@ export class Player extends Tank {
 
     //射击摇杆事件
     _doShootJoyStick(event) {
+        if (this._multiplayerMode) return;
         if (this._inGame == false) return;
         if (event.dir && event.dir.magSqr() > 0) {
             this._shootInputDir = event.dir;
             this._barrelDir = event.dir;
         }
         if (event.fire === true) {
+            this._tryFireOnce();
+        }
+    }
+
+    //网络帧输入(多人模式)
+    setFrameInput(inputs) {
+        this._frameInput = inputs;
+        let dir = cc.v2(0, 0);
+        if (inputs.up) dir.y += 1;
+        if (inputs.down) dir.y -= 1;
+        if (inputs.left) dir.x -= 1;
+        if (inputs.right) dir.x += 1;
+        if (dir.magSqr() > 0) {
+            this._moveInputDir = dir.normalize();
+            this._moveInputRatio = 1;
+            this._barrelDir = this._moveInputDir;
+        } else {
+            this._moveInputRatio = 0;
+        }
+        if (inputs.fire) {
             this._tryFireOnce();
         }
     }
@@ -259,6 +284,14 @@ export class Player extends Tank {
 
     //刷新玩家位置
     _refreshPosition(dt) {
+        //多人模式：在setFrameInput显式调用前拒绝一切移动
+        if (this._multiplayerMode) {
+            if (this._frameInput === null) return;
+            if (!this._frameInput.up && !this._frameInput.down && !this._frameInput.left && !this._frameInput.right) {
+                this._moveInputRatio = 0;
+                this._currentSpeed = 0;
+            }
+        }
         this._refreshMoveSpeed(dt);
         if (this._currentSpeed <= 0) {
             return;
@@ -497,6 +530,11 @@ export class Player extends Tank {
     update(dt){
 
         if (this._inGame) {
+            //多人模式：未有帧输入前，完全不处理任何逻辑
+            if (this._multiplayerMode && this._frameInput === null) {
+                this._bulletCodeTime += dt; // 仍需累计冷却避免首帧就能连射
+                return;
+            }
             if (this._map._pause) {
                 this._stopMoveEffect();
                 return;

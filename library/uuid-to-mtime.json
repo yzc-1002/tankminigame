@@ -555,8 +555,8 @@
     "relativePath": "prefab\\GameMap.prefab"
   },
   "099f4dde-58f4-4a3e-b662-48642286555d": {
-    "asset": 1778148607807,
-    "meta": 1778148607808,
+    "asset": 1778492671382,
+    "meta": 1778492671383,
     "relativePath": "prefab\\JoyStick.prefab"
   },
   "7aefe2c8-be5c-46a7-a3d9-dae9628bdd2b": {
@@ -2084,11 +2084,6 @@
     "meta": 1778149320355,
     "relativePath": "script\\JoyStick.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778148891047,
-    "meta": 1778149320510,
-    "relativePath": "script\\Player.ts"
-  },
   "b6d7dde2-cf35-4cb1-a508-2ecf5f0cf6c6": {
     "asset": 1778150202119,
     "meta": 1778150202149,
@@ -2104,19 +2099,39 @@
     "meta": 1778150902774,
     "relativePath": "script\\EnergyEgg.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778224876674,
-    "meta": 1778225653714,
-    "relativePath": "script\\GameMain.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778225060653,
-    "meta": 1778225654250,
-    "relativePath": "script\\GameMap.ts"
-  },
   "57473783-53bb-4668-9e13-3d2242e0eae2": {
     "asset": 1778225769911,
     "meta": 1778226055564,
     "relativePath": "script\\BulletE.ts"
+  },
+  "9f2df35d-fe13-4780-a0d1-83be264c5b6e": {
+    "asset": 1778481129916,
+    "meta": 1778481130850,
+    "relativePath": "script\\network"
+  },
+  "08aed74e-b757-43ff-80e7-95f39a105a22": {
+    "asset": 1778482360881,
+    "meta": 1778484083193,
+    "relativePath": "script\\network\\NetworkManager.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778488905176,
+    "meta": 1778489123411,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "62d8d92b-08fa-42ce-8489-c0bfd6a7f1b3": {
+    "asset": 1778490648697,
+    "meta": 1778492669345,
+    "relativePath": "script\\multiplayer"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778493868493,
+    "meta": 1778494152171,
+    "relativePath": "script\\Player.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778494688563,
+    "meta": 1778494791931,
+    "relativePath": "script\\GameMain.ts"
   }
 }

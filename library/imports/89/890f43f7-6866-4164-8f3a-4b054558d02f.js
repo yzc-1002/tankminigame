@@ -27,6 +27,7 @@ var BaseComponent_1 = require("./base/BaseComponent");
 var LocalizedData_1 = require("./base/LocalizedData");
 var Utils_1 = require("./base/Utils");
 var MusicManager_1 = require("./base/MusicManager");
+var NetworkManager_1 = require("./network/NetworkManager");
 var Analytics_1 = require("./ad/Analytics");
 var InsertAd_1 = require("./ad/InsertAd");
 var RewardAd_1 = require("./ad/RewardAd");
@@ -45,6 +46,9 @@ var GameMain = /** @class */ (function (_super) {
         _this._testPanel = null;
         _this._upgradeChoicePanel = null;
         _this._upgradeChoiceMode = "upgrade";
+        _this._netManager = null; //网络管理器(多人)
+        _this._multiplayerStatus = null; //连接状态标签
+        _this._multiplayerActive = false; //多人游戏进行中
         return _this;
     }
     GameMain.prototype.onLoad = function () {
@@ -327,6 +331,7 @@ var GameMain = /** @class */ (function (_super) {
         this._createTestButton(dialog, "_btnBounceObstacleTest", "子弹反弹障碍", cc.v2(columns[2], rows[4]), cc.color(255, 100, 200, 255), this._onBounceObstacleTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnBlackHoleTest", "黑洞区域", cc.v2(columns[3], rows[4]), cc.color(120, 40, 180, 255), this._onBlackHoleTestClick, buttonWidth, buttonHeight, buttonFontSize);
         this._createTestButton(dialog, "_btnClusterBombTest", "集束炸弹", cc.v2(columns[0], rows[5]), cc.color(220, 160, 40, 255), this._onClusterBombTestClick, buttonWidth, buttonHeight, buttonFontSize);
+        this._createTestButton(dialog, "_btnMultiplayerTest", "联机对战", cc.v2(columns[1], rows[5]), cc.color(60, 220, 255, 255), this._onMultiplayerTestClick, buttonWidth, buttonHeight, buttonFontSize);
     };
     GameMain.prototype._createTestLabel = function (parent, name, text, pos, fontSize, color) {
         var labelNode = new cc.Node(name);
@@ -491,6 +496,13 @@ var GameMain = /** @class */ (function (_super) {
             event.stopPropagation();
         }
         this._startTestGame("clusterBomb");
+    };
+    GameMain.prototype._onMultiplayerTestClick = function (event) {
+        if (event && event.stopPropagation) {
+            event.stopPropagation();
+        }
+        this._hideTestPanel();
+        this._startMultiplayerGame();
     };
     GameMain.prototype._startTestGame = function (type) {
         MusicManager_1.MusicManager.playEffect("btn");
@@ -813,6 +825,122 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._upgradeChoicePanel = null;
         this._upgradeChoiceMode = "upgrade";
+    };
+    // ---------- 多人模式 ----------
+    GameMain.prototype._showMultiplayerStatus = function (text) {
+        if (this._multiplayerStatus && cc.isValid(this._multiplayerStatus)) {
+            this._multiplayerStatus.active = true;
+            this._multiplayerStatus.getComponent(cc.Label).string = text;
+            return;
+        }
+        var node = new cc.Node("_multiplayerStatus");
+        node.parent = this.node;
+        node.setPosition(cc.v2(0, 200));
+        node.setContentSize(600, 60);
+        node.zIndex = 3000;
+        var label = node.addComponent(cc.Label);
+        label.string = text;
+        label.fontSize = 32;
+        label.lineHeight = 40;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        label.color = cc.color(255, 255, 100, 255);
+        this._multiplayerStatus = node;
+    };
+    GameMain.prototype._hideMultiplayerStatus = function () {
+        if (this._multiplayerStatus && cc.isValid(this._multiplayerStatus)) {
+            this._multiplayerStatus.destroy();
+        }
+        this._multiplayerStatus = null;
+    };
+    GameMain.prototype._startMultiplayerGame = function () {
+        var _this = this;
+        this._multiplayerActive = false;
+        this._resetGameBeforeTest();
+        this._hideUpgradeChoicePanel(false);
+        this._showMultiplayerStatus("正在连接服务器 ws://localhost:2567 ...");
+        this._netManager = new NetworkManager_1.NetworkManager();
+        this._netManager.onCountdown = function (seconds) {
+            _this._showMultiplayerStatus("游戏倒计时 " + seconds + " 秒");
+        };
+        this._netManager.onPlayerCount = function (count, max) {
+            _this._showMultiplayerStatus("已连接，等待玩家 (" + count + "/" + max + ")");
+        };
+        this._netManager.onGameStart = function (playerId, playerCount) {
+            _this._startMultiplayerMatch(playerId, playerCount || 2);
+        };
+        this._netManager.onDisconnect = function () {
+            _this._showMultiplayerStatus("连接断开");
+            _this._multiplayerActive = false;
+        };
+        this._netManager.connect("ws://localhost:2567");
+    };
+    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount) {
+        this._hideMultiplayerStatus();
+        this._multiplayerActive = true;
+        this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false };
+        var self = this;
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, function () {
+            self._fire._joystick.active = true;
+            self._fire._ui.active = true;
+            self._setupMultiplayerInputLoop();
+        });
+    };
+    GameMain.prototype._setupMultiplayerInputLoop = function () {
+        var self = this;
+        // Track movement via joy-stick EVENT (fires ratio:0 on release, reliable)
+        yyp.eventCenter.on("joy-stick", function (event) {
+            if (!self._multiplayerActive)
+                return;
+            if (event.ratio > 0 && event.dir && event.dir.magSqr() > 0) {
+                self._multiplayerInputs.up = event.dir.y > 0.3;
+                self._multiplayerInputs.down = event.dir.y < -0.3;
+                self._multiplayerInputs.left = event.dir.x < -0.3;
+                self._multiplayerInputs.right = event.dir.x > 0.3;
+            }
+            else {
+                // ratio==0 means finger lifted — clear movement
+                self._multiplayerInputs.up = false;
+                self._multiplayerInputs.down = false;
+                self._multiplayerInputs.left = false;
+                self._multiplayerInputs.right = false;
+            }
+        });
+        // Track fire via event (single-shot event)
+        yyp.eventCenter.on("joy-stick-shoot", function (event) {
+            if (!self._multiplayerActive)
+                return;
+            if (event.fire === true) {
+                self._multiplayerInputs.fire = true;
+            }
+        });
+        // Frame sync: listen for frame data from server
+        this._netManager.onFrame = function (frameData) {
+            if (!self._multiplayerActive)
+                return;
+            if (self._fire._tiled && self._fire._tiled.script && self._fire._tiled.script.simulateFrame) {
+                self._fire._tiled.script.simulateFrame(frameData);
+            }
+        };
+        // Send local inputs at tick rate (20Hz)
+        this.node.runAction(cc.repeatForever(cc.sequence(cc.delayTime(1 / 20), cc.callFunc(function () {
+            if (!self._multiplayerActive || !self._netManager || !self._netManager.connected)
+                return;
+            self._netManager.sendInput(self._multiplayerInputs);
+            self._multiplayerInputs.fire = false;
+            // Camera follow
+            if (self._fire._tiled && self._fire._tiled.script) {
+                self._fire._tiled.script._centerOnLocalPlayer();
+            }
+        }))));
+        // Smooth camera follow every frame via scheduler
+        this.schedule(function () {
+            if (!self._multiplayerActive)
+                return;
+            if (self._fire._tiled && self._fire._tiled.script) {
+                self._fire._tiled.script._centerOnLocalPlayer();
+            }
+        }, 0.016, cc.macro.REPEAT_FOREVER);
     };
     __decorate([
         property(cc.Prefab)
