@@ -38,6 +38,7 @@ export class NetworkManager {
             this.ws.onmessage = (evt) => {
                 try {
                     const msg = JSON.parse(evt.data);
+                    // console.log("onmessage", msg);
                     this._handleMessage(msg);
                 } catch (e) {
                     console.warn("[Network] Invalid message:", e);
@@ -72,11 +73,24 @@ export class NetworkManager {
         if (!this._connected || !this.ws) return;
 
         this._currentFrame++;
+        let isnull = true;
+        // console.log("sendInput0", inputs);
+        for (const key in inputs) {
+            const element = inputs[key];
+            if (element) {
+                isnull = false;
+                break
+            }
+        }
+        if (isnull){
+            return;
+        }
         const msg = {
             type: "input",
             frame: this._currentFrame,
-            inputs: inputs,
+            inputs: this._normalizeInputs(inputs),
         };
+        console.log("sendInput", msg);
         this.ws.send(JSON.stringify(msg));
     }
 
@@ -90,6 +104,18 @@ export class NetworkManager {
     set onFrame(cb: (frameData: any) => void) { this._frameCallback = cb; }
     set onPlayerCount(cb: (count: number, max: number) => void) { this._playerCountCallback = cb; }
     set onCountdown(cb: (seconds: number) => void) { this._countdownCallback = cb; }
+
+    private _normalizeInputs(inputs: any) {
+        const source = inputs || {};
+        return {
+            up: !!source.up,
+            down: !!source.down,
+            left: !!source.left,
+            right: !!source.right,
+            fire: source.fire ? source.fire : false,
+            hit: source.hit ? source.hit : false,
+        };
+    }
 
     private _handleMessage(msg: any) {
         switch (msg.type) {

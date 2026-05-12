@@ -16,6 +16,7 @@ const room = {
   tickTimer: null,
   gameStarted: false,
   startCountdown: null,
+  bullets:{},
 };
 
 function broadcast(json) {
@@ -30,20 +31,55 @@ function tick() {
   const frame = ++room.currentFrame;
 
   // Collect latest input per player; use default (all false) if none new
-  const NEUTRAL = { up: false, down: false, left: false, right: false, fire: false };
+  // const NEUTRAL = { up: false, down: false, left: false, right: false, fire: {id:-1, type:1}, hit: {id: -1, tgid: 0, hp: -1, damage: -1} };
+  const NEUTRAL = { up: false, down: false, left: false, right: false, fire: false, hit: false };
+  room.players.forEach(p => {
+    for (let i = 0; i < p.pendingInputs.length; i++) {
+      const entry = p.pendingInputs[i];
+      if (entry && entry.inputs) {
+        let inputs = entry.inputs;
+        console.log("inputs", inputs);
+        if (!p.dead && inputs.fire){
+          console.log("hit", inputs.hit);
+          room.bullets[inputs.fire.id] = {
+            id: inputs.fire.id,
+            playerId: p.playerId,
+            damage: 5, //todo
+          };
+        }
+        if (!p.dead && inputs.hit){
+          console.log("hit", inputs.hit);
+          if (room.bullets[inputs.hit.id] && room.players[inputs.hit.tgid]){
+            const tg_p = room.players[inputs.hit.tgid]
+            tg_p.hp -= room.bullets[inputs.hit.id].damage;
+            inputs.hit.damage = room.bullets[inputs.hit.id].damage;
+            inputs.hit.hp = tg_p.hp;
+            if (tg_p.hp <= 0){
+              tg_p.hp = 0;
+              inputs.hit.hp = 0;
+              tg_p.dead = true;
+            }
+          }
+        }
+      }
+    }
+  });
   const frameInputs = room.players.map(p => {
     let inputs = Object.assign({}, NEUTRAL);
     while (p.pendingInputs.length > 0) {
       const entry = p.pendingInputs.shift();
-      if (entry && entry.inputs) inputs = entry.inputs;
+      if (entry && entry.inputs) {
+        inputs = entry.inputs;
+      }
     }
     return {
       playerId: p.playerId,
       inputs: inputs,
+      dead: p.dead,
       disconnected: p.disconnected || false,
     };
   });
-
+  // console.log("frameInputs", frameInputs);
   broadcast({ type: 'frame', frame, inputs: frameInputs });
 }
 
@@ -108,7 +144,8 @@ wss.on('connection', (ws) => {
   ws.lastInputs = { up: false, down: false, left: false, right: false, fire: false };
   ws.disconnected = false;
   ws.playerId = -1;
-
+  ws.hp = 100; // 初始血量
+  ws.maxHp = 100;
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data);

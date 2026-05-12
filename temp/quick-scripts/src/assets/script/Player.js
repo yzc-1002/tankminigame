@@ -86,7 +86,8 @@ var Player = /** @class */ (function (_super) {
         _this._shootInputDir = cc.v2(1, 0); //射击摇杆目标方向
         _this._frameInput = null; //网络帧输入(多人)
         _this._multiplayerMode = false; //多人模式(禁用本地摇杆)
-        _this._energyLevel = 1; //局内能量等级
+        _this._multiplayerRemote = false; //多人远端玩家
+        _this._multiplayerPlayerId = -1; //多人玩家ID
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -213,9 +214,13 @@ var Player = /** @class */ (function (_super) {
         else {
             this._moveInputRatio = 0;
         }
+        // console.log("setFrameInput---inputs",inputs)
         if (inputs.fire) {
-            this._tryFireOnce();
+            this._fireByMultiplayerCommand(inputs.fire);
         }
+    };
+    Player.prototype.getMultiplayerFireType = function () {
+        return (this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
     };
     Player.prototype._doChargeCannonPress = function (event) {
         if (this._inGame == false || this._chargeCannonCdTime > 0 || this._chargeCannonCharging) {
@@ -882,6 +887,23 @@ var Player = /** @class */ (function (_super) {
             MusicManager_1.MusicManager.playEffect("shoot");
         }
     };
+    Player.prototype._fireByMultiplayerCommand = function (fireData) {
+        if (!fireData) {
+            return;
+        }
+        var type = fireData.type || this.getMultiplayerFireType();
+        var attackRadius = this._config.AttackRadius;
+        var mutationData = this._getCurrentBulletMutationData();
+        var networkMeta = {
+            bulletId: fireData.id,
+            ownerPlayerId: this._multiplayerPlayerId,
+        };
+        BulletE_1.Bullet.createBulletEx(type, this.node.position, this._barrelDir, this._fire._lyBarrel.height + 20, attackRadius, this._atk, this._camp, this.node.parent, this._map, 8, mutationData, networkMeta);
+        if (!this._multiplayerRemote) {
+            this._playShootFeedback(type, mutationData);
+            MusicManager_1.MusicManager.playEffect("shoot");
+        }
+    };
     Player.prototype._playShootFeedback = function (bulletType, mutationData) {
         this._playBarrelRecoil();
         this._playMuzzleFlash(bulletType, mutationData);
@@ -1179,6 +1201,32 @@ var Player = /** @class */ (function (_super) {
         this._showPlayerHitEffect();
         Utils_1.Utils.vibrate();
         MusicManager_1.MusicManager.playEffect("playerHit");
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    };
+    Player.prototype.applyMultiplayerHit = function (damage, hp) {
+        if (!this._multiplayerMode) {
+            this.beHit(damage);
+            return;
+        }
+        var nextHp = hp;
+        if (nextHp == null || nextHp < 0) {
+            nextHp = this._hp - Math.max(0, damage || 0);
+        }
+        if (nextHp < 0) {
+            nextHp = 0;
+        }
+        var didTakeDamage = nextHp < this._hp;
+        this._hp = nextHp;
+        this.refreshHp();
+        if (didTakeDamage) {
+            this._showPlayerHitEffect();
+            if (!this._multiplayerRemote) {
+                Utils_1.Utils.vibrate();
+                MusicManager_1.MusicManager.playEffect("playerHit");
+            }
+        }
         if (this._hp == 0) {
             this.doDeath();
         }

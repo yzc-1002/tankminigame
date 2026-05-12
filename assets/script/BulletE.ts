@@ -35,6 +35,9 @@ export class Bullet extends BaseComponent {
     _isClusterBomb = false;
     _clusterBombDistance = 0;
     _clusterBombSplitDistance = 0;
+    _networkBulletId   = "";
+    _ownerPlayerId     = -1;
+    _multiplayerHitReported = false;
 
     _currenBullet   = null;
     _isStop         = false;
@@ -49,6 +52,9 @@ export class Bullet extends BaseComponent {
     }
 
     onDestroy() {
+        if (this._map && this._map.unregisterMultiplayerBullet && this._networkBulletId) {
+            this._map.unregisterMultiplayerBullet(this._networkBulletId, this.node);
+        }
         //销毁事件
         this._destroyEvent();
     }
@@ -92,6 +98,9 @@ export class Bullet extends BaseComponent {
         this._isClusterBomb = false;
         this._clusterBombDistance = 0;
         this._clusterBombSplitDistance = 0;
+        this._networkBulletId = "";
+        this._ownerPlayerId = -1;
+        this._multiplayerHitReported = false;
 
         //子弹类型
         if (camp == "enemy") {
@@ -255,6 +264,15 @@ export class Bullet extends BaseComponent {
 
     }
 
+    setMultiplayerMeta(bulletId, ownerPlayerId) {
+        this._networkBulletId = bulletId || "";
+        this._ownerPlayerId = ownerPlayerId == null ? -1 : ownerPlayerId;
+        this._multiplayerHitReported = false;
+        if (this._map && this._map.registerMultiplayerBullet && this._networkBulletId) {
+            this._map.registerMultiplayerBullet(this._networkBulletId, this.node);
+        }
+    }
+
     //每帧调用
     update (dt) {
         if (this._inGame == true && this._isStop == false) {
@@ -363,7 +381,7 @@ export class Bullet extends BaseComponent {
                                 return;
                             }
                             //子弹和坦克检测
-                            let hitTank = this._map.bulletEnemyCollisionTest(willPosition,this._camp);
+                            let hitTank = this._map.bulletEnemyCollisionTest(willPosition, this._camp, this._ownerPlayerId);
                             if (hitTank) {
                                 this._handleHitTank(hitTank);
                             }
@@ -389,6 +407,9 @@ export class Bullet extends BaseComponent {
 
     //销毁
     doDestroy(){
+        if (this._isStop) {
+            return;
+        }
         this._isStop = true;
         if (this._currenBullet) {
             this._currenBullet.active = false;
@@ -409,12 +430,34 @@ export class Bullet extends BaseComponent {
     }
 
     _destroyImmediately() {
+        if (this._isStop) {
+            return;
+        }
         this._isStop = true;
         this.node.destroy();
     }
 
     _handleHitTank(hitTank) {
         let targetId = hitTank.uuid || hitTank["_id"] || hitTank.name;
+        if (this._map
+            && this._map.isMultiplayerMode
+            && this._map.isMultiplayerMode()
+            && hitTank.script
+            && hitTank.script._multiplayerMode) {
+            let targetPlayerId = hitTank.script._multiplayerPlayerId;
+            if (!this._multiplayerHitReported
+                && this._networkBulletId
+                && this._map.getLocalPlayerId
+                && this._ownerPlayerId == this._map.getLocalPlayerId()
+                && this._map.reportMultiplayerBulletHit
+                && targetPlayerId != null
+                && targetPlayerId >= 0) {
+                this._multiplayerHitReported = true;
+                this._map.reportMultiplayerBulletHit(this._networkBulletId, targetPlayerId);
+            }
+            this.doDestroy();
+            return;
+        }
         if (this._mutationType == "penetrate" && this._hitTargetIds[targetId]) {
             return;
         }
@@ -674,7 +717,7 @@ export class Bullet extends BaseComponent {
     }
 
     //创建子弹
-    static createBullet(pos,dir,gunshot,atk,speed,camp,parentNode,map,bulletType = null, mutationData = null){
+    static createBullet(pos,dir,gunshot,atk,speed,camp,parentNode,map,bulletType = null, mutationData = null, networkMeta = null){
         speed = (camp == "enemy") ? speed*0.8 : speed;
 
         let bullet = cc.instantiate(map.bulletPrefab);
@@ -683,13 +726,16 @@ export class Bullet extends BaseComponent {
         bullet.zIndex = 5000;
         bullet.script.initBullet(dir,gunshot,atk,speed,camp,map._levelId,bulletType,mutationData);
         bullet.script.setMap(map);
+        if (networkMeta && bullet.script.setMultiplayerMeta) {
+            bullet.script.setMultiplayerMeta(networkMeta.bulletId, networkMeta.ownerPlayerId);
+        }
 
         return bullet;
     }
 
 
     //创建子弹(类型/位置/方向/炮管长度/射程/攻击力/目标阵营)
-    static createBulletEx(bulletType,pos,dir,wipeLen,gunshot,atk,camp,parentNode,map,speed = 8,mutationData = null){
+    static createBulletEx(bulletType,pos,dir,wipeLen,gunshot,atk,camp,parentNode,map,speed = 8,mutationData = null, networkMeta = null){
         gunshot = gunshot - wipeLen;
         let bdir = dir;
         let bpos = pos;
@@ -699,7 +745,7 @@ export class Bullet extends BaseComponent {
             case 1:{
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData);
+                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData,networkMeta);
 
                 break;
             }
@@ -707,7 +753,7 @@ export class Bullet extends BaseComponent {
                 for (let i = 0; i <= 1; i++) {
                     bdir = Utils.vectorsRotateDegress(dir,i*5 - 2.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData);
+                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData,networkMeta);
                 }
                 break;
             }
@@ -715,7 +761,7 @@ export class Bullet extends BaseComponent {
                 for (let i = 0; i <= 2; i++) {
                     bdir = Utils.vectorsRotateDegress(dir,i*5 - 5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData);
+                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData,networkMeta);
                 }
                 break;
             }
@@ -723,7 +769,7 @@ export class Bullet extends BaseComponent {
                 for (let i = 0; i <= 3; i++) {
                     bdir = Utils.vectorsRotateDegress(dir,i*5 - 7.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData);
+                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData,networkMeta);
                 }
                 break;
             }
@@ -731,26 +777,26 @@ export class Bullet extends BaseComponent {
                 for (let i = 0; i <= 5; i++) {
                     bdir = Utils.vectorsRotateDegress(dir,i*5 - 12.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData);
+                    bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,null,mutationData,networkMeta);
                 }
                 break;
             }
             case 99:{
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType,mutationData);
+                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType,mutationData,networkMeta);
                 break;
             }
             case 100:{
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType,mutationData);
+                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType,mutationData,networkMeta);
                 break;
             }
             case 101:{
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType,mutationData);
+                bullet = Bullet.createBullet(bpos,bdir,gunshot,atk,speed,camp,parentNode,map,bulletType,mutationData,networkMeta);
                 break;
             }
             case 11:{

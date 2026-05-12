@@ -127,6 +127,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._clusterBombTestMode = false; //集束炸弹测试模式
         _this._multiplayerMode = false; //多人模式
         _this._multiplayerPlayers = []; //多人玩家列表
+        _this._multiplayerBullets = {}; //多人同步子弹
         _this._localPlayerId = 0; //本地玩家ID
         _this._levelId = 1; //当前关卡id
         _this._levelConfig = null; //当前关卡配置
@@ -3496,7 +3497,22 @@ var GameMap = /** @class */ (function (_super) {
         return bullet.enterCentrifugalRing ? bullet.enterCentrifugalRing(ring) : false;
     };
     //子弹,碰撞检测
-    GameMap.prototype.bulletEnemyCollisionTest = function (P, camp) {
+    GameMap.prototype.bulletEnemyCollisionTest = function (P, camp, ownerPlayerId) {
+        if (ownerPlayerId === void 0) { ownerPlayerId = -1; }
+        if (this._multiplayerMode && camp == "player") {
+            for (var i = 0; i < this._multiplayerPlayers.length; i++) {
+                var player = this._multiplayerPlayers[i];
+                if (!player || !cc.isValid(player) || i == ownerPlayerId) {
+                    continue;
+                }
+                var len = P.sub(player.position).mag();
+                var radius = player.script.getRadius();
+                if (len < radius) {
+                    return player;
+                }
+            }
+            return null;
+        }
         if (camp == "player") {
             for (var i = 0; i < this._enemys.length; i++) {
                 var enemy = this._enemys[i];
@@ -4459,16 +4475,19 @@ var GameMap = /** @class */ (function (_super) {
         player.script.setMap(this);
         player.script.setPlayerType(playerType, playerLevel);
         player.script.setInGame();
+        player.script._multiplayerPlayerId = playerIdx;
+        player["__multiplayerPlayerId"] = playerIdx;
         // Mark remote players (no UI controls)
-        if (playerIdx !== 0) {
+        if (playerIdx !== this._localPlayerId) {
             player.script._multiplayerRemote = true;
         }
         player.script._multiplayerMode = true;
         // Visually distinguish players: P0=green tint, P1=blue tint
-        var colorTint = playerIdx === 0 ? cc.color(180, 255, 180, 255) : cc.color(160, 200, 255, 255);
+        var colorTint = playerIdx === this._localPlayerId ? cc.color(180, 255, 180, 255) : cc.color(160, 200, 255, 255);
         var tryNames = ['_sprBg1', '_sprBg2', '_sprBg3', '_sprBg4', '_sprBg'];
         tryNames.forEach(function (name) {
-            var n = player._fire ? player._fire[name] : null;
+            var fireRefs = player["_fire"];
+            var n = fireRefs ? fireRefs[name] : null;
             if (n && cc.isValid(n)) {
                 try {
                     n.color = colorTint;
@@ -4476,8 +4495,8 @@ var GameMap = /** @class */ (function (_super) {
                 catch (e) { }
             }
         });
-        this._multiplayerPlayers.push(player);
-        if (playerIdx === 0) {
+        this._multiplayerPlayers[playerIdx] = player;
+        if (playerIdx === this._localPlayerId) {
             this._player = player;
         }
         return player;
@@ -4485,7 +4504,8 @@ var GameMap = /** @class */ (function (_super) {
     GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
-        this._localPlayerId = localPlayerId || 0;
+        this._multiplayerBullets = {};
+        this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
         this._clearAllTestNodes();
@@ -4528,7 +4548,60 @@ var GameMap = /** @class */ (function (_super) {
                 player.script.setFrameInput(entry.inputs);
             }
         }
+        for (var i = 0; i < frameData.inputs.length; i++) {
+            var entry = frameData.inputs[i];
+            if (entry && entry.inputs && entry.inputs.hit) {
+                this.applyMultiplayerHit(entry.inputs.hit);
+            }
+        }
         this._centerOnLocalPlayer();
+    };
+    GameMap.prototype.isMultiplayerMode = function () {
+        return this._multiplayerMode;
+    };
+    GameMap.prototype.getLocalPlayerId = function () {
+        return this._localPlayerId;
+    };
+    GameMap.prototype.registerMultiplayerBullet = function (bulletId, bulletNode) {
+        if (!this._multiplayerMode || !bulletId || !bulletNode) {
+            return;
+        }
+        this._multiplayerBullets[bulletId] = bulletNode;
+    };
+    GameMap.prototype.unregisterMultiplayerBullet = function (bulletId, bulletNode) {
+        if (bulletNode === void 0) { bulletNode = null; }
+        if (!bulletId || !this._multiplayerBullets[bulletId]) {
+            return;
+        }
+        if (!bulletNode || this._multiplayerBullets[bulletId] === bulletNode) {
+            delete this._multiplayerBullets[bulletId];
+        }
+    };
+    GameMap.prototype.reportMultiplayerBulletHit = function (bulletId, targetPlayerId) {
+        if (!this._multiplayerMode || !bulletId || targetPlayerId == null || targetPlayerId < 0) {
+            return;
+        }
+        yyp.eventCenter.emit("multiplayer-hit", {
+            id: bulletId,
+            tgid: targetPlayerId,
+            hp: -1,
+            damage: -1,
+        });
+    };
+    GameMap.prototype.applyMultiplayerHit = function (hitData) {
+        if (!this._multiplayerMode || !hitData || !hitData.id) {
+            return;
+        }
+        var bullet = this._multiplayerBullets[hitData.id];
+        if (bullet && cc.isValid(bullet) && bullet.script && bullet.script.doDestroy) {
+            bullet.script.doDestroy();
+        }
+        this.unregisterMultiplayerBullet(hitData.id, bullet);
+        var targetPlayer = this._multiplayerPlayers[hitData.tgid];
+        if (!targetPlayer || !cc.isValid(targetPlayer) || !targetPlayer.script || !targetPlayer.script.applyMultiplayerHit) {
+            return;
+        }
+        targetPlayer.script.applyMultiplayerHit(hitData.damage, hitData.hp);
     };
     GameMap.prototype._centerOnLocalPlayer = function () {
         if (!this._multiplayerMode)

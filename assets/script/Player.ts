@@ -65,7 +65,8 @@ export class Player extends Tank {
     _shootInputDir = cc.v2(1, 0);   //射击摇杆目标方向
     _frameInput = null;             //网络帧输入(多人)
     _multiplayerMode = false;       //多人模式(禁用本地摇杆)
-    _energyLevel = 1;           //局内能量等级
+    _multiplayerRemote = false;     //多人远端玩家
+    _multiplayerPlayerId = -1;      //多人玩家ID
 
     onLoad () {
         super.onLoad();
@@ -195,9 +196,14 @@ export class Player extends Tank {
         } else {
             this._moveInputRatio = 0;
         }
+        // console.log("setFrameInput---inputs",inputs)
         if (inputs.fire) {
-            this._tryFireOnce();
+            this._fireByMultiplayerCommand(inputs.fire);
         }
+    }
+
+    getMultiplayerFireType() {
+        return (this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
     }
 
     _doChargeCannonPress(event) {
@@ -1035,6 +1041,39 @@ export class Player extends Tank {
         }
     }
 
+    _fireByMultiplayerCommand(fireData) {
+        if (!fireData) {
+            return;
+        }
+
+        let type = fireData.type || this.getMultiplayerFireType();
+        let attackRadius = this._config.AttackRadius;
+        let mutationData = this._getCurrentBulletMutationData();
+        let networkMeta = {
+            bulletId: fireData.id,
+            ownerPlayerId: this._multiplayerPlayerId,
+        };
+        Bullet.createBulletEx(
+            type,
+            this.node.position,
+            this._barrelDir,
+            this._fire._lyBarrel.height + 20,
+            attackRadius,
+            this._atk,
+            this._camp,
+            this.node.parent,
+            this._map,
+            8,
+            mutationData,
+            networkMeta
+        );
+
+        if (!this._multiplayerRemote) {
+            this._playShootFeedback(type, mutationData);
+            MusicManager.playEffect("shoot");
+        }
+    }
+
     _playShootFeedback(bulletType, mutationData) {
         this._playBarrelRecoil();
         this._playMuzzleFlash(bulletType, mutationData);
@@ -1419,6 +1458,37 @@ export class Player extends Tank {
         this._showPlayerHitEffect();
         Utils.vibrate();
         MusicManager.playEffect("playerHit");
+
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    }
+
+    applyMultiplayerHit(damage, hp) {
+        if (!this._multiplayerMode) {
+            this.beHit(damage);
+            return;
+        }
+
+        let nextHp = hp;
+        if (nextHp == null || nextHp < 0) {
+            nextHp = this._hp - Math.max(0, damage || 0);
+        }
+        if (nextHp < 0) {
+            nextHp = 0;
+        }
+
+        let didTakeDamage = nextHp < this._hp;
+        this._hp = nextHp;
+        this.refreshHp();
+
+        if (didTakeDamage) {
+            this._showPlayerHitEffect();
+            if (!this._multiplayerRemote) {
+                Utils.vibrate();
+                MusicManager.playEffect("playerHit");
+            }
+        }
 
         if (this._hp == 0) {
             this.doDeath();

@@ -124,6 +124,7 @@ export class GameMap extends BaseComponent {
     _clusterBombTestMode = false; //集束炸弹测试模式
     _multiplayerMode = false; //多人模式
     _multiplayerPlayers = []; //多人玩家列表
+    _multiplayerBullets = {}; //多人同步子弹
     _localPlayerId = 0;       //本地玩家ID
     _levelId        = 1;        //当前关卡id
     _levelConfig    = null;     //当前关卡配置
@@ -4153,7 +4154,22 @@ export class GameMap extends BaseComponent {
 
     
     //子弹,碰撞检测
-    bulletEnemyCollisionTest(P,camp){
+    bulletEnemyCollisionTest(P,camp, ownerPlayerId = -1){
+        if (this._multiplayerMode && camp == "player") {
+            for (let i = 0; i < this._multiplayerPlayers.length; i++) {
+                let player = this._multiplayerPlayers[i];
+                if (!player || !cc.isValid(player) || i == ownerPlayerId) {
+                    continue;
+                }
+                let len = P.sub(player.position).mag();
+                let radius = player.script.getRadius();
+                if (len < radius) {
+                    return player;
+                }
+            }
+            return null;
+        }
+
         if (camp == "player") {
             for (let i = 0; i < this._enemys.length; i++) {
                 let enemy = this._enemys[i];
@@ -5276,25 +5292,28 @@ export class GameMap extends BaseComponent {
         player.script.setMap(this);
         player.script.setPlayerType(playerType, playerLevel);
         player.script.setInGame();
+        player.script._multiplayerPlayerId = playerIdx;
+        player["__multiplayerPlayerId"] = playerIdx;
 
         // Mark remote players (no UI controls)
-        if (playerIdx !== 0) {
+        if (playerIdx !== this._localPlayerId) {
             player.script._multiplayerRemote = true;
         }
         player.script._multiplayerMode = true;
 
         // Visually distinguish players: P0=green tint, P1=blue tint
-        let colorTint = playerIdx === 0 ? cc.color(180, 255, 180, 255) : cc.color(160, 200, 255, 255);
+        let colorTint = playerIdx === this._localPlayerId ? cc.color(180, 255, 180, 255) : cc.color(160, 200, 255, 255);
         let tryNames = ['_sprBg1', '_sprBg2', '_sprBg3', '_sprBg4', '_sprBg'];
         tryNames.forEach(name => {
-            let n = player._fire ? player._fire[name] : null;
+            let fireRefs = player["_fire"];
+            let n = fireRefs ? fireRefs[name] : null;
             if (n && cc.isValid(n)) {
                 try { n.color = colorTint; } catch (e) {}
             }
         });
 
-        this._multiplayerPlayers.push(player);
-        if (playerIdx === 0) {
+        this._multiplayerPlayers[playerIdx] = player;
+        if (playerIdx === this._localPlayerId) {
             this._player = player;
         }
         return player;
@@ -5303,7 +5322,8 @@ export class GameMap extends BaseComponent {
     startMultiplayerGame(playerCount, localPlayerId, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
-        this._localPlayerId = localPlayerId || 0;
+        this._multiplayerBullets = {};
+        this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
 
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
@@ -5353,7 +5373,68 @@ export class GameMap extends BaseComponent {
             }
         }
 
+        for (let i = 0; i < frameData.inputs.length; i++) {
+            let entry = frameData.inputs[i];
+            if (entry && entry.inputs && entry.inputs.hit) {
+                this.applyMultiplayerHit(entry.inputs.hit);
+            }
+        }
+
         this._centerOnLocalPlayer();
+    }
+
+    isMultiplayerMode() {
+        return this._multiplayerMode;
+    }
+
+    getLocalPlayerId() {
+        return this._localPlayerId;
+    }
+
+    registerMultiplayerBullet(bulletId, bulletNode) {
+        if (!this._multiplayerMode || !bulletId || !bulletNode) {
+            return;
+        }
+        this._multiplayerBullets[bulletId] = bulletNode;
+    }
+
+    unregisterMultiplayerBullet(bulletId, bulletNode = null) {
+        if (!bulletId || !this._multiplayerBullets[bulletId]) {
+            return;
+        }
+        if (!bulletNode || this._multiplayerBullets[bulletId] === bulletNode) {
+            delete this._multiplayerBullets[bulletId];
+        }
+    }
+
+    reportMultiplayerBulletHit(bulletId, targetPlayerId) {
+        if (!this._multiplayerMode || !bulletId || targetPlayerId == null || targetPlayerId < 0) {
+            return;
+        }
+        yyp.eventCenter.emit("multiplayer-hit", {
+            id: bulletId,
+            tgid: targetPlayerId,
+            hp: -1,
+            damage: -1,
+        });
+    }
+
+    applyMultiplayerHit(hitData) {
+        if (!this._multiplayerMode || !hitData || !hitData.id) {
+            return;
+        }
+
+        let bullet = this._multiplayerBullets[hitData.id];
+        if (bullet && cc.isValid(bullet) && bullet.script && bullet.script.doDestroy) {
+            bullet.script.doDestroy();
+        }
+        this.unregisterMultiplayerBullet(hitData.id, bullet);
+
+        let targetPlayer = this._multiplayerPlayers[hitData.tgid];
+        if (!targetPlayer || !cc.isValid(targetPlayer) || !targetPlayer.script || !targetPlayer.script.applyMultiplayerHit) {
+            return;
+        }
+        targetPlayer.script.applyMultiplayerHit(hitData.damage, hitData.hp);
     }
 
     _centerOnLocalPlayer() {

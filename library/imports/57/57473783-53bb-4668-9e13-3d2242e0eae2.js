@@ -60,6 +60,9 @@ var Bullet = /** @class */ (function (_super) {
         _this._isClusterBomb = false;
         _this._clusterBombDistance = 0;
         _this._clusterBombSplitDistance = 0;
+        _this._networkBulletId = "";
+        _this._ownerPlayerId = -1;
+        _this._multiplayerHitReported = false;
         _this._currenBullet = null;
         _this._isStop = false;
         return _this;
@@ -73,6 +76,9 @@ var Bullet = /** @class */ (function (_super) {
         this._initEvent();
     };
     Bullet.prototype.onDestroy = function () {
+        if (this._map && this._map.unregisterMultiplayerBullet && this._networkBulletId) {
+            this._map.unregisterMultiplayerBullet(this._networkBulletId, this.node);
+        }
         //销毁事件
         this._destroyEvent();
     };
@@ -114,6 +120,9 @@ var Bullet = /** @class */ (function (_super) {
         this._isClusterBomb = false;
         this._clusterBombDistance = 0;
         this._clusterBombSplitDistance = 0;
+        this._networkBulletId = "";
+        this._ownerPlayerId = -1;
+        this._multiplayerHitReported = false;
         //子弹类型
         if (camp == "enemy") {
             this._bulletType = 0;
@@ -255,6 +264,14 @@ var Bullet = /** @class */ (function (_super) {
     };
     Bullet.prototype.start = function () {
     };
+    Bullet.prototype.setMultiplayerMeta = function (bulletId, ownerPlayerId) {
+        this._networkBulletId = bulletId || "";
+        this._ownerPlayerId = ownerPlayerId == null ? -1 : ownerPlayerId;
+        this._multiplayerHitReported = false;
+        if (this._map && this._map.registerMultiplayerBullet && this._networkBulletId) {
+            this._map.registerMultiplayerBullet(this._networkBulletId, this.node);
+        }
+    };
     //每帧调用
     Bullet.prototype.update = function (dt) {
         if (this._inGame == true && this._isStop == false) {
@@ -353,7 +370,7 @@ var Bullet = /** @class */ (function (_super) {
                                 return;
                             }
                             //子弹和坦克检测
-                            var hitTank = this._map.bulletEnemyCollisionTest(willPosition, this._camp);
+                            var hitTank = this._map.bulletEnemyCollisionTest(willPosition, this._camp, this._ownerPlayerId);
                             if (hitTank) {
                                 this._handleHitTank(hitTank);
                             }
@@ -378,6 +395,9 @@ var Bullet = /** @class */ (function (_super) {
     };
     //销毁
     Bullet.prototype.doDestroy = function () {
+        if (this._isStop) {
+            return;
+        }
         this._isStop = true;
         if (this._currenBullet) {
             this._currenBullet.active = false;
@@ -391,11 +411,33 @@ var Bullet = /** @class */ (function (_super) {
         })));
     };
     Bullet.prototype._destroyImmediately = function () {
+        if (this._isStop) {
+            return;
+        }
         this._isStop = true;
         this.node.destroy();
     };
     Bullet.prototype._handleHitTank = function (hitTank) {
         var targetId = hitTank.uuid || hitTank["_id"] || hitTank.name;
+        if (this._map
+            && this._map.isMultiplayerMode
+            && this._map.isMultiplayerMode()
+            && hitTank.script
+            && hitTank.script._multiplayerMode) {
+            var targetPlayerId = hitTank.script._multiplayerPlayerId;
+            if (!this._multiplayerHitReported
+                && this._networkBulletId
+                && this._map.getLocalPlayerId
+                && this._ownerPlayerId == this._map.getLocalPlayerId()
+                && this._map.reportMultiplayerBulletHit
+                && targetPlayerId != null
+                && targetPlayerId >= 0) {
+                this._multiplayerHitReported = true;
+                this._map.reportMultiplayerBulletHit(this._networkBulletId, targetPlayerId);
+            }
+            this.doDestroy();
+            return;
+        }
         if (this._mutationType == "penetrate" && this._hitTargetIds[targetId]) {
             return;
         }
@@ -613,9 +655,10 @@ var Bullet = /** @class */ (function (_super) {
         }
     };
     //创建子弹
-    Bullet.createBullet = function (pos, dir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData) {
+    Bullet.createBullet = function (pos, dir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData, networkMeta) {
         if (bulletType === void 0) { bulletType = null; }
         if (mutationData === void 0) { mutationData = null; }
+        if (networkMeta === void 0) { networkMeta = null; }
         speed = (camp == "enemy") ? speed * 0.8 : speed;
         var bullet = cc.instantiate(map.bulletPrefab);
         bullet.parent = parentNode;
@@ -623,12 +666,16 @@ var Bullet = /** @class */ (function (_super) {
         bullet.zIndex = 5000;
         bullet.script.initBullet(dir, gunshot, atk, speed, camp, map._levelId, bulletType, mutationData);
         bullet.script.setMap(map);
+        if (networkMeta && bullet.script.setMultiplayerMeta) {
+            bullet.script.setMultiplayerMeta(networkMeta.bulletId, networkMeta.ownerPlayerId);
+        }
         return bullet;
     };
     //创建子弹(类型/位置/方向/炮管长度/射程/攻击力/目标阵营)
-    Bullet.createBulletEx = function (bulletType, pos, dir, wipeLen, gunshot, atk, camp, parentNode, map, speed, mutationData) {
+    Bullet.createBulletEx = function (bulletType, pos, dir, wipeLen, gunshot, atk, camp, parentNode, map, speed, mutationData, networkMeta) {
         if (speed === void 0) { speed = 8; }
         if (mutationData === void 0) { mutationData = null; }
+        if (networkMeta === void 0) { networkMeta = null; }
         gunshot = gunshot - wipeLen;
         var bdir = dir;
         var bpos = pos;
@@ -637,14 +684,14 @@ var Bullet = /** @class */ (function (_super) {
             case 1: {
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData, networkMeta);
                 break;
             }
             case 2: {
                 for (var i = 0; i <= 1; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 2.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData, networkMeta);
                 }
                 break;
             }
@@ -652,7 +699,7 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 2; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData, networkMeta);
                 }
                 break;
             }
@@ -660,7 +707,7 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 3; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 7.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData, networkMeta);
                 }
                 break;
             }
@@ -668,26 +715,26 @@ var Bullet = /** @class */ (function (_super) {
                 for (var i = 0; i <= 5; i++) {
                     bdir = Utils_1.Utils.vectorsRotateDegress(dir, i * 5 - 12.5);
                     bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData);
+                    bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, null, mutationData, networkMeta);
                 }
                 break;
             }
             case 99: {
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData);
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData, networkMeta);
                 break;
             }
             case 100: {
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData);
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData, networkMeta);
                 break;
             }
             case 101: {
                 bdir = bdir;
                 bpos = cc.v2(pos).add(bdir.mul(wipeLen));
-                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData);
+                bullet = Bullet_1.createBullet(bpos, bdir, gunshot, atk, speed, camp, parentNode, map, bulletType, mutationData, networkMeta);
                 break;
             }
             case 11: {

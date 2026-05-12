@@ -35,6 +35,9 @@ export default class GameMain extends BaseComponent {
     _netManager = null;         //网络管理器(多人)
     _multiplayerStatus = null;  //连接状态标签
     _multiplayerActive = false; //多人游戏进行中
+    _multiplayerInputs = null;
+    _multiplayerHitQueue = [];
+    _multiplayerFireSeq = 1;
 
     onLoad() {
         //初始化变量
@@ -86,6 +89,7 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.on("player-revive",this._playerRevive,this);             //复活
         yyp.eventCenter.on("game-pause",this._gamePause,this);                  //暂停
         yyp.eventCenter.on("game-resume",this._gameResume,this);                  //恢复
+        yyp.eventCenter.on("multiplayer-hit",this._onMultiplayerHitReport,this); //多人命中上报
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
     }
 
@@ -101,6 +105,7 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.off("player-revive",this._playerRevive,this);             //复活
         yyp.eventCenter.off("game-pause",this._gamePause,this);                  //暂停
         yyp.eventCenter.off("game-resume",this._gameResume,this);                  //恢复
+        yyp.eventCenter.off("multiplayer-hit",this._onMultiplayerHitReport,this); //多人命中上报
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
         this._destroyUpgradeChoicePanel();
@@ -940,7 +945,7 @@ export default class GameMain extends BaseComponent {
         label.lineHeight = 40;
         label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
         label.verticalAlign = cc.Label.VerticalAlign.CENTER;
-        label.color = cc.color(255, 255, 100, 255);
+        node.color = cc.color(255, 255, 100, 255);
         this._multiplayerStatus = node;
     }
 
@@ -951,8 +956,57 @@ export default class GameMain extends BaseComponent {
         this._multiplayerStatus = null;
     }
 
+    _onMultiplayerHitReport(event) {
+        if (!this._multiplayerActive || !event || !event.id) {
+            return;
+        }
+        this._multiplayerHitQueue.push({
+            id: event.id,
+            tgid: event.tgid,
+            hp: event.hp == null ? -1 : event.hp,
+            damage: event.damage == null ? -1 : event.damage,
+        });
+    }
+
+    _nextMultiplayerBulletId() {
+        let playerId = this._netManager ? this._netManager.playerId : 0;
+        let id = playerId + "_" + this._multiplayerFireSeq;
+        this._multiplayerFireSeq++;
+        return id;
+    }
+
+    _getLocalMultiplayerPlayer() {
+        return this._getCurrentPlayer();
+    }
+
+    _buildMultiplayerFireCommand() {
+        let player = this._getLocalMultiplayerPlayer();
+        let fireType = 1;
+        if (player && player.script && player.script.getMultiplayerFireType) {
+            fireType = player.script.getMultiplayerFireType();
+        }
+        return {
+            id: this._nextMultiplayerBulletId(),
+            type: fireType,
+        };
+    }
+
+    _buildMultiplayerInputPacket() {
+        let source = this._multiplayerInputs || {};
+        let hit = this._multiplayerHitQueue.length > 0 ? this._multiplayerHitQueue.shift() : false;
+        return {
+            up: !!source.up,
+            down: !!source.down,
+            left: !!source.left,
+            right: !!source.right,
+            fire: source.fire ? source.fire : false,
+            hit: hit || false,
+        };
+    }
+
     _startMultiplayerGame() {
         this._multiplayerActive = false;
+        this._multiplayerHitQueue = [];
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
         this._showMultiplayerStatus("正在连接服务器 ws://localhost:2567 ...");
@@ -977,7 +1031,9 @@ export default class GameMain extends BaseComponent {
     _startMultiplayerMatch(playerId, playerCount) {
         this._hideMultiplayerStatus();
         this._multiplayerActive = true;
-        this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false };
+        this._multiplayerHitQueue = [];
+        this._multiplayerFireSeq = 1;
+        this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false, hit: false };
 
         let self = this;
         this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, function () {
@@ -1011,7 +1067,7 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.on("joy-stick-shoot", function (event) {
             if (!self._multiplayerActive) return;
             if (event.fire === true) {
-                self._multiplayerInputs.fire = true;
+                self._multiplayerInputs.fire = self._buildMultiplayerFireCommand();
             }
         });
 
@@ -1029,8 +1085,9 @@ export default class GameMain extends BaseComponent {
                 cc.delayTime(1 / 20),
                 cc.callFunc(function () {
                     if (!self._multiplayerActive || !self._netManager || !self._netManager.connected) return;
-                    self._netManager.sendInput(self._multiplayerInputs);
+                    self._netManager.sendInput(self._buildMultiplayerInputPacket());
                     self._multiplayerInputs.fire = false;
+                    self._multiplayerInputs.hit = false;
 
                     // Camera follow
                     if (self._fire._tiled && self._fire._tiled.script) {
