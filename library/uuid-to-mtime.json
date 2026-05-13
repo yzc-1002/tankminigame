@@ -2130,8 +2130,8 @@
     "relativePath": "script\\Player.ts"
   },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778580846310,
-    "meta": 1778580860890,
+    "asset": 1778582312652,
+    "meta": 1778582375383,
     "relativePath": "script\\network\\NetworkManager.ts"
   }
 }

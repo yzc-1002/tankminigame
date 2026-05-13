@@ -64,17 +64,59 @@ function tick() {
       }
     }
   });
+  // const frameInputs = room.players.map(p => {
+  //   let inputs = Object.assign({}, NEUTRAL);
+  //   while (p.pendingInputs.length > 0) {
+  //     const entry = p.pendingInputs.shift();
+  //     if (entry && entry.inputs) {
+  //       inputs = entry.inputs;
+  //     }
+  //   }
+  //   return {
+  //     playerId: p.playerId,
+  //     inputs: inputs,
+  //     dead: p.dead,
+  //     disconnected: p.disconnected || false,
+  //   };
+  // });
   const frameInputs = room.players.map(p => {
-    let inputs = Object.assign({}, NEUTRAL);
+    let inputs = {
+      up: !!(p.lastInputs && p.lastInputs.up),
+      down: !!(p.lastInputs && p.lastInputs.down),
+      left: !!(p.lastInputs && p.lastInputs.left),
+      right: !!(p.lastInputs && p.lastInputs.right),
+      fire: false,
+      hit: false,
+    };
+  
     while (p.pendingInputs.length > 0) {
       const entry = p.pendingInputs.shift();
-      if (entry && entry.inputs) {
-        inputs = entry.inputs;
-      }
+      if (!entry || !entry.inputs) continue;
+  
+      const src = entry.inputs;
+  
+      // 持续态：移动方向要覆盖并记住
+      inputs.up = !!src.up;
+      inputs.down = !!src.down;
+      inputs.left = !!src.left;
+      inputs.right = !!src.right;
+  
+      // 瞬时态：只在这一帧生效，不能记住
+      if (src.fire) inputs.fire = src.fire;
+      if (src.hit) inputs.hit = src.hit;
     }
+  
+    // 只记住移动状态，千万不要把 fire/hit 记进去
+    p.lastInputs = {
+      up: inputs.up,
+      down: inputs.down,
+      left: inputs.left,
+      right: inputs.right,
+    };
+  
     return {
       playerId: p.playerId,
-      inputs: inputs,
+      inputs,
       dead: p.dead,
       disconnected: p.disconnected || false,
     };

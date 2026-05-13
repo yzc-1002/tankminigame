@@ -73,24 +73,12 @@ export class NetworkManager {
         if (!this._connected || !this.ws) return;
 
         this._currentFrame++;
-        let isnull = true;
-        // console.log("sendInput0", inputs);
-        for (const key in inputs) {
-            const element = inputs[key];
-            if (element) {
-                isnull = false;
-                break
-            }
-        }
-        if (isnull){
-            return;
-        }
+        // 必须发送“全 false”包，否则服务端会沿用 lastInputs，松手后坦克不会停
         const msg = {
             type: "input",
             frame: this._currentFrame,
             inputs: this._normalizeInputs(inputs),
         };
-        console.log("sendInput", msg);
         this.ws.send(JSON.stringify(msg));
     }
 
