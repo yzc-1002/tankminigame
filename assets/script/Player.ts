@@ -1495,6 +1495,44 @@ export class Player extends Tank {
         }
     }
 
+    syncMultiplayerHp(hp, maxHp = null) {
+        if (!this._multiplayerMode) {
+            return;
+        }
+
+        if (maxHp != null && maxHp > 0) {
+            this._maxHp = maxHp;
+        }
+
+        if (hp == null) {
+            return;
+        }
+
+        let nextHp = hp;
+        if (nextHp < 0) {
+            nextHp = 0;
+        }
+        if (this._maxHp > 0 && nextHp > this._maxHp) {
+            nextHp = this._maxHp;
+        }
+
+        let didTakeDamage = nextHp < this._hp;
+        this._hp = nextHp;
+        this.refreshHp();
+
+        if (didTakeDamage) {
+            this._showPlayerHitEffect();
+            if (!this._multiplayerRemote) {
+                Utils.vibrate();
+                MusicManager.playEffect("playerHit");
+            }
+        }
+
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    }
+
     _showPlayerHitEffect() {
         let effect = new cc.Node("_playerHitEffect");
         effect.parent = this.node;

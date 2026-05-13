@@ -4547,6 +4547,9 @@ var GameMap = /** @class */ (function (_super) {
             if (player && player.script && player.script.setFrameInput) {
                 player.script.setFrameInput(entry.inputs);
             }
+            if (player && player.script && player.script.syncMultiplayerHp) {
+                player.script.syncMultiplayerHp(entry.hp, entry.maxHp);
+            }
         }
         for (var i = 0; i < frameData.inputs.length; i++) {
             var entry = frameData.inputs[i];

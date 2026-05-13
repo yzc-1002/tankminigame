@@ -117,6 +117,8 @@ function tick() {
     return {
       playerId: p.playerId,
       inputs,
+      hp: p.hp,
+      maxHp: p.maxHp,
       dead: p.dead,
       disconnected: p.disconnected || false,
     };

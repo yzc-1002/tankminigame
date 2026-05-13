@@ -5371,6 +5371,9 @@ export class GameMap extends BaseComponent {
             if (player && player.script && player.script.setFrameInput) {
                 player.script.setFrameInput(entry.inputs);
             }
+            if (player && player.script && player.script.syncMultiplayerHp) {
+                player.script.syncMultiplayerHp(entry.hp, entry.maxHp);
+            }
         }
 
         for (let i = 0; i < frameData.inputs.length; i++) {

@@ -1231,6 +1231,38 @@ var Player = /** @class */ (function (_super) {
             this.doDeath();
         }
     };
+    Player.prototype.syncMultiplayerHp = function (hp, maxHp) {
+        if (maxHp === void 0) { maxHp = null; }
+        if (!this._multiplayerMode) {
+            return;
+        }
+        if (maxHp != null && maxHp > 0) {
+            this._maxHp = maxHp;
+        }
+        if (hp == null) {
+            return;
+        }
+        var nextHp = hp;
+        if (nextHp < 0) {
+            nextHp = 0;
+        }
+        if (this._maxHp > 0 && nextHp > this._maxHp) {
+            nextHp = this._maxHp;
+        }
+        var didTakeDamage = nextHp < this._hp;
+        this._hp = nextHp;
+        this.refreshHp();
+        if (didTakeDamage) {
+            this._showPlayerHitEffect();
+            if (!this._multiplayerRemote) {
+                Utils_1.Utils.vibrate();
+                MusicManager_1.MusicManager.playEffect("playerHit");
+            }
+        }
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    };
     Player.prototype._showPlayerHitEffect = function () {
         var effect = new cc.Node("_playerHitEffect");
         effect.parent = this.node;
