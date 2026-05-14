@@ -63,6 +63,7 @@ var Bullet = /** @class */ (function (_super) {
         _this._networkBulletId = "";
         _this._ownerPlayerId = -1;
         _this._multiplayerHitReported = false;
+        _this._multiplayerEventReported = {};
         _this._currenBullet = null;
         _this._isStop = false;
         return _this;
@@ -123,6 +124,7 @@ var Bullet = /** @class */ (function (_super) {
         this._networkBulletId = "";
         this._ownerPlayerId = -1;
         this._multiplayerHitReported = false;
+        this._multiplayerEventReported = {};
         //子弹类型
         if (camp == "enemy") {
             this._bulletType = 0;
@@ -268,6 +270,7 @@ var Bullet = /** @class */ (function (_super) {
         this._networkBulletId = bulletId || "";
         this._ownerPlayerId = ownerPlayerId == null ? -1 : ownerPlayerId;
         this._multiplayerHitReported = false;
+        this._multiplayerEventReported = {};
         if (this._map && this._map.registerMultiplayerBullet && this._networkBulletId) {
             this._map.registerMultiplayerBullet(this._networkBulletId, this.node);
         }
@@ -318,6 +321,7 @@ var Bullet = /** @class */ (function (_super) {
                                 if (this._map.spawnBlackHoleSwallowFx) {
                                     this._map.spawnBlackHoleSwallowFx(cc.v2(this.node.position));
                                 }
+                                this._reportMultiplayerEvent("blackHole", bhData.eventId || "", "swallow");
                                 this.doDestroy();
                                 return;
                             }
@@ -488,6 +492,7 @@ var Bullet = /** @class */ (function (_super) {
         this.node.setPosition(cc.v3(pos));
         this._portalIgnoreId = ignorePortalId || "";
         this._portalIgnoreTime = 0.08;
+        this._reportMultiplayerEvent("portal", ignorePortalId || "");
     };
     Bullet.prototype.hasUsedCentrifugalRing = function () {
         return this._centrifugalUsed;
@@ -509,6 +514,7 @@ var Bullet = /** @class */ (function (_super) {
         if (this._map && this._map.spawnDamageDoubleFx) {
             this._map.spawnDamageDoubleFx(cc.v2(this.node.position));
         }
+        this._reportMultiplayerEvent("damageDouble", areaData.eventId || "");
         return true;
     };
     Bullet.prototype.hasUsedSpeedDoubleArea = function () {
@@ -527,7 +533,26 @@ var Bullet = /** @class */ (function (_super) {
         if (this._map && this._map.spawnSpeedDoubleFx) {
             this._map.spawnSpeedDoubleFx(cc.v2(this.node.position));
         }
+        this._reportMultiplayerEvent("speedDouble", areaData.eventId || "");
         return true;
+    };
+    Bullet.prototype._reportMultiplayerEvent = function (type, eventId, reason) {
+        if (eventId === void 0) { eventId = ""; }
+        if (reason === void 0) { reason = ""; }
+        if (!this._networkBulletId || !type) {
+            return;
+        }
+        var reportKey = type + ":" + (eventId || "");
+        if (this._multiplayerEventReported[reportKey]) {
+            return;
+        }
+        this._multiplayerEventReported[reportKey] = true;
+        yyp.eventCenter.emit("multiplayer-bullet-event", {
+            type: type,
+            bulletId: this._networkBulletId,
+            eventId: eventId || "",
+            reason: reason || "",
+        });
     };
     Bullet.prototype.hasUsedSpreadBulletArea = function () {
         return this._spreadBulletUsed;

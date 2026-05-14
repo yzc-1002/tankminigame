@@ -28,6 +28,20 @@ const PLAYER_EXP_STEP = 15;
 const PLAYER_LEVEL_HP_ADD = 5;
 const PLAYER_LEVEL_DAMAGE_ADD = 0.5;
 const PLAYER_LEVEL_SPEED_ADD = 18;
+const SPECIAL_EVENT_START_DELAY = 8;
+const SPECIAL_EVENT_RESPAWN_MIN = 12;
+const SPECIAL_EVENT_RESPAWN_MAX = 20;
+const SPECIAL_EVENT_DURATION = 14;
+const SPECIAL_EVENT_MIN_PLAYER_DISTANCE = 180;
+const SPECIAL_EVENT_MIN_ENERGY_DISTANCE = 170;
+const SPECIAL_EVENT_MIN_EGG_DISTANCE = 220;
+const SPECIAL_EVENT_PORTAL_RADIUS = 44;
+const SPECIAL_EVENT_PORTAL_PAIR_MIN = 360;
+const SPECIAL_EVENT_PORTAL_PAIR_MAX = 780;
+const SPECIAL_EVENT_DAMAGE_RADIUS = 60;
+const SPECIAL_EVENT_SPEED_RADIUS = 60;
+const SPECIAL_EVENT_BLACK_HOLE_RADIUS = 100;
+const SPECIAL_EVENT_BLACK_HOLE_DESTROY_RADIUS = 14;
 
 const ROOM_STATE = {
   WAITING: 'waiting',
@@ -62,6 +76,9 @@ const room = {
   elapsedSeconds: 0,
   energyEggMidgamePlan: 0,
   energyEggMidgameSpawned: 0,
+  nextSpecialEventId: 1,
+  specialEventSpawnCd: 0,
+  activeSpecialEvent: null,
 };
 
 function isSocketOpen(ws) {
@@ -391,6 +408,219 @@ function appendFrameCommand(frameCommands, command) {
     return;
   }
   frameCommands.push(command);
+}
+
+function randomBetween(min, max) {
+  if (max <= min) {
+    return min;
+  }
+  return min + Math.random() * (max - min);
+}
+
+function pickOne(list) {
+  if (!Array.isArray(list) || list.length <= 0) {
+    return null;
+  }
+  return list[Math.floor(Math.random() * list.length)] || null;
+}
+
+function getSpecialEventSpawnSources() {
+  if (Array.isArray(room.energySpawnPoints) && room.energySpawnPoints.length > 0) {
+    return room.energySpawnPoints;
+  }
+  if (Array.isArray(room.spawnCandidates) && room.spawnCandidates.length > 0) {
+    return room.spawnCandidates;
+  }
+  return [];
+}
+
+function isSpecialEventPointAvailable(point, padding = 90) {
+  if (!point) {
+    return false;
+  }
+  for (let i = 0; i < room.players.length; i++) {
+    const player = room.players[i];
+    if (!player || player.dead || player.disconnected) {
+      continue;
+    }
+    if (Math.sqrt(distanceSqr(getPlayerRuntimePosition(player), point)) < SPECIAL_EVENT_MIN_PLAYER_DISTANCE) {
+      return false;
+    }
+  }
+  for (let i = 0; i < room.energies.length; i++) {
+    const energy = room.energies[i];
+    if (energy && Math.sqrt(distanceSqr(energy, point)) < SPECIAL_EVENT_MIN_ENERGY_DISTANCE) {
+      return false;
+    }
+  }
+  for (let i = 0; i < room.energyEggs.length; i++) {
+    const egg = room.energyEggs[i];
+    if (egg && !egg.removed && Math.sqrt(distanceSqr(egg, point)) < SPECIAL_EVENT_MIN_EGG_DISTANCE) {
+      return false;
+    }
+  }
+  const clamped = clampPointToBounds(point, padding);
+  return Math.abs(clamped.x - point.x) < 0.01 && Math.abs(clamped.y - point.y) < 0.01;
+}
+
+function chooseSpecialEventPoint(padding = 90) {
+  const points = getSpecialEventSpawnSources();
+  if (points.length > 0) {
+    const preferred = points.filter((point) => isSpecialEventPointAvailable(point, padding));
+    const source = preferred.length > 0 ? preferred : points;
+    const picked = pickOne(source);
+    if (picked) {
+      return clampPointToBounds({ x: picked.x, y: picked.y }, padding);
+    }
+  }
+  return clampPointToBounds({
+    x: Math.floor(Math.random() * 2800) - 1400,
+    y: Math.floor(Math.random() * 1800) - 900,
+  }, padding);
+}
+
+function choosePortalPair() {
+  const entry = chooseSpecialEventPoint(SPECIAL_EVENT_PORTAL_RADIUS + 40);
+  const points = getSpecialEventSpawnSources();
+  const candidates = [];
+  for (let i = 0; i < points.length; i++) {
+    const point = clampPointToBounds(points[i], SPECIAL_EVENT_PORTAL_RADIUS + 40);
+    const dist = Math.sqrt(distanceSqr(entry, point));
+    if (dist >= SPECIAL_EVENT_PORTAL_PAIR_MIN && dist <= SPECIAL_EVENT_PORTAL_PAIR_MAX) {
+      candidates.push(point);
+    }
+  }
+  let exit = candidates.length > 0 ? pickOne(candidates) : null;
+  if (!exit) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = randomBetween(SPECIAL_EVENT_PORTAL_PAIR_MIN, SPECIAL_EVENT_PORTAL_PAIR_MAX);
+    exit = clampPointToBounds({
+      x: entry.x + Math.cos(angle) * distance,
+      y: entry.y + Math.sin(angle) * distance,
+    }, SPECIAL_EVENT_PORTAL_RADIUS + 40);
+  }
+  return {
+    entryPos: entry,
+    exitPos: exit,
+  };
+}
+
+function buildSpecialEventPayload(eventType) {
+  const id = `evt_${room.nextSpecialEventId++}`;
+  if (eventType === 'portal') {
+    const pair = choosePortalPair();
+    return {
+      id,
+      type: eventType,
+      duration: SPECIAL_EVENT_DURATION,
+      radius: SPECIAL_EVENT_PORTAL_RADIUS,
+      entryPos: pair.entryPos,
+      exitPos: pair.exitPos,
+    };
+  }
+  if (eventType === 'damageDouble') {
+    return {
+      id,
+      type: eventType,
+      duration: SPECIAL_EVENT_DURATION,
+      center: chooseSpecialEventPoint(SPECIAL_EVENT_DAMAGE_RADIUS + 40),
+      radius: SPECIAL_EVENT_DAMAGE_RADIUS,
+      damageMultiplier: 2,
+      scaleMultiplier: 1.5,
+    };
+  }
+  if (eventType === 'speedDouble') {
+    return {
+      id,
+      type: eventType,
+      duration: SPECIAL_EVENT_DURATION,
+      center: chooseSpecialEventPoint(SPECIAL_EVENT_SPEED_RADIUS + 40),
+      radius: SPECIAL_EVENT_SPEED_RADIUS,
+      speedMultiplier: 3,
+    };
+  }
+  return {
+    id,
+    type: 'blackHole',
+    duration: SPECIAL_EVENT_DURATION,
+    center: chooseSpecialEventPoint(SPECIAL_EVENT_BLACK_HOLE_RADIUS + 40),
+    radius: SPECIAL_EVENT_BLACK_HOLE_RADIUS,
+    destroyRadius: SPECIAL_EVENT_BLACK_HOLE_DESTROY_RADIUS,
+    gravityStrength: 160,
+  };
+}
+
+function spawnSpecialEventInFrame(frameCommands) {
+  if (room.activeSpecialEvent) {
+    return null;
+  }
+  const eventTypes = ['portal', 'damageDouble', 'speedDouble', 'blackHole'];
+  const eventData = buildSpecialEventPayload(pickOne(eventTypes));
+  eventData.remainTime = eventData.duration;
+  room.activeSpecialEvent = eventData;
+  appendFrameCommand(frameCommands, {
+    type: 'specialEventSpawn',
+    event: eventData,
+  });
+  return eventData;
+}
+
+function removeSpecialEventInFrame(frameCommands, reason = 'timeout') {
+  if (!room.activeSpecialEvent) {
+    return;
+  }
+  const active = room.activeSpecialEvent;
+  room.activeSpecialEvent = null;
+  room.specialEventSpawnCd = randomBetween(SPECIAL_EVENT_RESPAWN_MIN, SPECIAL_EVENT_RESPAWN_MAX);
+  appendFrameCommand(frameCommands, {
+    type: 'specialEventRemove',
+    eventId: active.id,
+    eventType: active.type,
+    reason,
+  });
+}
+
+function applyBulletEventToServerState(player, bulletEvent) {
+  if (!player || !bulletEvent || !bulletEvent.bulletId) {
+    return;
+  }
+  const bullet = room.bullets[bulletEvent.bulletId];
+  if (!bullet || bullet.playerId !== player.playerId) {
+    return;
+  }
+  if (!bullet.eventStates) {
+    bullet.eventStates = {};
+  }
+  const eventType = bulletEvent.type;
+  const stateKey = eventType + ':' + (bulletEvent.eventId || '');
+  if (bullet.eventStates[stateKey]) {
+    return;
+  }
+  bullet.eventStates[stateKey] = true;
+  if (eventType === 'damageDouble') {
+    bullet.damage *= 2;
+  } else if (eventType === 'blackHole') {
+    bullet.destroyed = true;
+  }
+}
+
+function updateSpecialEvents(frameCommands) {
+  if (room.activeSpecialEvent) {
+    room.activeSpecialEvent.remainTime -= TICK_INTERVAL / 1000;
+    if (room.activeSpecialEvent.remainTime <= 0) {
+      room.activeSpecialEvent.remainTime = 0;
+      removeSpecialEventInFrame(frameCommands, 'timeout');
+    }
+    return;
+  }
+  if (room.elapsedSeconds < SPECIAL_EVENT_START_DELAY) {
+    return;
+  }
+  if (room.specialEventSpawnCd > 0) {
+    room.specialEventSpawnCd -= TICK_INTERVAL / 1000;
+    return;
+  }
+  spawnSpecialEventInFrame(frameCommands);
 }
 
 function buildPlayerStateCommand(player) {
@@ -899,6 +1129,12 @@ function tick() {
         inputs.hit = src.hit;
       }
 
+      if (Array.isArray(src.bulletEvents) && src.bulletEvents.length > 0) {
+        for (let eventIndex = 0; eventIndex < src.bulletEvents.length; eventIndex++) {
+          applyBulletEventToServerState(p, src.bulletEvents[eventIndex]);
+        }
+      }
+
       if (src.pickupEnergyId != null) {
         tryConsumeEnergy(p, src.pickupEnergyId, eventCommands);
       }
@@ -915,7 +1151,7 @@ function tick() {
       if (src.hit && src.hit.id) {
         const bullet = room.bullets[src.hit.id];
         const targetPlayer = room.players[src.hit.tgid];
-        if (!bullet || !targetPlayer || targetPlayer.dead) {
+        if (!bullet || bullet.destroyed || !targetPlayer || targetPlayer.dead) {
           continue;
         }
         targetPlayer.hp -= bullet.damage;
@@ -953,6 +1189,7 @@ function tick() {
   });
 
   updateEnergyEggs(frameCommands);
+  updateSpecialEvents(frameCommands);
 
   broadcast({
     type: 'frame',
@@ -1049,6 +1286,9 @@ function startGame() {
   room.energyEggs = [];
   room.nextEnergyEggId = 1;
   room.elapsedSeconds = 0;
+  room.nextSpecialEventId = 1;
+  room.specialEventSpawnCd = 0;
+  room.activeSpecialEvent = null;
   initMatchEnergyEggPlan();
 
   room.players.forEach((p, index) => {
@@ -1078,6 +1318,7 @@ function startGame() {
       playerCount: room.players.length,
       spawnSlots: room.spawnSlots,
       energies: room.energies,
+      specialEvents: room.activeSpecialEvent ? [room.activeSpecialEvent] : [],
       players: room.players.map((player) => ({
         playerId: player.playerId,
         tankType: player.tankType,
@@ -1249,6 +1490,9 @@ function resetRoom() {
   room.elapsedSeconds = 0;
   room.energyEggMidgamePlan = 0;
   room.energyEggMidgameSpawned = 0;
+  room.nextSpecialEventId = 1;
+  room.specialEventSpawnCd = 0;
+  room.activeSpecialEvent = null;
   console.log('[Room] Reset');
 }
 

@@ -39,6 +39,7 @@ export default class GameMain extends BaseComponent {
     _multiplayerInputLoopTag = 7601;
     _multiplayerInputs = null;
     _multiplayerHitQueue = [];
+    _multiplayerBulletEventQueue = [];
     _multiplayerFireSeq = 1;
     _multiplayerJoyMoveHandler = null;
     _multiplayerJoyShootHandler = null;
@@ -95,6 +96,7 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.on("game-pause",this._gamePause,this);                  //暂停
         yyp.eventCenter.on("game-resume",this._gameResume,this);                  //恢复
         yyp.eventCenter.on("multiplayer-hit",this._onMultiplayerHitReport,this); //多人命中上报
+        yyp.eventCenter.on("multiplayer-bullet-event", this._onMultiplayerBulletEvent, this);
         yyp.eventCenter.on("multiplayer-player-death", this._onMultiplayerPlayerDeath, this);
         yyp.eventCenter.on("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
@@ -113,6 +115,7 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.off("game-pause",this._gamePause,this);                  //暂停
         yyp.eventCenter.off("game-resume",this._gameResume,this);                  //恢复
         yyp.eventCenter.off("multiplayer-hit",this._onMultiplayerHitReport,this); //多人命中上报
+        yyp.eventCenter.off("multiplayer-bullet-event", this._onMultiplayerBulletEvent, this);
         yyp.eventCenter.off("multiplayer-player-death", this._onMultiplayerPlayerDeath, this);
         yyp.eventCenter.off("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
@@ -225,6 +228,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerActive = false;
         this._multiplayerLocalDead = false;
         this._teardownMultiplayerInputLoop();
+        this._multiplayerBulletEventQueue = [];
         yyp.eventCenter.emit("sacrifice-button-visible",{visible:false});
         yyp.eventCenter.emit("cover-button-state",{visible:false});
         yyp.eventCenter.emit("skill-button-mode",{mode:"charge"});
@@ -1017,6 +1021,9 @@ export default class GameMain extends BaseComponent {
     _buildMultiplayerInputPacket() {
         let source = this._multiplayerInputs || {};
         let hit = this._multiplayerHitQueue.length > 0 ? this._multiplayerHitQueue.shift() : false;
+        let bulletEvents = this._multiplayerBulletEventQueue.length > 0
+            ? this._multiplayerBulletEventQueue.splice(0, this._multiplayerBulletEventQueue.length)
+            : [];
         let pickupEnergyId = source.pickupEnergyId == null ? null : source.pickupEnergyId;
         return {
             up: !!source.up,
@@ -1025,6 +1032,7 @@ export default class GameMain extends BaseComponent {
             right: !!source.right,
             fire: source.fire ? source.fire : false,
             hit: hit || false,
+            bulletEvents: bulletEvents,
             pickupEnergyId: pickupEnergyId,
             playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
         };
@@ -1097,6 +1105,21 @@ export default class GameMain extends BaseComponent {
         this._multiplayerInputs.pickupEnergyId = event.energyId;
     }
 
+    _onMultiplayerBulletEvent(event) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event || !event.type || !event.bulletId) {
+            return;
+        }
+        this._multiplayerBulletEventQueue.push({
+            type: event.type,
+            bulletId: event.bulletId,
+            eventId: event.eventId == null ? null : event.eventId,
+            reason: event.reason || "",
+        });
+        if (this._multiplayerBulletEventQueue.length > 12) {
+            this._multiplayerBulletEventQueue.splice(0, this._multiplayerBulletEventQueue.length - 12);
+        }
+    }
+
     _updateMultiplayerStatusFromRoomState(payload) {
         if (!payload) {
             return;
@@ -1141,6 +1164,7 @@ export default class GameMain extends BaseComponent {
         this._teardownMultiplayerInputLoop();
         this._multiplayerInputs = null;
         this._multiplayerHitQueue = [];
+        this._multiplayerBulletEventQueue = [];
         if (this._netManager) {
             this._netManager.onDisconnect = null;
             this._netManager.disconnect();
@@ -1158,6 +1182,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerActive = false;
         this._multiplayerLocalDead = false;
         this._multiplayerHitQueue = [];
+        this._multiplayerBulletEventQueue = [];
         this._teardownMultiplayerInputLoop();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
@@ -1178,8 +1203,8 @@ export default class GameMain extends BaseComponent {
                 this._netManager.sendPlayerSetup(this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players) => {
-            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || []);
+        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents) => {
+            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || []);
         };
         this._netManager.onGameEnded = (payload) => {
             this._endMultiplayerMatch(payload);
@@ -1192,16 +1217,17 @@ export default class GameMain extends BaseComponent {
         this._netManager.connect("ws://localhost:2567");
     }
 
-    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = []) {
+    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = []) {
         this._hideMultiplayerStatus();
         this._multiplayerActive = true;
         this._multiplayerLocalDead = false;
         this._multiplayerHitQueue = [];
+        this._multiplayerBulletEventQueue = [];
         this._multiplayerFireSeq = 1;
         this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false, hit: false };
 
         let self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._setupMultiplayerInputLoop();

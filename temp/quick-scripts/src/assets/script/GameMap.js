@@ -130,6 +130,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._multiplayerBullets = {}; //多人同步子弹
         _this._multiplayerEnergyMap = {}; //多人同步能量
         _this._multiplayerEnergyEggMap = {}; //多人同步能量蛋
+        _this._multiplayerSpecialEventMap = {};
         _this._localPlayerId = 0; //本地玩家ID
         _this._multiplayerSpawnSlots = []; //多人出生槽位
         _this._levelId = 1; //当前关卡id
@@ -4516,6 +4517,7 @@ var GameMap = /** @class */ (function (_super) {
         this._multiplayerMode = false;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
+        this._multiplayerSpecialEventMap = {};
         this._multiplayerSpawnSlots = [];
         this._killEffectTestMode = false;
         this._killBroadcastTestMode = false;
@@ -4724,15 +4726,17 @@ var GameMap = /** @class */ (function (_super) {
         }
         return player;
     };
-    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, onReady) {
+    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
         this._multiplayerEnergyMap = {};
         this._multiplayerEnergyEggMap = {};
+        this._multiplayerSpecialEventMap = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
         var playerStates = Array.isArray(players) ? players : [];
+        var initialSpecialEvents = Array.isArray(specialEvents) ? specialEvents : [];
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
         this._clearAllTestNodes();
@@ -4761,6 +4765,9 @@ var GameMap = /** @class */ (function (_super) {
             var initialEnergies = energies || [];
             for (var i = 0; i < initialEnergies.length; i++) {
                 self.onMultiplayerEnergySpawn(initialEnergies[i]);
+            }
+            for (var i = 0; i < initialSpecialEvents.length; i++) {
+                self._applyMultiplayerSpecialEventSpawn(initialSpecialEvents[i]);
             }
             self._gaming = true;
             // Center camera on local player immediately
@@ -4817,6 +4824,12 @@ var GameMap = /** @class */ (function (_super) {
             }
             else if (command.type === "energyEggRemove") {
                 this._removeMultiplayerEnergyEgg(command.eggId);
+            }
+            else if (command.type === "specialEventSpawn") {
+                this._applyMultiplayerSpecialEventSpawn(command.event);
+            }
+            else if (command.type === "specialEventRemove") {
+                this._applyMultiplayerSpecialEventRemove(command.eventId, command.eventType);
             }
         }
     };
@@ -4897,6 +4910,129 @@ var GameMap = /** @class */ (function (_super) {
             return;
         }
         targetPlayer.script.applyMultiplayerHit(hitData.damage, hitData.hp);
+    };
+    GameMap.prototype._applyMultiplayerSpecialEventSpawn = function (eventData) {
+        if (!this._multiplayerMode || !eventData || !eventData.id || !eventData.type) {
+            return;
+        }
+        this._multiplayerSpecialEventMap[eventData.id] = eventData;
+        if (eventData.type === "portal") {
+            this._applyMultiplayerPortalEvent(eventData);
+        }
+        else if (eventData.type === "damageDouble") {
+            this._applyMultiplayerDamageDoubleEvent(eventData);
+        }
+        else if (eventData.type === "speedDouble") {
+            this._applyMultiplayerSpeedDoubleEvent(eventData);
+        }
+        else if (eventData.type === "blackHole") {
+            this._applyMultiplayerBlackHoleEvent(eventData);
+        }
+    };
+    GameMap.prototype._applyMultiplayerSpecialEventRemove = function (eventId, eventType) {
+        if (eventType === void 0) { eventType = ""; }
+        if (!this._multiplayerMode) {
+            return;
+        }
+        if (eventId != null && this._multiplayerSpecialEventMap[eventId]) {
+            delete this._multiplayerSpecialEventMap[eventId];
+        }
+        if (eventType === "portal") {
+            this._portalTestMode = false;
+            this._clearPortalTestNodes();
+        }
+        else if (eventType === "damageDouble") {
+            this._damageDoubleTestMode = false;
+            this._clearDamageDoubleTestNodes();
+        }
+        else if (eventType === "speedDouble") {
+            this._speedDoubleTestMode = false;
+            this._clearSpeedDoubleTestNodes();
+        }
+        else if (eventType === "blackHole") {
+            this._blackHoleTestMode = false;
+            this._clearBlackHoleTestNodes();
+        }
+    };
+    GameMap.prototype._applyMultiplayerPortalEvent = function (eventData) {
+        if (!eventData.entryPos || !eventData.exitPos) {
+            return;
+        }
+        this._portalTestMode = true;
+        this._clearPortalTestNodes();
+        var entryPos = this.clampMapInnerPosition(cc.v2(eventData.entryPos), 90);
+        var exitPos = this.clampMapInnerPosition(cc.v2(eventData.exitPos), 90);
+        this._createPortalGate("_portalGateA", entryPos, cc.color(90, 215, 255, 255), "A");
+        this._createPortalGate("_portalGateB", exitPos, cc.color(255, 120, 220, 255), "B");
+        this._createPortalLinkFx(entryPos, exitPos);
+        this._createPortalHintLabel(entryPos);
+        this._portalPairs.push({
+            id: "portalA",
+            pos: entryPos,
+            radius: eventData.radius == null ? 44 : eventData.radius,
+            exitId: "portalB",
+            exitPos: exitPos,
+            eventId: eventData.id
+        });
+        this._portalPairs.push({
+            id: "portalB",
+            pos: exitPos,
+            radius: eventData.radius == null ? 44 : eventData.radius,
+            exitId: "portalA",
+            exitPos: entryPos,
+            eventId: eventData.id
+        });
+    };
+    GameMap.prototype._applyMultiplayerDamageDoubleEvent = function (eventData) {
+        if (!eventData.center) {
+            return;
+        }
+        this._damageDoubleTestMode = true;
+        this._clearDamageDoubleTestNodes();
+        var center = this.clampMapInnerPosition(cc.v2(eventData.center), 100);
+        var radius = eventData.radius == null ? 60 : eventData.radius;
+        this._createDamageDoubleAreaNode(center, radius, cc.color(255, 40, 40, 255));
+        this._damageDoubleAreaData = {
+            center: center,
+            radius: radius,
+            damageMultiplier: eventData.damageMultiplier == null ? 2 : eventData.damageMultiplier,
+            scaleMultiplier: eventData.scaleMultiplier == null ? 1.5 : eventData.scaleMultiplier,
+            eventId: eventData.id,
+        };
+    };
+    GameMap.prototype._applyMultiplayerSpeedDoubleEvent = function (eventData) {
+        if (!eventData.center) {
+            return;
+        }
+        this._speedDoubleTestMode = true;
+        this._clearSpeedDoubleTestNodes();
+        var center = this.clampMapInnerPosition(cc.v2(eventData.center), 100);
+        var radius = eventData.radius == null ? 60 : eventData.radius;
+        this._createSpeedDoubleAreaNode(center, radius, cc.color(30, 130, 255, 255));
+        this._speedDoubleAreaData = {
+            center: center,
+            radius: radius,
+            speedMultiplier: eventData.speedMultiplier == null ? 3 : eventData.speedMultiplier,
+            eventId: eventData.id,
+        };
+    };
+    GameMap.prototype._applyMultiplayerBlackHoleEvent = function (eventData) {
+        if (!eventData.center) {
+            return;
+        }
+        this._blackHoleTestMode = true;
+        this._clearBlackHoleTestNodes();
+        var center = this.clampMapInnerPosition(cc.v2(eventData.center), 120);
+        var radius = eventData.radius == null ? 100 : eventData.radius;
+        var destroyRadius = eventData.destroyRadius == null ? 14 : eventData.destroyRadius;
+        this._createBlackHoleAreaNode(center, radius, destroyRadius, cc.color(80, 30, 160, 200));
+        this._blackHoleAreaData = {
+            center: center,
+            radius: radius,
+            destroyRadius: destroyRadius,
+            gravityStrength: eventData.gravityStrength == null ? 160 : eventData.gravityStrength,
+            eventId: eventData.id,
+        };
     };
     GameMap.prototype._centerOnLocalPlayer = function () {
         if (!this._multiplayerMode)

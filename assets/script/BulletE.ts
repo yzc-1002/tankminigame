@@ -38,6 +38,7 @@ export class Bullet extends BaseComponent {
     _networkBulletId   = "";
     _ownerPlayerId     = -1;
     _multiplayerHitReported = false;
+    _multiplayerEventReported = {};
 
     _currenBullet   = null;
     _isStop         = false;
@@ -101,6 +102,7 @@ export class Bullet extends BaseComponent {
         this._networkBulletId = "";
         this._ownerPlayerId = -1;
         this._multiplayerHitReported = false;
+        this._multiplayerEventReported = {};
 
         //子弹类型
         if (camp == "enemy") {
@@ -268,6 +270,7 @@ export class Bullet extends BaseComponent {
         this._networkBulletId = bulletId || "";
         this._ownerPlayerId = ownerPlayerId == null ? -1 : ownerPlayerId;
         this._multiplayerHitReported = false;
+        this._multiplayerEventReported = {};
         if (this._map && this._map.registerMultiplayerBullet && this._networkBulletId) {
             this._map.registerMultiplayerBullet(this._networkBulletId, this.node);
         }
@@ -323,6 +326,7 @@ export class Bullet extends BaseComponent {
                                 if (this._map.spawnBlackHoleSwallowFx) {
                                     this._map.spawnBlackHoleSwallowFx(cc.v2(this.node.position));
                                 }
+                                this._reportMultiplayerEvent("blackHole", bhData.eventId || "", "swallow");
                                 this.doDestroy();
                                 return;
                             }
@@ -516,6 +520,7 @@ export class Bullet extends BaseComponent {
         this.node.setPosition(cc.v3(pos));
         this._portalIgnoreId = ignorePortalId || "";
         this._portalIgnoreTime = 0.08;
+        this._reportMultiplayerEvent("portal", ignorePortalId || "");
     }
 
     hasUsedCentrifugalRing() {
@@ -543,6 +548,7 @@ export class Bullet extends BaseComponent {
         if (this._map && this._map.spawnDamageDoubleFx) {
             this._map.spawnDamageDoubleFx(cc.v2(this.node.position));
         }
+        this._reportMultiplayerEvent("damageDouble", areaData.eventId || "");
 
         return true;
     }
@@ -567,8 +573,26 @@ export class Bullet extends BaseComponent {
         if (this._map && this._map.spawnSpeedDoubleFx) {
             this._map.spawnSpeedDoubleFx(cc.v2(this.node.position));
         }
+        this._reportMultiplayerEvent("speedDouble", areaData.eventId || "");
 
         return true;
+    }
+
+    _reportMultiplayerEvent(type, eventId = "", reason = "") {
+        if (!this._networkBulletId || !type) {
+            return;
+        }
+        let reportKey = type + ":" + (eventId || "");
+        if (this._multiplayerEventReported[reportKey]) {
+            return;
+        }
+        this._multiplayerEventReported[reportKey] = true;
+        yyp.eventCenter.emit("multiplayer-bullet-event", {
+            type: type,
+            bulletId: this._networkBulletId,
+            eventId: eventId || "",
+            reason: reason || "",
+        });
     }
 
     hasUsedSpreadBulletArea() {
