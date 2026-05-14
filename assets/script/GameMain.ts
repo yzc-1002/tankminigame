@@ -1290,8 +1290,8 @@ export default class GameMain extends BaseComponent {
                 this._netManager.sendPlayerSetup(this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills) => {
-            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || []);
+        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, safeZone) => {
+            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], safeZone || null);
         };
         this._netManager.onGameEnded = (payload) => {
             this._endMultiplayerMatch(payload);
@@ -1304,7 +1304,7 @@ export default class GameMain extends BaseComponent {
         this._netManager.connect("ws://localhost:2567");
     }
 
-    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = []) {
+    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = [], safeZone = null) {
         this._hideMultiplayerStatus();
         this._multiplayerActive = true;
         this._multiplayerLocalDead = false;
@@ -1315,7 +1315,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
 
         let self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], safeZone || null, function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._setupMultiplayerInputLoop();

@@ -136,6 +136,8 @@ var GameMap = /** @class */ (function (_super) {
         _this._multiplayerSpecialEventMap = {};
         _this._multiplayerTarPickupMap = {};
         _this._multiplayerTarSpillMap = {};
+        _this._multiplayerSafeZone = null;
+        _this._multiplayerSafeZoneNode = null;
         _this._pendingTarThrowMap = {};
         _this._localPlayerId = 0; //本地玩家ID
         _this._multiplayerSpawnSlots = []; //多人出生槽位
@@ -4667,6 +4669,7 @@ var GameMap = /** @class */ (function (_super) {
         this._multiplayerBullets = {};
         this._multiplayerSpecialEventMap = {};
         this._multiplayerSpawnSlots = [];
+        this._multiplayerSafeZone = null;
         this._killEffectTestMode = false;
         this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
@@ -4690,6 +4693,7 @@ var GameMap = /** @class */ (function (_super) {
         this._clearSpreadBulletTestNodes();
         this._clearBounceObstacleTestNodes();
         this._clearBlackHoleTestNodes();
+        this._clearMultiplayerSafeZoneNode();
         if (this._player && cc.isValid(this._player)) {
             this._player.destroy();
             this._player = null;
@@ -4875,7 +4879,7 @@ var GameMap = /** @class */ (function (_super) {
         }
         return player;
     };
-    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, onReady) {
+    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, safeZone, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
@@ -4884,6 +4888,8 @@ var GameMap = /** @class */ (function (_super) {
         this._multiplayerSpecialEventMap = {};
         this._multiplayerTarPickupMap = {};
         this._multiplayerTarSpillMap = {};
+        this._multiplayerSafeZone = null;
+        this._multiplayerSafeZoneNode = null;
         this._pendingTarThrowMap = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
@@ -4929,6 +4935,7 @@ var GameMap = /** @class */ (function (_super) {
             for (var i = 0; i < initialTarSpills.length; i++) {
                 self._spawnMultiplayerTarSpill(initialTarSpills[i]);
             }
+            self._applyMultiplayerSafeZoneState(safeZone || null);
             self._gaming = true;
             // Center camera on local player immediately
             self._centerOnLocalPlayer();
@@ -5005,6 +5012,12 @@ var GameMap = /** @class */ (function (_super) {
             }
             else if (command.type === "tarSpillRemove") {
                 this._removeMultiplayerTarSpill(command.spillId);
+            }
+            else if (command.type === "safeZoneState") {
+                this._applyMultiplayerSafeZoneState(command.safeZone);
+            }
+            else if (command.type === "safeZoneDamage") {
+                this._applyMultiplayerSafeZoneDamage(command);
             }
         }
     };
@@ -5225,6 +5238,107 @@ var GameMap = /** @class */ (function (_super) {
             this._blackHoleTestMode = false;
             this._clearBlackHoleTestNodes();
         }
+    };
+    GameMap.prototype._applyMultiplayerSafeZoneDamage = function (command) {
+        if (!this._multiplayerMode || !command || command.playerId == null) {
+            return;
+        }
+        var targetPlayer = this._multiplayerPlayers[command.playerId];
+        if (!targetPlayer || !cc.isValid(targetPlayer) || !targetPlayer.script || !targetPlayer.script.applyMultiplayerHit) {
+            return;
+        }
+        targetPlayer.script.applyMultiplayerHit(command.damage || 0, command.hp);
+    };
+    GameMap.prototype._applyMultiplayerSafeZoneState = function (safeZone) {
+        if (!this._multiplayerMode) {
+            return;
+        }
+        if (!safeZone) {
+            this._multiplayerSafeZone = null;
+            this._clearMultiplayerSafeZoneNode();
+            return;
+        }
+        this._multiplayerSafeZone = {
+            centerX: safeZone.centerX == null ? 0 : safeZone.centerX,
+            centerY: safeZone.centerY == null ? 0 : safeZone.centerY,
+            startRadius: safeZone.startRadius == null ? 0 : safeZone.startRadius,
+            targetRadius: safeZone.targetRadius == null ? 0 : safeZone.targetRadius,
+            radius: safeZone.radius == null ? 0 : safeZone.radius,
+            startDelay: safeZone.startDelay == null ? 60 : safeZone.startDelay,
+            shrinkDuration: safeZone.shrinkDuration == null ? 45 : safeZone.shrinkDuration,
+            damageInterval: safeZone.damageInterval == null ? 1 : safeZone.damageInterval,
+            damagePerTick: safeZone.damagePerTick == null ? 0 : safeZone.damagePerTick,
+            active: !!safeZone.active,
+            shrinking: !!safeZone.shrinking,
+            finished: !!safeZone.finished,
+            progress: safeZone.progress == null ? 0 : safeZone.progress,
+            waitRemaining: safeZone.waitRemaining == null ? 0 : safeZone.waitRemaining,
+            shrinkRemaining: safeZone.shrinkRemaining == null ? 0 : safeZone.shrinkRemaining,
+        };
+        this._renderMultiplayerSafeZone();
+    };
+    GameMap.prototype._clearMultiplayerSafeZoneNode = function () {
+        if (this._multiplayerSafeZoneNode && cc.isValid(this._multiplayerSafeZoneNode)) {
+            this._multiplayerSafeZoneNode.destroy();
+        }
+        this._multiplayerSafeZoneNode = null;
+    };
+    GameMap.prototype._renderMultiplayerSafeZone = function () {
+        if (!this._multiplayerSafeZone) {
+            this._clearMultiplayerSafeZoneNode();
+            return;
+        }
+        var safeZone = this._multiplayerSafeZone;
+        var radius = Math.max(0, safeZone.radius || 0);
+        if (radius <= 0) {
+            this._clearMultiplayerSafeZoneNode();
+            return;
+        }
+        var center = this.clampMapInnerPosition(cc.v2(safeZone.centerX || 0, safeZone.centerY || 0), 0);
+        this._clearMultiplayerSafeZoneNode();
+        var root = new cc.Node("_safeZoneRoot");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(center));
+        root.zIndex = 5600;
+        var outerGlow = new cc.Node("_safeZoneGlow");
+        outerGlow.parent = root;
+        var glowGraphics = outerGlow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(90, 170, 255, safeZone.active ? 18 : 8);
+        glowGraphics.circle(0, 0, radius + 18);
+        glowGraphics.fill();
+        var ring = new cc.Node("_safeZoneRing");
+        ring.parent = root;
+        var ringGraphics = ring.addComponent(cc.Graphics);
+        ringGraphics.lineWidth = 8;
+        ringGraphics.strokeColor = safeZone.finished ? cc.color(255, 120, 120, 245) : cc.color(120, 210, 255, 235);
+        ringGraphics.circle(0, 0, radius);
+        ringGraphics.stroke();
+        ringGraphics.lineWidth = 2;
+        ringGraphics.strokeColor = cc.color(255, 255, 255, safeZone.active ? 170 : 90);
+        ringGraphics.circle(0, 0, Math.max(6, radius - 8));
+        ringGraphics.stroke();
+        var labelNode = new cc.Node("_safeZoneLabel");
+        labelNode.parent = root;
+        labelNode.setPosition(0, radius + 42);
+        var label = labelNode.addComponent(cc.Label);
+        if (!safeZone.active) {
+            label.string = "缩圈倒计时 " + Math.max(0, Math.ceil(safeZone.waitRemaining || 0)) + "s";
+        }
+        else if (safeZone.shrinking) {
+            label.string = "安全区缩小中 " + Math.max(0, Math.ceil(safeZone.shrinkRemaining || 0)) + "s";
+        }
+        else if (safeZone.finished) {
+            label.string = "最终安全区";
+        }
+        else {
+            label.string = "安全区";
+        }
+        label.fontSize = 22;
+        label.lineHeight = 24;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        labelNode.color = safeZone.finished ? cc.color(255, 210, 210, 255) : cc.color(220, 245, 255, 255);
+        this._multiplayerSafeZoneNode = root;
     };
     GameMap.prototype._applyMultiplayerPortalEvent = function (eventData) {
         if (!eventData.entryPos || !eventData.exitPos) {

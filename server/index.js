@@ -51,6 +51,13 @@ const TAR_PICKUP_TOUCH_RADIUS = 92;
 const TAR_SPILL_DURATION = 10;
 const TAR_SPILL_RADIUS = 120;
 const TAR_SPILL_SLOW_FACTOR = 0.52;
+const SAFE_ZONE_START_DELAY = 60;
+const SAFE_ZONE_SHRINK_DURATION = 45;
+const SAFE_ZONE_START_PADDING = 80;
+const SAFE_ZONE_FINAL_RADIUS_RATIO = 0.42;
+const SAFE_ZONE_MIN_RADIUS = 140;
+const SAFE_ZONE_DAMAGE_INTERVAL = 1;
+const SAFE_ZONE_DAMAGE_PER_TICK = 4;
 
 const ROOM_STATE = {
   WAITING: 'waiting',
@@ -93,6 +100,7 @@ const room = {
   tarPickupSpawnCd: 0,
   tarSpills: [],
   nextTarSpillId: 1,
+  safeZone: null,
 };
 
 function isSocketOpen(ws) {
@@ -361,6 +369,144 @@ function getPlayerRuntimePosition(player) {
     x: Number.isFinite(player.posX) ? player.posX : 0,
     y: Number.isFinite(player.posY) ? player.posY : 0,
   };
+}
+
+function createSafeZoneState(bounds = room.mapBounds) {
+  const halfWidth = Math.max(0, Number(bounds && bounds.halfWidth) || 0);
+  const halfHeight = Math.max(0, Number(bounds && bounds.halfHeight) || 0);
+  const startRadiusBase = Math.min(halfWidth, halfHeight);
+  const startRadius = Math.max(
+    SAFE_ZONE_MIN_RADIUS,
+    Math.floor(Math.max(0, startRadiusBase - SAFE_ZONE_START_PADDING))
+  );
+  const targetRadius = Math.max(
+    SAFE_ZONE_MIN_RADIUS,
+    Math.floor(startRadius * SAFE_ZONE_FINAL_RADIUS_RATIO)
+  );
+  return {
+    centerX: 0,
+    centerY: 0,
+    startRadius,
+    targetRadius: Math.min(startRadius, targetRadius),
+    radius: startRadius,
+    startDelay: SAFE_ZONE_START_DELAY,
+    shrinkDuration: SAFE_ZONE_SHRINK_DURATION,
+    damageInterval: SAFE_ZONE_DAMAGE_INTERVAL,
+    damagePerTick: SAFE_ZONE_DAMAGE_PER_TICK,
+    active: false,
+    shrinking: false,
+    finished: false,
+    progress: 0,
+  };
+}
+
+function buildSafeZoneStateCommand() {
+  if (!room.safeZone) {
+    room.safeZone = createSafeZoneState();
+  }
+  const safeZone = room.safeZone;
+  const waitRemaining = Math.max(0, safeZone.startDelay - Math.max(0, room.elapsedSeconds));
+  const shrinkRemaining = safeZone.finished
+    ? 0
+    : Math.max(0, safeZone.shrinkDuration - Math.max(0, room.elapsedSeconds - safeZone.startDelay));
+  return {
+    type: 'safeZoneState',
+    safeZone: {
+      centerX: safeZone.centerX,
+      centerY: safeZone.centerY,
+      startRadius: safeZone.startRadius,
+      targetRadius: safeZone.targetRadius,
+      radius: safeZone.radius,
+      startDelay: safeZone.startDelay,
+      shrinkDuration: safeZone.shrinkDuration,
+      damageInterval: safeZone.damageInterval,
+      damagePerTick: safeZone.damagePerTick,
+      active: !!safeZone.active,
+      shrinking: !!safeZone.shrinking,
+      finished: !!safeZone.finished,
+      progress: safeZone.progress,
+      waitRemaining,
+      shrinkRemaining,
+    },
+  };
+}
+
+function updateSafeZoneState(frameCommands) {
+  if (!room.safeZone) {
+    room.safeZone = createSafeZoneState();
+  }
+  const safeZone = room.safeZone;
+  const elapsed = Math.max(0, room.elapsedSeconds);
+  const shrinkElapsed = elapsed - safeZone.startDelay;
+  if (shrinkElapsed <= 0) {
+    safeZone.active = false;
+    safeZone.shrinking = false;
+    safeZone.finished = false;
+    safeZone.progress = 0;
+    safeZone.radius = safeZone.startRadius;
+  } else if (shrinkElapsed >= safeZone.shrinkDuration) {
+    safeZone.active = true;
+    safeZone.shrinking = false;
+    safeZone.finished = true;
+    safeZone.progress = 1;
+    safeZone.radius = safeZone.targetRadius;
+  } else {
+    const progress = clamp(shrinkElapsed / safeZone.shrinkDuration, 0, 1);
+    safeZone.active = true;
+    safeZone.shrinking = true;
+    safeZone.finished = false;
+    safeZone.progress = progress;
+    safeZone.radius = safeZone.startRadius - (safeZone.startRadius - safeZone.targetRadius) * progress;
+  }
+  appendFrameCommand(frameCommands, buildSafeZoneStateCommand());
+}
+
+function getPlayerRuntimeRadius(player) {
+  if (player && player.lastSnapshot && Number.isFinite(player.lastSnapshot.radius)) {
+    return Math.max(16, player.lastSnapshot.radius);
+  }
+  return PLAYER_DEFAULT_RADIUS;
+}
+
+function applySafeZoneDamageToPlayer(player, frameCommands) {
+  if (!player || player.dead || player.disconnected || !room.safeZone || !room.safeZone.active) {
+    if (player) {
+      player.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
+    }
+    return;
+  }
+  const safeZone = room.safeZone;
+  const pos = getPlayerRuntimePosition(player);
+  const playerRadius = getPlayerRuntimeRadius(player);
+  const dx = pos.x - safeZone.centerX;
+  const dy = pos.y - safeZone.centerY;
+  const allowedRadius = Math.max(0, safeZone.radius - playerRadius * 0.35);
+  const outside = dx * dx + dy * dy > allowedRadius * allowedRadius;
+  if (!outside) {
+    player.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
+    return;
+  }
+
+  if (!Number.isFinite(player.safeZoneDamageCd) || player.safeZoneDamageCd <= 0) {
+    player.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
+  }
+  player.safeZoneDamageCd -= TICK_INTERVAL / 1000;
+  while (player.safeZoneDamageCd <= 0 && !player.dead) {
+    player.safeZoneDamageCd += SAFE_ZONE_DAMAGE_INTERVAL;
+    player.hp -= safeZone.damagePerTick;
+    if (player.hp < 0) {
+      player.hp = 0;
+    }
+    appendFrameCommand(frameCommands, {
+      type: 'safeZoneDamage',
+      playerId: player.playerId,
+      damage: safeZone.damagePerTick,
+      hp: player.hp,
+    });
+    if (player.hp <= 0) {
+      player.dead = true;
+    }
+  }
 }
 
 function getPlayerRuntimeDir(player) {
@@ -1181,7 +1327,6 @@ function burstEnergyEggInFrame(egg, frameCommands) {
 }
 
 function updateEnergyEggs(frameCommands) {
-  room.elapsedSeconds += TICK_INTERVAL / 1000;
   if (room.elapsedSeconds >= ENERGY_EGG_MIDGAME_SECONDS && room.energyEggMidgameSpawned < room.energyEggMidgamePlan) {
     spawnEnergyEggInFrame(frameCommands);
   }
@@ -1375,6 +1520,8 @@ function tick() {
   const playerInputCommands = [];
   const eventCommands = [];
   const stateCommands = [];
+  room.elapsedSeconds += TICK_INTERVAL / 1000;
+  updateSafeZoneState(frameCommands);
   updateEnergySpawns(frameCommands);
 
   room.players.forEach((p) => {
@@ -1487,6 +1634,7 @@ function tick() {
     if (inputs.throwTar) {
       tryThrowTarByPlayer(p, sanitizeThrowTarPayload(inputs.throwTar), eventCommands);
     }
+    applySafeZoneDamageToPlayer(p, eventCommands);
 
     p.lastInputs = {
       up: inputs.up,
@@ -1611,6 +1759,7 @@ function startGame() {
   room.tarPickupSpawnCd = 0;
   room.tarSpills = [];
   room.nextTarSpillId = 1;
+  room.safeZone = createSafeZoneState(room.mapBounds);
   initMatchEnergyEggPlan();
 
   room.players.forEach((p, index) => {
@@ -1618,6 +1767,7 @@ function startGame() {
     p.lastInputs = { up: false, down: false, left: false, right: false };
     p.disconnected = false;
     p.dead = false;
+    p.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
     resetPlayerRuntimeState(p);
     p.spawnSlot = room.spawnSlots[index];
     syncPlayerSpawnPosition(p);
@@ -1643,6 +1793,7 @@ function startGame() {
       specialEvents: room.activeSpecialEvent ? [room.activeSpecialEvent] : [],
       tarPickups: room.tarPickups,
       tarSpills: room.tarSpills,
+      safeZone: room.safeZone,
       players: room.players.map((player) => ({
         playerId: player.playerId,
         tankType: player.tankType,
@@ -1696,6 +1847,7 @@ wss.on('connection', (ws) => {
   ws.dirX = PLAYER_DIR_FALLBACK.x;
   ws.dirY = PLAYER_DIR_FALLBACK.y;
   ws.lastSnapshot = null;
+  ws.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
 
   ws.on('message', (data) => {
     try {
@@ -1827,6 +1979,7 @@ function resetRoom() {
   room.tarPickupSpawnCd = 0;
   room.tarSpills = [];
   room.nextTarSpillId = 1;
+  room.safeZone = createSafeZoneState(room.mapBounds);
   console.log('[Room] Reset');
 }
 

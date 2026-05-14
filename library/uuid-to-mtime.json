@@ -2109,21 +2109,6 @@
     "meta": 1778750336962,
     "relativePath": "script\\BulletE.ts"
   },
-  "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778752226657,
-    "meta": 1778752586482,
-    "relativePath": "script\\network\\NetworkManager.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778753746886,
-    "meta": 1778753823475,
-    "relativePath": "script\\GameMap.ts"
-  },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778755564900,
-    "meta": 1778755699766,
-    "relativePath": "script\\GameMain.ts"
-  },
   "bc87592d-3055-4635-bb55-a57728de0328": {
     "asset": 1778755834045,
     "meta": 1778755886100,
@@ -2133,5 +2118,20 @@
     "asset": 1778755840073,
     "meta": 1778755886329,
     "relativePath": "script\\Player.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778756632283,
+    "meta": 1778756824433,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778756673879,
+    "meta": 1778756825071,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "08aed74e-b757-43ff-80e7-95f39a105a22": {
+    "asset": 1778756624961,
+    "meta": 1778756825099,
+    "relativePath": "script\\network\\NetworkManager.ts"
   }
 }

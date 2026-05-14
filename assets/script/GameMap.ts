@@ -133,6 +133,8 @@ export class GameMap extends BaseComponent {
     _multiplayerSpecialEventMap = {};
     _multiplayerTarPickupMap = {};
     _multiplayerTarSpillMap = {};
+    _multiplayerSafeZone = null;
+    _multiplayerSafeZoneNode = null;
     _pendingTarThrowMap = {};
     _localPlayerId = 0;       //本地玩家ID
     _multiplayerSpawnSlots = []; //多人出生槽位
@@ -5505,6 +5507,7 @@ export class GameMap extends BaseComponent {
         this._multiplayerBullets = {};
         this._multiplayerSpecialEventMap = {};
         this._multiplayerSpawnSlots = [];
+        this._multiplayerSafeZone = null;
         this._killEffectTestMode = false;
         this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
@@ -5528,6 +5531,7 @@ export class GameMap extends BaseComponent {
         this._clearSpreadBulletTestNodes();
         this._clearBounceObstacleTestNodes();
         this._clearBlackHoleTestNodes();
+        this._clearMultiplayerSafeZoneNode();
         if (this._player && cc.isValid(this._player)){
             this._player.destroy();
             this._player = null;
@@ -5725,7 +5729,7 @@ export class GameMap extends BaseComponent {
         return player;
     }
 
-    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, onReady) {
+    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, safeZone, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
@@ -5734,6 +5738,8 @@ export class GameMap extends BaseComponent {
         this._multiplayerSpecialEventMap = {};
         this._multiplayerTarPickupMap = {};
         this._multiplayerTarSpillMap = {};
+        this._multiplayerSafeZone = null;
+        this._multiplayerSafeZoneNode = null;
         this._pendingTarThrowMap = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
@@ -5784,6 +5790,7 @@ export class GameMap extends BaseComponent {
                 for (let i = 0; i < initialTarSpills.length; i++) {
                     self._spawnMultiplayerTarSpill(initialTarSpills[i]);
                 }
+                self._applyMultiplayerSafeZoneState(safeZone || null);
                 self._gaming = true;
                 // Center camera on local player immediately
                 self._centerOnLocalPlayer();
@@ -5862,6 +5869,12 @@ export class GameMap extends BaseComponent {
             }
             else if (command.type === "tarSpillRemove") {
                 this._removeMultiplayerTarSpill(command.spillId);
+            }
+            else if (command.type === "safeZoneState") {
+                this._applyMultiplayerSafeZoneState(command.safeZone);
+            }
+            else if (command.type === "safeZoneDamage") {
+                this._applyMultiplayerSafeZoneDamage(command);
             }
         }
     }
@@ -6098,6 +6111,116 @@ export class GameMap extends BaseComponent {
             this._blackHoleTestMode = false;
             this._clearBlackHoleTestNodes();
         }
+    }
+
+    _applyMultiplayerSafeZoneDamage(command) {
+        if (!this._multiplayerMode || !command || command.playerId == null) {
+            return;
+        }
+        let targetPlayer = this._multiplayerPlayers[command.playerId];
+        if (!targetPlayer || !cc.isValid(targetPlayer) || !targetPlayer.script || !targetPlayer.script.applyMultiplayerHit) {
+            return;
+        }
+        targetPlayer.script.applyMultiplayerHit(command.damage || 0, command.hp);
+    }
+
+    _applyMultiplayerSafeZoneState(safeZone) {
+        if (!this._multiplayerMode) {
+            return;
+        }
+        if (!safeZone) {
+            this._multiplayerSafeZone = null;
+            this._clearMultiplayerSafeZoneNode();
+            return;
+        }
+        this._multiplayerSafeZone = {
+            centerX: safeZone.centerX == null ? 0 : safeZone.centerX,
+            centerY: safeZone.centerY == null ? 0 : safeZone.centerY,
+            startRadius: safeZone.startRadius == null ? 0 : safeZone.startRadius,
+            targetRadius: safeZone.targetRadius == null ? 0 : safeZone.targetRadius,
+            radius: safeZone.radius == null ? 0 : safeZone.radius,
+            startDelay: safeZone.startDelay == null ? 60 : safeZone.startDelay,
+            shrinkDuration: safeZone.shrinkDuration == null ? 45 : safeZone.shrinkDuration,
+            damageInterval: safeZone.damageInterval == null ? 1 : safeZone.damageInterval,
+            damagePerTick: safeZone.damagePerTick == null ? 0 : safeZone.damagePerTick,
+            active: !!safeZone.active,
+            shrinking: !!safeZone.shrinking,
+            finished: !!safeZone.finished,
+            progress: safeZone.progress == null ? 0 : safeZone.progress,
+            waitRemaining: safeZone.waitRemaining == null ? 0 : safeZone.waitRemaining,
+            shrinkRemaining: safeZone.shrinkRemaining == null ? 0 : safeZone.shrinkRemaining,
+        };
+        this._renderMultiplayerSafeZone();
+    }
+
+    _clearMultiplayerSafeZoneNode() {
+        if (this._multiplayerSafeZoneNode && cc.isValid(this._multiplayerSafeZoneNode)) {
+            this._multiplayerSafeZoneNode.destroy();
+        }
+        this._multiplayerSafeZoneNode = null;
+    }
+
+    _renderMultiplayerSafeZone() {
+        if (!this._multiplayerSafeZone) {
+            this._clearMultiplayerSafeZoneNode();
+            return;
+        }
+        let safeZone = this._multiplayerSafeZone;
+        let radius = Math.max(0, safeZone.radius || 0);
+        if (radius <= 0) {
+            this._clearMultiplayerSafeZoneNode();
+            return;
+        }
+        let center = this.clampMapInnerPosition(cc.v2(safeZone.centerX || 0, safeZone.centerY || 0), 0);
+        this._clearMultiplayerSafeZoneNode();
+
+        let root = new cc.Node("_safeZoneRoot");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(center));
+        root.zIndex = 5600;
+
+        let outerGlow = new cc.Node("_safeZoneGlow");
+        outerGlow.parent = root;
+        let glowGraphics = outerGlow.addComponent(cc.Graphics);
+        glowGraphics.fillColor = cc.color(90, 170, 255, safeZone.active ? 18 : 8);
+        glowGraphics.circle(0, 0, radius + 18);
+        glowGraphics.fill();
+
+        let ring = new cc.Node("_safeZoneRing");
+        ring.parent = root;
+        let ringGraphics = ring.addComponent(cc.Graphics);
+        ringGraphics.lineWidth = 8;
+        ringGraphics.strokeColor = safeZone.finished ? cc.color(255, 120, 120, 245) : cc.color(120, 210, 255, 235);
+        ringGraphics.circle(0, 0, radius);
+        ringGraphics.stroke();
+        ringGraphics.lineWidth = 2;
+        ringGraphics.strokeColor = cc.color(255, 255, 255, safeZone.active ? 170 : 90);
+        ringGraphics.circle(0, 0, Math.max(6, radius - 8));
+        ringGraphics.stroke();
+
+        let labelNode = new cc.Node("_safeZoneLabel");
+        labelNode.parent = root;
+        labelNode.setPosition(0, radius + 42);
+        let label = labelNode.addComponent(cc.Label);
+        if (!safeZone.active) {
+            label.string = "缩圈倒计时 " + Math.max(0, Math.ceil(safeZone.waitRemaining || 0)) + "s";
+        }
+        else if (safeZone.shrinking) {
+            label.string = "安全区缩小中 " + Math.max(0, Math.ceil(safeZone.shrinkRemaining || 0)) + "s";
+        }
+        else if (safeZone.finished) {
+            label.string = "最终安全区";
+        }
+        else {
+            label.string = "安全区";
+        }
+        label.fontSize = 22;
+        label.lineHeight = 24;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        labelNode.color = safeZone.finished ? cc.color(255, 210, 210, 255) : cc.color(220, 245, 255, 255);
+
+        this._multiplayerSafeZoneNode = root;
     }
 
     _applyMultiplayerPortalEvent(eventData) {

@@ -1170,8 +1170,8 @@ var GameMain = /** @class */ (function (_super) {
                 _this._netManager.sendPlayerSetup(_this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills) {
-            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || []);
+        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, safeZone) {
+            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], safeZone || null);
         };
         this._netManager.onGameEnded = function (payload) {
             _this._endMultiplayerMatch(payload);
@@ -1183,11 +1183,12 @@ var GameMain = /** @class */ (function (_super) {
         };
         this._netManager.connect("ws://localhost:2567");
     };
-    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills) {
+    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, safeZone) {
         if (players === void 0) { players = []; }
         if (specialEvents === void 0) { specialEvents = []; }
         if (tarPickups === void 0) { tarPickups = []; }
         if (tarSpills === void 0) { tarSpills = []; }
+        if (safeZone === void 0) { safeZone = null; }
         this._hideMultiplayerStatus();
         this._multiplayerActive = true;
         this._multiplayerLocalDead = false;
@@ -1197,7 +1198,7 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerFireSeq = 1;
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
         var self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], safeZone || null, function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._setupMultiplayerInputLoop();
