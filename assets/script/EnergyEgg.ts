@@ -9,6 +9,7 @@ export class EnergyEgg extends BaseComponent {
     _lifeTime = 10;
     _remainTime = 10;
     _radius = 34;
+    _autoMature = true;
     _mature = false;
     _matureCallback = null;
     _shellSprite = null;
@@ -90,6 +91,7 @@ export class EnergyEgg extends BaseComponent {
         this._lifeTime = options.lifeTime == null ? 10 : options.lifeTime;
         this._remainTime = this._lifeTime;
         this._radius = options.radius == null ? 34 : options.radius;
+        this._autoMature = options.autoMature === false ? false : true;
         this._mature = false;
         this._hiddenInBush = false;
         this._matureCallback = options.onMature || null;
@@ -135,11 +137,18 @@ export class EnergyEgg extends BaseComponent {
         this._remainTime -= dt;
         if (this._remainTime <= 0) {
             this._remainTime = 0;
-            this._becomeMature();
-            return;
+            if (this._autoMature) {
+                this._becomeMature();
+                return;
+            }
         }
 
         this._refreshCountdown();
+    }
+
+    forceMature() {
+        this._remainTime = 0;
+        this._becomeMature();
     }
 
     _becomeMature() {

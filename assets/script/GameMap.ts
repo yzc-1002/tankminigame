@@ -125,6 +125,8 @@ export class GameMap extends BaseComponent {
     _multiplayerMode = false; //多人模式
     _multiplayerPlayers = []; //多人玩家列表
     _multiplayerBullets = {}; //多人同步子弹
+    _multiplayerEnergyMap = {}; //多人同步能量
+    _multiplayerEnergyEggMap = {}; //多人同步能量蛋
     _localPlayerId = 0;       //本地玩家ID
     _multiplayerSpawnSlots = []; //多人出生槽位
     _levelId        = 1;        //当前关卡id
@@ -2767,6 +2769,24 @@ export class GameMap extends BaseComponent {
         return energy;
     }
 
+    createEnergyAtForMultiplayer(energyData) {
+        if (!energyData) {
+            return null;
+        }
+        let pos = cc.v2(energyData.x || 0, energyData.y || 0);
+        let energy = this.energyPrefab ? cc.instantiate(this.energyPrefab) : this._createDefaultEnergy();
+        energy.parent = this._fire._tmLayerObstacle;
+        energy.position = cc.v3(pos);
+        energy.zIndex = this.judgezIndex(energy.y);
+        energy["__energyId"] = energyData.id;
+
+        let energyScript = energy.getComponent(EnergyItem) || energy.addComponent(EnergyItem);
+        energyScript.init(energyData.value == null ? this._getEnergyConfig("Value", 10) : energyData.value, 999999);
+        this._energys.push(energy);
+        this._multiplayerEnergyMap[energyData.id] = energy;
+        return energy;
+    }
+
     createEnergyEggTestSetup() {
         let setup = this._getEnergyEggTestSetupPositions();
         this.spawnEnergyEggBush(setup.bushPos, 94);
@@ -2865,17 +2885,22 @@ export class GameMap extends BaseComponent {
         let egg:any = {
             node: root,
             script: eggScript,
+            eggId: options.eggId == null ? null : options.eggId,
             radius: options.radius == null ? 34 : options.radius,
             energyCount: options.energyCount == null ? 16 : options.energyCount,
             energyScatterRadius: options.energyScatterRadius == null ? 130 : options.energyScatterRadius,
             burstDone: false,
         };
+        let matureCallback = options.hasOwnProperty("onMature")
+            ? options.onMature
+            : () => {
+                this._handleEnergyEggMature(egg);
+            };
         eggScript.init({
             lifeTime: options.lifeTime == null ? 10 : options.lifeTime,
             radius: egg.radius,
-            onMature: () => {
-                this._handleEnergyEggMature(egg);
-            }
+            autoMature: options.autoMature,
+            onMature: matureCallback
         });
         this._loadEnergyEggFrame((spriteFrame) => {
             if (eggScript && cc.isValid(eggScript)) {
@@ -2884,6 +2909,118 @@ export class GameMap extends BaseComponent {
         });
         this._energyEggs.push(egg);
         return egg;
+    }
+
+    _createMultiplayerBurstEnergy(origin, energyData) {
+        if (!energyData || energyData.id == null) {
+            return null;
+        }
+        let energy = this.createEnergyAtForMultiplayer(energyData);
+        if (!energy || !cc.isValid(energy)) {
+            return null;
+        }
+        let fromPos = origin ? cc.v2(origin) : cc.v2(energy.position);
+        energy.setPosition(cc.v3(fromPos));
+        energy.scale = 0.18;
+        energy.runAction(cc.spawn(
+            cc.scaleTo(0.32, 1),
+            cc.jumpTo(0.38, cc.v2(energyData.x, energyData.y), 42 + Math.random() * 18, 1)
+        ));
+        return energy;
+    }
+
+    _spawnMultiplayerEnergyEgg(eggData) {
+        if (!eggData || eggData.id == null) {
+            return null;
+        }
+        let exist = this._multiplayerEnergyEggMap[eggData.id];
+        if (exist && exist.node && cc.isValid(exist.node)) {
+            return exist;
+        }
+        let egg = this.spawnEnergyEggAt(cc.v2(eggData.x || 0, eggData.y || 0), {
+            eggId: eggData.id,
+            lifeTime: eggData.remainTime == null ? 10 : eggData.remainTime,
+            radius: eggData.radius == null ? 34 : eggData.radius,
+            energyCount: eggData.energyCount == null ? 16 : eggData.energyCount,
+            energyScatterRadius: eggData.energyScatterRadius == null ? 130 : eggData.energyScatterRadius,
+            autoMature: false,
+            onMature: null,
+        });
+        if (!egg) {
+            return null;
+        }
+        if (eggData.mature) {
+            egg.script.forceMature();
+            egg.burstDone = true;
+        }
+        this._multiplayerEnergyEggMap[eggData.id] = egg;
+        return egg;
+    }
+
+    _moveMultiplayerEnergyEgg(payload) {
+        if (!payload || payload.eggId == null) {
+            return;
+        }
+        let egg = this._multiplayerEnergyEggMap[payload.eggId];
+        if (!egg || !egg.node || !cc.isValid(egg.node)) {
+            return;
+        }
+        let nextPos = cc.v2(payload.x || 0, payload.y || 0);
+        egg.node.setPosition(cc.v3(nextPos));
+        egg.node.zIndex = this.judgezIndex(nextPos.y) + 1;
+    }
+
+    _matureMultiplayerEnergyEgg(payload) {
+        if (!payload || payload.eggId == null) {
+            return;
+        }
+        let egg = this._multiplayerEnergyEggMap[payload.eggId];
+        if (!egg) {
+            egg = this._spawnMultiplayerEnergyEgg({
+                id: payload.eggId,
+                x: payload.x,
+                y: payload.y,
+                mature: true,
+                radius: payload.radius,
+                energyCount: payload.energyCount,
+                energyScatterRadius: payload.energyScatterRadius,
+                remainTime: 0,
+            });
+        }
+        if (!egg || !egg.script) {
+            return;
+        }
+        let origin = cc.v2(payload.x == null ? egg.node.x : payload.x, payload.y == null ? egg.node.y : payload.y);
+        egg.node.setPosition(cc.v3(origin));
+        if (!egg.script.isMature()) {
+            egg.script.forceMature();
+        }
+        egg.burstDone = true;
+        let energies = Array.isArray(payload.energies) ? payload.energies : [];
+        for (let i = 0; i < energies.length; i++) {
+            this._createMultiplayerBurstEnergy(origin, energies[i]);
+        }
+        this.playKillExplosionEffectAt(origin);
+    }
+
+    _removeMultiplayerEnergyEgg(eggId) {
+        if (eggId == null) {
+            return;
+        }
+        let egg = this._multiplayerEnergyEggMap[eggId];
+        delete this._multiplayerEnergyEggMap[eggId];
+        if (!egg) {
+            return;
+        }
+        for (let i = this._energyEggs.length - 1; i >= 0; i--) {
+            if (this._energyEggs[i] === egg) {
+                this._energyEggs.splice(i, 1);
+                break;
+            }
+        }
+        if (egg.node && cc.isValid(egg.node)) {
+            egg.node.destroy();
+        }
     }
 
     _handleEnergyEggMature(egg) {
@@ -3188,6 +3325,54 @@ export class GameMap extends BaseComponent {
         }
 
         return true;
+    }
+
+    getMultiplayerEnergySpawnPoints(limit = 256) {
+        let keys = Object.keys(this._checkList || {});
+        if (keys.length <= 0) {
+            return [];
+        }
+
+        let result = [];
+        let step = Math.max(1, Math.floor(keys.length / limit));
+        for (let i = 0; i < keys.length; i += step) {
+            let item = this._checkList[keys[i]];
+            if (!item) {
+                continue;
+            }
+            let pos = this.tileToGamePos(cc.v2(item.x, item.y));
+            result.push({
+                x: Math.round(pos.x),
+                y: Math.round(pos.y),
+            });
+            if (result.length >= limit) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    getMultiplayerMapBounds() {
+        return {
+            halfWidth: Math.round(this._tmSize.width / 2),
+            halfHeight: Math.round(this._tmSize.height / 2),
+        };
+    }
+
+    getMultiplayerSpawnCandidates() {
+        let candidates = this._getMultiplayerSpawnCandidates();
+        let result = [];
+        for (let i = 0; i < candidates.length; i++) {
+            let pos = candidates[i];
+            if (!pos) {
+                continue;
+            }
+            result.push({
+                x: Math.round(pos.x),
+                y: Math.round(pos.y),
+            });
+        }
+        return result;
     }
 
     //获取最近的敌人
@@ -3683,6 +3868,10 @@ export class GameMap extends BaseComponent {
             }
             egg.script.setHiddenInBush(hidden);
             egg.node.zIndex = this.judgezIndex(egg.node.y) + 1;
+        }
+
+        if (this._multiplayerMode) {
+            return;
         }
 
         if (this._player && cc.isValid(this._player) && this._player.script) {
@@ -4231,9 +4420,17 @@ export class GameMap extends BaseComponent {
                 let playerRect = this._player.script.getPlayerBoundingBox();
                 let energyRect = energyScript.getEnergyBoundingBox();
                 if (cc.Intersection.rectRect(playerRect, energyRect)) {
-                    this._player.script.addEnergy(energyScript.getValue());
-                    this._energys.splice(i, 1);
-                    energy.destroy();
+                    if (this._multiplayerMode) {
+                        let energyId = energy["__energyId"];
+                        yyp.eventCenter.emit("multiplayer-energy-pickup", {
+                            energyId: energyId,
+                        });
+                    }
+                    else{
+                        this._player.script.addEnergy(energyScript.getValue());
+                        this._energys.splice(i, 1);
+                        energy.destroy();
+                    }
                     return;
                 }
             }
@@ -4244,6 +4441,12 @@ export class GameMap extends BaseComponent {
     }
 
     _updateEnergy(dt) {
+        for (let i = this._energys.length - 1; i >= 0; i--) {
+            if (!cc.isValid(this._energys[i])) {
+                this._energys.splice(i, 1);
+            }
+        }
+
         this._energyCdTime += dt;
         let interval = this._getEnergyConfig("BornInterval", 4);
         let maxCount = this._getEnergyConfig("MaxCount", 6);
@@ -5309,9 +5512,13 @@ export class GameMap extends BaseComponent {
         return this.clampMapInnerPosition(candidate, 80);
     }
 
-    createMultiplayerPlayer(playerIdx, playerCount) {
-        let playerType = LocalizedData.getIntItem("_current_player_type_",1);
-        let playerLevel = LocalizedData.getIntItem(`_player_${playerType}_`, 1);
+    createMultiplayerPlayer(playerIdx, playerCount, playerState = null) {
+        let playerType = playerState && playerState.tankType != null
+            ? playerState.tankType
+            : LocalizedData.getIntItem("_current_player_type_",1);
+        let playerLevel = playerState && playerState.playerLevel != null
+            ? playerState.playerLevel
+            : LocalizedData.getIntItem(`_player_${playerType}_`, 1);
 
         let player = cc.instantiate(this.playerPrefab);
         player.parent = this._fire._tmLayerObstacle;
@@ -5330,6 +5537,9 @@ export class GameMap extends BaseComponent {
             player.script._multiplayerRemote = true;
         }
         player.script._multiplayerMode = true;
+        if (playerState && player.script.syncMultiplayerState) {
+            player.script.syncMultiplayerState(playerState);
+        }
 
         // Visually distinguish players: P0=green tint, P1=blue tint
         let colorTint = playerIdx === this._localPlayerId ? cc.color(180, 255, 180, 255) : cc.color(160, 200, 255, 255);
@@ -5349,12 +5559,15 @@ export class GameMap extends BaseComponent {
         return player;
     }
 
-    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, onReady) {
+    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
+        this._multiplayerEnergyMap = {};
+        this._multiplayerEnergyEggMap = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
+        let playerStates = Array.isArray(players) ? players : [];
 
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
@@ -5383,7 +5596,11 @@ export class GameMap extends BaseComponent {
             cc.moveTo(0.2, will),
             cc.callFunc(function () {
                 for (let i = 0; i < playerCount; i++) {
-                    self.createMultiplayerPlayer(i, playerCount);
+                    self.createMultiplayerPlayer(i, playerCount, playerStates[i] || null);
+                }
+                let initialEnergies = energies || [];
+                for (let i = 0; i < initialEnergies.length; i++) {
+                    self.onMultiplayerEnergySpawn(initialEnergies[i]);
                 }
                 self._gaming = true;
                 // Center camera on local player immediately
@@ -5395,26 +5612,89 @@ export class GameMap extends BaseComponent {
 
     simulateFrame(frameData) {
         if (!this._multiplayerMode) return;
-
-        for (let i = 0; i < frameData.inputs.length; i++) {
-            let entry = frameData.inputs[i];
-            let player = this._multiplayerPlayers[entry.playerId];
-            if (player && cc.isValid(player) && player.script && player.script.setFrameInput) {
-                player.script.setFrameInput(entry.inputs);
-            }
-            if (player && cc.isValid(player) && player.script && player.script.syncMultiplayerHp) {
-                player.script.syncMultiplayerHp(entry.hp, entry.maxHp);
-            }
-        }
-
-        for (let i = 0; i < frameData.inputs.length; i++) {
-            let entry = frameData.inputs[i];
-            if (entry && entry.inputs && entry.inputs.hit) {
-                this.applyMultiplayerHit(entry.inputs.hit);
-            }
-        }
+        let commands = frameData && Array.isArray(frameData.commands) ? frameData.commands : [];
+        this._applyMultiplayerFrameCommands(commands);
 
         this._centerOnLocalPlayer();
+    }
+
+    _applyMultiplayerFrameCommands(commands) {
+        for (let i = 0; i < commands.length; i++) {
+            let command = commands[i];
+            if (!command || !command.type) {
+                continue;
+            }
+            if (command.type === "playerInput") {
+                let player = this._multiplayerPlayers[command.playerId];
+                if (player && cc.isValid(player) && player.script && player.script.setFrameInput) {
+                    player.script.setFrameInput(command.inputs || {});
+                }
+            }
+            else if (command.type === "playerState") {
+                let player = this._multiplayerPlayers[command.playerId];
+                if (player && cc.isValid(player) && player.script && player.script.syncMultiplayerState) {
+                    player.script.syncMultiplayerState(command);
+                }
+            }
+            else if (command.type === "playerHit") {
+                this.applyMultiplayerHit(command);
+            }
+            else if (command.type === "energySpawn") {
+                this.onMultiplayerEnergySpawn(command.energy);
+            }
+            else if (command.type === "energyConsume") {
+                this.onMultiplayerEnergyRemove(command.energyId);
+            }
+            else if (command.type === "playerUpgrade") {
+                this.onMultiplayerPlayerUpgrade(command);
+            }
+            else if (command.type === "energyEggSpawn") {
+                this._spawnMultiplayerEnergyEgg(command.egg);
+            }
+            else if (command.type === "energyEggMove") {
+                this._moveMultiplayerEnergyEgg(command);
+            }
+            else if (command.type === "energyEggMature") {
+                this._matureMultiplayerEnergyEgg(command);
+            }
+            else if (command.type === "energyEggRemove") {
+                this._removeMultiplayerEnergyEgg(command.eggId);
+            }
+        }
+    }
+
+    onMultiplayerEnergySpawn(energyData) {
+        if (!this._multiplayerMode || !energyData || energyData.id == null) {
+            return;
+        }
+        if (this._multiplayerEnergyMap[energyData.id] && cc.isValid(this._multiplayerEnergyMap[energyData.id])) {
+            return;
+        }
+        this.createEnergyAtForMultiplayer(energyData);
+    }
+
+    onMultiplayerEnergyRemove(energyId) {
+        if (!this._multiplayerMode || energyId == null) {
+            return;
+        }
+        let energy = this._multiplayerEnergyMap[energyId];
+        delete this._multiplayerEnergyMap[energyId];
+        if (!energy) {
+            return;
+        }
+        for (let i = this._energys.length - 1; i >= 0; i--) {
+            if (this._energys[i] === energy) {
+                this._energys.splice(i, 1);
+                break;
+            }
+        }
+        if (cc.isValid(energy)) {
+            energy.destroy();
+        }
+    }
+
+    onMultiplayerPlayerUpgrade(payload) {
+        // 升级表现统一由玩家状态同步触发，避免消息先后顺序导致丢表现或重复表现。
     }
 
     isMultiplayerMode() {

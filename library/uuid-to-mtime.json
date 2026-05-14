@@ -1909,11 +1909,6 @@
     "meta": 1777364820274,
     "relativePath": "texture\\ui\\barrelBlack_side.png"
   },
-  "a9d1b497-36a8-4cda-8aa1-74dd077f8ab3": {
-    "asset": 1777365327049,
-    "meta": 1777366014476,
-    "relativePath": "script\\config\\Energy.ts"
-  },
   "06b91696-719b-4d17-a055-1cd51b512f6b": {
     "asset": 1777365453529,
     "meta": 1777366014490,
@@ -2094,11 +2089,6 @@
     "meta": 1778150312197,
     "relativePath": "texture\\energyEgg.png"
   },
-  "a6c0f4fb-f74d-4c7a-9f3f-8df0b45a9c6f": {
-    "asset": 1778150847409,
-    "meta": 1778150902774,
-    "relativePath": "script\\EnergyEgg.ts"
-  },
   "9f2df35d-fe13-4780-a0d1-83be264c5b6e": {
     "asset": 1778481129916,
     "meta": 1778481130850,
@@ -2114,24 +2104,34 @@
     "meta": 1778578022183,
     "relativePath": "script\\BulletE.ts"
   },
+  "a9d1b497-36a8-4cda-8aa1-74dd077f8ab3": {
+    "asset": 1778730361905,
+    "meta": 1778731112962,
+    "relativePath": "script\\config\\Energy.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778740794259,
+    "meta": 1778740949992,
+    "relativePath": "script\\Player.ts"
+  },
+  "a6c0f4fb-f74d-4c7a-9f3f-8df0b45a9c6f": {
+    "asset": 1778748141723,
+    "meta": 1778748613616,
+    "relativePath": "script\\EnergyEgg.ts"
+  },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778727125138,
-    "meta": 1778727442427,
+    "asset": 1778748292288,
+    "meta": 1778748613815,
     "relativePath": "script\\GameMain.ts"
   },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778727153324,
-    "meta": 1778727443015,
+    "asset": 1778748244140,
+    "meta": 1778748614381,
     "relativePath": "script\\GameMap.ts"
   },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778726974200,
-    "meta": 1778727443049,
+    "asset": 1778748073219,
+    "meta": 1778748614420,
     "relativePath": "script\\network\\NetworkManager.ts"
-  },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778726981304,
-    "meta": 1778727443250,
-    "relativePath": "script\\Player.ts"
   }
 }

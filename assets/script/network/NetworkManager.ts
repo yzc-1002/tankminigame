@@ -10,8 +10,9 @@ export class NetworkManager {
     private _currentFrame: number = 0;
     private _expectingFrame: number = 1;
     private _disconnectCallback: () => void = null;
+    private _connectedCallback: () => void = null;
     private _frameCallback: (frameData: any) => void = null;
-    private _gameStartCallback: (playerId: number, playerCount: number, spawnSlots: number[]) => void = null;
+    private _gameStartCallback: (playerId: number, playerCount: number, spawnSlots: number[], energies: any[], players?: any[]) => void = null;
     private _playerCountCallback: (count: number, max: number) => void = null;
     private _countdownCallback: (seconds: number) => void = null;
     private _roomStateCallback: (payload: any) => void = null;
@@ -36,6 +37,9 @@ export class NetworkManager {
                 console.log("[Network] Connected to server");
                 this._connected = true;
                 this.ws.send(JSON.stringify({ type: "join" }));
+                if (this._connectedCallback) {
+                    this._connectedCallback();
+                }
             };
 
             this.ws.onmessage = (evt) => {
@@ -85,6 +89,14 @@ export class NetworkManager {
         this.ws.send(JSON.stringify(msg));
     }
 
+    sendPlayerSetup(payload: any) {
+        if (!this._connected || !this.ws) return;
+        this.ws.send(JSON.stringify({
+            type: "playerSetup",
+            payload: payload || {},
+        }));
+    }
+
     get connected(): boolean { return this._connected; }
     get playerId(): number { return this._playerId; }
     get tickRate(): number { return this._tickRate; }
@@ -92,7 +104,8 @@ export class NetworkManager {
     get roomState(): string { return this._roomState; }
 
     set onDisconnect(cb: () => void) { this._disconnectCallback = cb; }
-    set onGameStart(cb: (playerId: number, playerCount: number, spawnSlots: number[]) => void) { this._gameStartCallback = cb; }
+    set onConnected(cb: () => void) { this._connectedCallback = cb; }
+    set onGameStart(cb: (playerId: number, playerCount: number, spawnSlots: number[], energies: any[], players?: any[]) => void) { this._gameStartCallback = cb; }
     set onFrame(cb: (frameData: any) => void) { this._frameCallback = cb; }
     set onPlayerCount(cb: (count: number, max: number) => void) { this._playerCountCallback = cb; }
     set onCountdown(cb: (seconds: number) => void) { this._countdownCallback = cb; }
@@ -101,6 +114,7 @@ export class NetworkManager {
 
     private _normalizeInputs(inputs: any) {
         const source = inputs || {};
+        const snapshot = source.playerSnapshot || null;
         return {
             up: !!source.up,
             down: !!source.down,
@@ -108,6 +122,15 @@ export class NetworkManager {
             right: !!source.right,
             fire: source.fire ? source.fire : false,
             hit: source.hit ? source.hit : false,
+            pickupEnergyId: source.pickupEnergyId == null ? null : source.pickupEnergyId,
+            playerSnapshot: snapshot ? {
+                x: snapshot.x,
+                y: snapshot.y,
+                dirX: snapshot.dirX,
+                dirY: snapshot.dirY,
+                speed: snapshot.speed,
+                radius: snapshot.radius,
+            } : null,
         };
     }
 
@@ -151,7 +174,7 @@ export class NetworkManager {
                 this._roomState = "running";
                 console.log(`[Network] Game started as player ${this._playerId}`);
                 if (this._gameStartCallback) {
-                    this._gameStartCallback(this._playerId, msg.playerCount || 2, msg.spawnSlots || []);
+                    this._gameStartCallback(this._playerId, msg.playerCount || 2, msg.spawnSlots || [], msg.energies || [], msg.players || []);
                 }
                 break;
 

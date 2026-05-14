@@ -128,6 +128,8 @@ var GameMap = /** @class */ (function (_super) {
         _this._multiplayerMode = false; //多人模式
         _this._multiplayerPlayers = []; //多人玩家列表
         _this._multiplayerBullets = {}; //多人同步子弹
+        _this._multiplayerEnergyMap = {}; //多人同步能量
+        _this._multiplayerEnergyEggMap = {}; //多人同步能量蛋
         _this._localPlayerId = 0; //本地玩家ID
         _this._multiplayerSpawnSlots = []; //多人出生槽位
         _this._levelId = 1; //当前关卡id
@@ -2299,6 +2301,22 @@ var GameMap = /** @class */ (function (_super) {
         this._energys.push(energy);
         return energy;
     };
+    GameMap.prototype.createEnergyAtForMultiplayer = function (energyData) {
+        if (!energyData) {
+            return null;
+        }
+        var pos = cc.v2(energyData.x || 0, energyData.y || 0);
+        var energy = this.energyPrefab ? cc.instantiate(this.energyPrefab) : this._createDefaultEnergy();
+        energy.parent = this._fire._tmLayerObstacle;
+        energy.position = cc.v3(pos);
+        energy.zIndex = this.judgezIndex(energy.y);
+        energy["__energyId"] = energyData.id;
+        var energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        energyScript.init(energyData.value == null ? this._getEnergyConfig("Value", 10) : energyData.value, 999999);
+        this._energys.push(energy);
+        this._multiplayerEnergyMap[energyData.id] = energy;
+        return energy;
+    };
     GameMap.prototype.createEnergyEggTestSetup = function () {
         var _this = this;
         var setup = this._getEnergyEggTestSetupPositions();
@@ -2388,17 +2406,22 @@ var GameMap = /** @class */ (function (_super) {
         var egg = {
             node: root,
             script: eggScript,
+            eggId: options.eggId == null ? null : options.eggId,
             radius: options.radius == null ? 34 : options.radius,
             energyCount: options.energyCount == null ? 16 : options.energyCount,
             energyScatterRadius: options.energyScatterRadius == null ? 130 : options.energyScatterRadius,
             burstDone: false,
         };
+        var matureCallback = options.hasOwnProperty("onMature")
+            ? options.onMature
+            : function () {
+                _this._handleEnergyEggMature(egg);
+            };
         eggScript.init({
             lifeTime: options.lifeTime == null ? 10 : options.lifeTime,
             radius: egg.radius,
-            onMature: function () {
-                _this._handleEnergyEggMature(egg);
-            }
+            autoMature: options.autoMature,
+            onMature: matureCallback
         });
         this._loadEnergyEggFrame(function (spriteFrame) {
             if (eggScript && cc.isValid(eggScript)) {
@@ -2407,6 +2430,110 @@ var GameMap = /** @class */ (function (_super) {
         });
         this._energyEggs.push(egg);
         return egg;
+    };
+    GameMap.prototype._createMultiplayerBurstEnergy = function (origin, energyData) {
+        if (!energyData || energyData.id == null) {
+            return null;
+        }
+        var energy = this.createEnergyAtForMultiplayer(energyData);
+        if (!energy || !cc.isValid(energy)) {
+            return null;
+        }
+        var fromPos = origin ? cc.v2(origin) : cc.v2(energy.position);
+        energy.setPosition(cc.v3(fromPos));
+        energy.scale = 0.18;
+        energy.runAction(cc.spawn(cc.scaleTo(0.32, 1), cc.jumpTo(0.38, cc.v2(energyData.x, energyData.y), 42 + Math.random() * 18, 1)));
+        return energy;
+    };
+    GameMap.prototype._spawnMultiplayerEnergyEgg = function (eggData) {
+        if (!eggData || eggData.id == null) {
+            return null;
+        }
+        var exist = this._multiplayerEnergyEggMap[eggData.id];
+        if (exist && exist.node && cc.isValid(exist.node)) {
+            return exist;
+        }
+        var egg = this.spawnEnergyEggAt(cc.v2(eggData.x || 0, eggData.y || 0), {
+            eggId: eggData.id,
+            lifeTime: eggData.remainTime == null ? 10 : eggData.remainTime,
+            radius: eggData.radius == null ? 34 : eggData.radius,
+            energyCount: eggData.energyCount == null ? 16 : eggData.energyCount,
+            energyScatterRadius: eggData.energyScatterRadius == null ? 130 : eggData.energyScatterRadius,
+            autoMature: false,
+            onMature: null,
+        });
+        if (!egg) {
+            return null;
+        }
+        if (eggData.mature) {
+            egg.script.forceMature();
+            egg.burstDone = true;
+        }
+        this._multiplayerEnergyEggMap[eggData.id] = egg;
+        return egg;
+    };
+    GameMap.prototype._moveMultiplayerEnergyEgg = function (payload) {
+        if (!payload || payload.eggId == null) {
+            return;
+        }
+        var egg = this._multiplayerEnergyEggMap[payload.eggId];
+        if (!egg || !egg.node || !cc.isValid(egg.node)) {
+            return;
+        }
+        var nextPos = cc.v2(payload.x || 0, payload.y || 0);
+        egg.node.setPosition(cc.v3(nextPos));
+        egg.node.zIndex = this.judgezIndex(nextPos.y) + 1;
+    };
+    GameMap.prototype._matureMultiplayerEnergyEgg = function (payload) {
+        if (!payload || payload.eggId == null) {
+            return;
+        }
+        var egg = this._multiplayerEnergyEggMap[payload.eggId];
+        if (!egg) {
+            egg = this._spawnMultiplayerEnergyEgg({
+                id: payload.eggId,
+                x: payload.x,
+                y: payload.y,
+                mature: true,
+                radius: payload.radius,
+                energyCount: payload.energyCount,
+                energyScatterRadius: payload.energyScatterRadius,
+                remainTime: 0,
+            });
+        }
+        if (!egg || !egg.script) {
+            return;
+        }
+        var origin = cc.v2(payload.x == null ? egg.node.x : payload.x, payload.y == null ? egg.node.y : payload.y);
+        egg.node.setPosition(cc.v3(origin));
+        if (!egg.script.isMature()) {
+            egg.script.forceMature();
+        }
+        egg.burstDone = true;
+        var energies = Array.isArray(payload.energies) ? payload.energies : [];
+        for (var i = 0; i < energies.length; i++) {
+            this._createMultiplayerBurstEnergy(origin, energies[i]);
+        }
+        this.playKillExplosionEffectAt(origin);
+    };
+    GameMap.prototype._removeMultiplayerEnergyEgg = function (eggId) {
+        if (eggId == null) {
+            return;
+        }
+        var egg = this._multiplayerEnergyEggMap[eggId];
+        delete this._multiplayerEnergyEggMap[eggId];
+        if (!egg) {
+            return;
+        }
+        for (var i = this._energyEggs.length - 1; i >= 0; i--) {
+            if (this._energyEggs[i] === egg) {
+                this._energyEggs.splice(i, 1);
+                break;
+            }
+        }
+        if (egg.node && cc.isValid(egg.node)) {
+            egg.node.destroy();
+        }
     };
     GameMap.prototype._handleEnergyEggMature = function (egg) {
         var _this = this;
@@ -2679,6 +2806,51 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
         return true;
+    };
+    GameMap.prototype.getMultiplayerEnergySpawnPoints = function (limit) {
+        if (limit === void 0) { limit = 256; }
+        var keys = Object.keys(this._checkList || {});
+        if (keys.length <= 0) {
+            return [];
+        }
+        var result = [];
+        var step = Math.max(1, Math.floor(keys.length / limit));
+        for (var i = 0; i < keys.length; i += step) {
+            var item = this._checkList[keys[i]];
+            if (!item) {
+                continue;
+            }
+            var pos = this.tileToGamePos(cc.v2(item.x, item.y));
+            result.push({
+                x: Math.round(pos.x),
+                y: Math.round(pos.y),
+            });
+            if (result.length >= limit) {
+                break;
+            }
+        }
+        return result;
+    };
+    GameMap.prototype.getMultiplayerMapBounds = function () {
+        return {
+            halfWidth: Math.round(this._tmSize.width / 2),
+            halfHeight: Math.round(this._tmSize.height / 2),
+        };
+    };
+    GameMap.prototype.getMultiplayerSpawnCandidates = function () {
+        var candidates = this._getMultiplayerSpawnCandidates();
+        var result = [];
+        for (var i = 0; i < candidates.length; i++) {
+            var pos = candidates[i];
+            if (!pos) {
+                continue;
+            }
+            result.push({
+                x: Math.round(pos.x),
+                y: Math.round(pos.y),
+            });
+        }
+        return result;
     };
     //获取最近的敌人
     GameMap.prototype.getNearEnemy = function () {
@@ -3097,6 +3269,9 @@ var GameMap = /** @class */ (function (_super) {
             }
             egg.script.setHiddenInBush(hidden);
             egg.node.zIndex = this.judgezIndex(egg.node.y) + 1;
+        }
+        if (this._multiplayerMode) {
+            return;
         }
         if (this._player && cc.isValid(this._player) && this._player.script) {
             this._pushEnergyEggsByPlayer(this._player.script);
@@ -3569,9 +3744,17 @@ var GameMap = /** @class */ (function (_super) {
                 var playerRect = this._player.script.getPlayerBoundingBox();
                 var energyRect = energyScript.getEnergyBoundingBox();
                 if (cc.Intersection.rectRect(playerRect, energyRect)) {
-                    this._player.script.addEnergy(energyScript.getValue());
-                    this._energys.splice(i, 1);
-                    energy.destroy();
+                    if (this._multiplayerMode) {
+                        var energyId = energy["__energyId"];
+                        yyp.eventCenter.emit("multiplayer-energy-pickup", {
+                            energyId: energyId,
+                        });
+                    }
+                    else {
+                        this._player.script.addEnergy(energyScript.getValue());
+                        this._energys.splice(i, 1);
+                        energy.destroy();
+                    }
                     return;
                 }
             }
@@ -3581,6 +3764,11 @@ var GameMap = /** @class */ (function (_super) {
         }
     };
     GameMap.prototype._updateEnergy = function (dt) {
+        for (var i = this._energys.length - 1; i >= 0; i--) {
+            if (!cc.isValid(this._energys[i])) {
+                this._energys.splice(i, 1);
+            }
+        }
         this._energyCdTime += dt;
         var interval = this._getEnergyConfig("BornInterval", 4);
         var maxCount = this._getEnergyConfig("MaxCount", 6);
@@ -4491,9 +4679,14 @@ var GameMap = /** @class */ (function (_super) {
         var candidate = candidates[index % candidates.length];
         return this.clampMapInnerPosition(candidate, 80);
     };
-    GameMap.prototype.createMultiplayerPlayer = function (playerIdx, playerCount) {
-        var playerType = LocalizedData_1.LocalizedData.getIntItem("_current_player_type_", 1);
-        var playerLevel = LocalizedData_1.LocalizedData.getIntItem("_player_" + playerType + "_", 1);
+    GameMap.prototype.createMultiplayerPlayer = function (playerIdx, playerCount, playerState) {
+        if (playerState === void 0) { playerState = null; }
+        var playerType = playerState && playerState.tankType != null
+            ? playerState.tankType
+            : LocalizedData_1.LocalizedData.getIntItem("_current_player_type_", 1);
+        var playerLevel = playerState && playerState.playerLevel != null
+            ? playerState.playerLevel
+            : LocalizedData_1.LocalizedData.getIntItem("_player_" + playerType + "_", 1);
         var player = cc.instantiate(this.playerPrefab);
         player.parent = this._fire._tmLayerObstacle;
         player.zIndex = 100;
@@ -4509,6 +4702,9 @@ var GameMap = /** @class */ (function (_super) {
             player.script._multiplayerRemote = true;
         }
         player.script._multiplayerMode = true;
+        if (playerState && player.script.syncMultiplayerState) {
+            player.script.syncMultiplayerState(playerState);
+        }
         // Visually distinguish players: P0=green tint, P1=blue tint
         var colorTint = playerIdx === this._localPlayerId ? cc.color(180, 255, 180, 255) : cc.color(160, 200, 255, 255);
         var tryNames = ['_sprBg1', '_sprBg2', '_sprBg3', '_sprBg4', '_sprBg'];
@@ -4528,12 +4724,15 @@ var GameMap = /** @class */ (function (_super) {
         }
         return player;
     };
-    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, onReady) {
+    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
+        this._multiplayerEnergyMap = {};
+        this._multiplayerEnergyEggMap = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
+        var playerStates = Array.isArray(players) ? players : [];
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
         this._clearAllTestNodes();
@@ -4557,7 +4756,11 @@ var GameMap = /** @class */ (function (_super) {
         var self = this;
         this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
             for (var i = 0; i < playerCount; i++) {
-                self.createMultiplayerPlayer(i, playerCount);
+                self.createMultiplayerPlayer(i, playerCount, playerStates[i] || null);
+            }
+            var initialEnergies = energies || [];
+            for (var i = 0; i < initialEnergies.length; i++) {
+                self.onMultiplayerEnergySpawn(initialEnergies[i]);
             }
             self._gaming = true;
             // Center camera on local player immediately
@@ -4569,23 +4772,84 @@ var GameMap = /** @class */ (function (_super) {
     GameMap.prototype.simulateFrame = function (frameData) {
         if (!this._multiplayerMode)
             return;
-        for (var i = 0; i < frameData.inputs.length; i++) {
-            var entry = frameData.inputs[i];
-            var player = this._multiplayerPlayers[entry.playerId];
-            if (player && cc.isValid(player) && player.script && player.script.setFrameInput) {
-                player.script.setFrameInput(entry.inputs);
-            }
-            if (player && cc.isValid(player) && player.script && player.script.syncMultiplayerHp) {
-                player.script.syncMultiplayerHp(entry.hp, entry.maxHp);
-            }
-        }
-        for (var i = 0; i < frameData.inputs.length; i++) {
-            var entry = frameData.inputs[i];
-            if (entry && entry.inputs && entry.inputs.hit) {
-                this.applyMultiplayerHit(entry.inputs.hit);
-            }
-        }
+        var commands = frameData && Array.isArray(frameData.commands) ? frameData.commands : [];
+        this._applyMultiplayerFrameCommands(commands);
         this._centerOnLocalPlayer();
+    };
+    GameMap.prototype._applyMultiplayerFrameCommands = function (commands) {
+        for (var i = 0; i < commands.length; i++) {
+            var command = commands[i];
+            if (!command || !command.type) {
+                continue;
+            }
+            if (command.type === "playerInput") {
+                var player = this._multiplayerPlayers[command.playerId];
+                if (player && cc.isValid(player) && player.script && player.script.setFrameInput) {
+                    player.script.setFrameInput(command.inputs || {});
+                }
+            }
+            else if (command.type === "playerState") {
+                var player = this._multiplayerPlayers[command.playerId];
+                if (player && cc.isValid(player) && player.script && player.script.syncMultiplayerState) {
+                    player.script.syncMultiplayerState(command);
+                }
+            }
+            else if (command.type === "playerHit") {
+                this.applyMultiplayerHit(command);
+            }
+            else if (command.type === "energySpawn") {
+                this.onMultiplayerEnergySpawn(command.energy);
+            }
+            else if (command.type === "energyConsume") {
+                this.onMultiplayerEnergyRemove(command.energyId);
+            }
+            else if (command.type === "playerUpgrade") {
+                this.onMultiplayerPlayerUpgrade(command);
+            }
+            else if (command.type === "energyEggSpawn") {
+                this._spawnMultiplayerEnergyEgg(command.egg);
+            }
+            else if (command.type === "energyEggMove") {
+                this._moveMultiplayerEnergyEgg(command);
+            }
+            else if (command.type === "energyEggMature") {
+                this._matureMultiplayerEnergyEgg(command);
+            }
+            else if (command.type === "energyEggRemove") {
+                this._removeMultiplayerEnergyEgg(command.eggId);
+            }
+        }
+    };
+    GameMap.prototype.onMultiplayerEnergySpawn = function (energyData) {
+        if (!this._multiplayerMode || !energyData || energyData.id == null) {
+            return;
+        }
+        if (this._multiplayerEnergyMap[energyData.id] && cc.isValid(this._multiplayerEnergyMap[energyData.id])) {
+            return;
+        }
+        this.createEnergyAtForMultiplayer(energyData);
+    };
+    GameMap.prototype.onMultiplayerEnergyRemove = function (energyId) {
+        if (!this._multiplayerMode || energyId == null) {
+            return;
+        }
+        var energy = this._multiplayerEnergyMap[energyId];
+        delete this._multiplayerEnergyMap[energyId];
+        if (!energy) {
+            return;
+        }
+        for (var i = this._energys.length - 1; i >= 0; i--) {
+            if (this._energys[i] === energy) {
+                this._energys.splice(i, 1);
+                break;
+            }
+        }
+        if (cc.isValid(energy)) {
+            energy.destroy();
+        }
+    };
+    GameMap.prototype.onMultiplayerPlayerUpgrade = function (payload) {
+        // 升级表现统一由玩家状态同步触发，避免消息先后顺序导致丢表现或重复表现。
     };
     GameMap.prototype.isMultiplayerMode = function () {
         return this._multiplayerMode;

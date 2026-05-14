@@ -137,6 +137,15 @@ var Player = /** @class */ (function (_super) {
         this._atk = this._config.ATK * (this._level + 1);
         this._refreshEnergyUI();
     };
+    Player.prototype.getMultiplayerSetupPayload = function () {
+        return {
+            tankType: this._tankType,
+            playerLevel: this._level,
+            baseHp: this._maxHp,
+            baseAtk: this._atk,
+            baseSpeed: this._getConfigValue("Speed", 0),
+        };
+    };
     //初始化UI
     Player.prototype._initUI = function () {
         this._fire._lifebar.active = false;
@@ -396,13 +405,12 @@ var Player = /** @class */ (function (_super) {
         return base + (this._energyLevel - 1) * step;
     };
     Player.prototype._levelUpByEnergy = function () {
-        var config = yyp.config.Energy || {};
-        var hpAdd = config.LevelHpAdd == null ? Math.max(1, Math.floor(this._config.HP * 0.3)) : config.LevelHpAdd;
-        var atkAdd = config.LevelAtkAdd == null ? this._config.ATK * 0.2 : config.LevelAtkAdd;
-        this._maxHp += hpAdd;
-        this._hp = this._maxHp;
-        this._atk += atkAdd;
-        this.refreshHp();
+        var choices = this._buildEnergyUpgradeChoices();
+        if (!choices || choices.length <= 0) {
+            return;
+        }
+        var index = Math.floor(Math.random() * choices.length);
+        this.applyTestUpgradeChoice(choices[index]);
     };
     Player.prototype._initEnergyUI = function () {
         if (!this._fire._lifebar || this._fire._lbHpLevel) {
@@ -547,10 +555,13 @@ var Player = /** @class */ (function (_super) {
             this._stopMoveEffect();
         }
     };
-    Player.prototype.getTestUpgradeChoices = function () {
-        var hpAdd = Math.max(25, Math.round(this._maxHp * 0.22));
-        var atkAdd = Math.max(8, Math.round(this._atk * 0.18));
-        var speedAdd = 18;
+    Player.prototype._buildEnergyUpgradeChoices = function () {
+        var config = yyp.config.Energy || {};
+        var hpAdd = config.LevelHpAdd == null ? Math.max(25, Math.round(this._maxHp * 0.22)) : config.LevelHpAdd;
+        var atkAdd = config.LevelDamageAdd == null
+            ? (config.LevelAtkAdd == null ? Math.max(8, Math.round(this._atk * 0.18)) : config.LevelAtkAdd)
+            : config.LevelDamageAdd;
+        var speedAdd = config.LevelSpeedAdd == null ? 18 : config.LevelSpeedAdd;
         return [
             {
                 id: "hp",
@@ -580,6 +591,9 @@ var Player = /** @class */ (function (_super) {
                 color: cc.color(110, 210, 255, 255),
             },
         ];
+    };
+    Player.prototype.getTestUpgradeChoices = function () {
+        return this._buildEnergyUpgradeChoices();
     };
     Player.prototype.getTestBulletMutationChoices = function () {
         return [
@@ -717,6 +731,36 @@ var Player = /** @class */ (function (_super) {
         titleLabel.horizontalAlign = cc.Label.HorizontalAlign.LEFT;
         titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
         floatNode.runAction(cc.sequence(cc.spawn(cc.fadeIn(0.12), cc.scaleTo(0.12, 1.04), cc.moveBy(0.12, 0, 18)), cc.spawn(cc.moveBy(0.55, 0, 72), cc.fadeOut(0.55)), cc.removeSelf()));
+    };
+    Player.prototype.showUpgradeToast = function (choice) {
+        if (!choice || !this.node || !cc.isValid(this.node)) {
+            return;
+        }
+        var toast = new cc.Node("_upgradeToast");
+        toast.parent = this.node;
+        toast.setPosition(0, this._radius + 76);
+        toast.zIndex = 360;
+        toast.opacity = 0;
+        toast.scale = 0.88;
+        var bg = toast.addComponent(cc.Graphics);
+        bg.fillColor = cc.color(20, 24, 34, 228);
+        bg.roundRect(-110, -20, 220, 40, 14);
+        bg.fill();
+        bg.lineWidth = 3;
+        bg.strokeColor = choice.color;
+        bg.roundRect(-110, -20, 220, 40, 14);
+        bg.stroke();
+        var labelNode = new cc.Node("_upgradeToastLabel");
+        labelNode.parent = toast;
+        labelNode.setContentSize(204, 30);
+        labelNode.color = cc.color(255, 255, 255, 255);
+        var label = labelNode.addComponent(cc.Label);
+        label.string = choice.title + " " + choice.valueText;
+        label.fontSize = 18;
+        label.lineHeight = 22;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        toast.runAction(cc.sequence(cc.spawn(cc.fadeIn(0.12), cc.scaleTo(0.12, 1), cc.moveBy(0.12, 0, 10)), cc.delayTime(0.7), cc.spawn(cc.fadeOut(0.22), cc.moveBy(0.22, 0, 18)), cc.removeSelf()));
     };
     Player.prototype._showOilPickupFeedback = function () {
         var badge = new cc.Node("_oilPickupReady");
@@ -1262,6 +1306,105 @@ var Player = /** @class */ (function (_super) {
         if (this._hp == 0) {
             this.doDeath();
         }
+    };
+    Player.prototype.syncMultiplayerState = function (state) {
+        if (!this._multiplayerMode || !state) {
+            return;
+        }
+        var prevHp = this._hp;
+        var prevMaxHp = this._maxHp;
+        var prevAtk = this._atk;
+        var prevMoveSpeedScale = this._moveSpeedScale;
+        var prevEnergyLevel = this._energyLevel;
+        if (state.maxHp != null && state.maxHp > 0) {
+            this._maxHp = state.maxHp;
+        }
+        if (state.hp != null) {
+            var nextHp = state.hp;
+            if (nextHp < 0) {
+                nextHp = 0;
+            }
+            if (this._maxHp > 0 && nextHp > this._maxHp) {
+                nextHp = this._maxHp;
+            }
+            this._hp = nextHp;
+        }
+        if (state.atk != null) {
+            this._atk = state.atk;
+        }
+        if (state.moveSpeedScale != null && state.moveSpeedScale > 0) {
+            this._moveSpeedScale = state.moveSpeedScale;
+        }
+        if (state.energyLevel != null && state.energyLevel > 0) {
+            this._energyLevel = state.energyLevel;
+        }
+        if (state.energyExp != null) {
+            this._energyExp = Math.max(0, state.energyExp);
+        }
+        if (state.energyNeedExp != null && state.energyNeedExp > 0) {
+            this._energyNeedExp = state.energyNeedExp;
+        }
+        if (this._energyLevel > prevEnergyLevel) {
+            var choice = this._buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale);
+            if (choice) {
+                this._showUpgradeFloat(choice);
+                this._playUpgradeSelectFeedback(choice);
+                this.showUpgradeToast(choice);
+            }
+        }
+        var didTakeDamage = this._hp < prevHp;
+        this.refreshHp();
+        this._refreshEnergyUI();
+        if (didTakeDamage) {
+            this._showPlayerHitEffect();
+            if (!this._multiplayerRemote) {
+                Utils_1.Utils.vibrate();
+                MusicManager_1.MusicManager.playEffect("playerHit");
+            }
+        }
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    };
+    Player.prototype._buildUpgradeChoiceFromStateDelta = function (prevMaxHp, prevAtk, prevMoveSpeedScale) {
+        var hpDelta = this._maxHp - prevMaxHp;
+        var atkDelta = this._atk - prevAtk;
+        var speedRatioDelta = this._moveSpeedScale - prevMoveSpeedScale;
+        var speedDelta = Math.round(speedRatioDelta * 100);
+        if (hpDelta > 0) {
+            return {
+                id: "hp",
+                title: "装甲强化",
+                desc: "生命上限提升并立刻回满",
+                shortLabel: "HP",
+                valueText: "+" + hpDelta,
+                amount: hpDelta,
+                color: cc.color(120, 255, 170, 255),
+            };
+        }
+        if (atkDelta > 0) {
+            return {
+                id: "atk",
+                title: "火力强化",
+                desc: "攻击力提升, 输出更高",
+                shortLabel: "ATK",
+                valueText: "+" + atkDelta,
+                amount: atkDelta,
+                color: cc.color(255, 185, 90, 255),
+            };
+        }
+        if (speedDelta > 0) {
+            return {
+                id: "speed",
+                title: "推进强化",
+                desc: "移动速度提升, 走位更灵活",
+                shortLabel: "SPD",
+                valueText: "+" + speedDelta + "%",
+                amount: speedDelta,
+                color: cc.color(110, 210, 255, 255),
+            };
+        }
+        return null;
     };
     Player.prototype._showPlayerHitEffect = function () {
         var effect = new cc.Node("_playerHitEffect");

@@ -122,6 +122,16 @@ export class Player extends Tank {
         this._refreshEnergyUI();
     }
 
+    getMultiplayerSetupPayload() {
+        return {
+            tankType: this._tankType,
+            playerLevel: this._level,
+            baseHp: this._maxHp,
+            baseAtk: this._atk,
+            baseSpeed: this._getConfigValue("Speed", 0),
+        };
+    }
+
     //初始化UI
     _initUI(){
         this._fire._lifebar.active = false;
@@ -407,14 +417,13 @@ export class Player extends Tank {
     }
 
     _levelUpByEnergy() {
-        let config = yyp.config.Energy || {};
-        let hpAdd = config.LevelHpAdd == null ? Math.max(1, Math.floor(this._config.HP * 0.3)) : config.LevelHpAdd;
-        let atkAdd = config.LevelAtkAdd == null ? this._config.ATK * 0.2 : config.LevelAtkAdd;
+        let choices = this._buildEnergyUpgradeChoices();
+        if (!choices || choices.length <= 0) {
+            return;
+        }
 
-        this._maxHp += hpAdd;
-        this._hp = this._maxHp;
-        this._atk += atkAdd;
-        this.refreshHp();
+        let index = Math.floor(Math.random() * choices.length);
+        this.applyTestUpgradeChoice(choices[index]);
     }
 
     _initEnergyUI() {
@@ -596,10 +605,13 @@ export class Player extends Tank {
         
     }
 
-    getTestUpgradeChoices() {
-        let hpAdd = Math.max(25, Math.round(this._maxHp * 0.22));
-        let atkAdd = Math.max(8, Math.round(this._atk * 0.18));
-        let speedAdd = 18;
+    _buildEnergyUpgradeChoices() {
+        let config = yyp.config.Energy || {};
+        let hpAdd = config.LevelHpAdd == null ? Math.max(25, Math.round(this._maxHp * 0.22)) : config.LevelHpAdd;
+        let atkAdd = config.LevelDamageAdd == null
+            ? (config.LevelAtkAdd == null ? Math.max(8, Math.round(this._atk * 0.18)) : config.LevelAtkAdd)
+            : config.LevelDamageAdd;
+        let speedAdd = config.LevelSpeedAdd == null ? 18 : config.LevelSpeedAdd;
 
         return [
             {
@@ -630,6 +642,10 @@ export class Player extends Tank {
                 color: cc.color(110, 210, 255, 255),
             },
         ];
+    }
+
+    getTestUpgradeChoices() {
+        return this._buildEnergyUpgradeChoices();
     }
 
     getTestBulletMutationChoices() {
@@ -791,6 +807,53 @@ export class Player extends Tank {
             cc.spawn(
                 cc.moveBy(0.55, 0, 72),
                 cc.fadeOut(0.55)
+            ),
+            cc.removeSelf()
+        ));
+    }
+
+    showUpgradeToast(choice) {
+        if (!choice || !this.node || !cc.isValid(this.node)) {
+            return;
+        }
+
+        let toast = new cc.Node("_upgradeToast");
+        toast.parent = this.node;
+        toast.setPosition(0, this._radius + 76);
+        toast.zIndex = 360;
+        toast.opacity = 0;
+        toast.scale = 0.88;
+
+        let bg = toast.addComponent(cc.Graphics);
+        bg.fillColor = cc.color(20, 24, 34, 228);
+        bg.roundRect(-110, -20, 220, 40, 14);
+        bg.fill();
+        bg.lineWidth = 3;
+        bg.strokeColor = choice.color;
+        bg.roundRect(-110, -20, 220, 40, 14);
+        bg.stroke();
+
+        let labelNode = new cc.Node("_upgradeToastLabel");
+        labelNode.parent = toast;
+        labelNode.setContentSize(204, 30);
+        labelNode.color = cc.color(255, 255, 255, 255);
+        let label = labelNode.addComponent(cc.Label);
+        label.string = choice.title + " " + choice.valueText;
+        label.fontSize = 18;
+        label.lineHeight = 22;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        toast.runAction(cc.sequence(
+            cc.spawn(
+                cc.fadeIn(0.12),
+                cc.scaleTo(0.12, 1),
+                cc.moveBy(0.12, 0, 10)
+            ),
+            cc.delayTime(0.7),
+            cc.spawn(
+                cc.fadeOut(0.22),
+                cc.moveBy(0.22, 0, 18)
             ),
             cc.removeSelf()
         ));
@@ -1531,6 +1594,113 @@ export class Player extends Tank {
         if (this._hp == 0) {
             this.doDeath();
         }
+    }
+
+    syncMultiplayerState(state: any) {
+        if (!this._multiplayerMode || !state) {
+            return;
+        }
+
+        let prevHp = this._hp;
+        let prevMaxHp = this._maxHp;
+        let prevAtk = this._atk;
+        let prevMoveSpeedScale = this._moveSpeedScale;
+        let prevEnergyLevel = this._energyLevel;
+        if (state.maxHp != null && state.maxHp > 0) {
+            this._maxHp = state.maxHp;
+        }
+        if (state.hp != null) {
+            let nextHp = state.hp;
+            if (nextHp < 0) {
+                nextHp = 0;
+            }
+            if (this._maxHp > 0 && nextHp > this._maxHp) {
+                nextHp = this._maxHp;
+            }
+            this._hp = nextHp;
+        }
+        if (state.atk != null) {
+            this._atk = state.atk;
+        }
+        if (state.moveSpeedScale != null && state.moveSpeedScale > 0) {
+            this._moveSpeedScale = state.moveSpeedScale;
+        }
+        if (state.energyLevel != null && state.energyLevel > 0) {
+            this._energyLevel = state.energyLevel;
+        }
+        if (state.energyExp != null) {
+            this._energyExp = Math.max(0, state.energyExp);
+        }
+        if (state.energyNeedExp != null && state.energyNeedExp > 0) {
+            this._energyNeedExp = state.energyNeedExp;
+        }
+
+        if (this._energyLevel > prevEnergyLevel) {
+            let choice = this._buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale);
+            if (choice) {
+                this._showUpgradeFloat(choice);
+                this._playUpgradeSelectFeedback(choice);
+                this.showUpgradeToast(choice);
+            }
+        }
+
+        let didTakeDamage = this._hp < prevHp;
+        this.refreshHp();
+        this._refreshEnergyUI();
+
+        if (didTakeDamage) {
+            this._showPlayerHitEffect();
+            if (!this._multiplayerRemote) {
+                Utils.vibrate();
+                MusicManager.playEffect("playerHit");
+            }
+        }
+
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    }
+
+    _buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale) {
+        let hpDelta = this._maxHp - prevMaxHp;
+        let atkDelta = this._atk - prevAtk;
+        let speedRatioDelta = this._moveSpeedScale - prevMoveSpeedScale;
+        let speedDelta = Math.round(speedRatioDelta * 100);
+
+        if (hpDelta > 0) {
+            return {
+                id: "hp",
+                title: "装甲强化",
+                desc: "生命上限提升并立刻回满",
+                shortLabel: "HP",
+                valueText: "+" + hpDelta,
+                amount: hpDelta,
+                color: cc.color(120, 255, 170, 255),
+            };
+        }
+        if (atkDelta > 0) {
+            return {
+                id: "atk",
+                title: "火力强化",
+                desc: "攻击力提升, 输出更高",
+                shortLabel: "ATK",
+                valueText: "+" + atkDelta,
+                amount: atkDelta,
+                color: cc.color(255, 185, 90, 255),
+            };
+        }
+        if (speedDelta > 0) {
+            return {
+                id: "speed",
+                title: "推进强化",
+                desc: "移动速度提升, 走位更灵活",
+                shortLabel: "SPD",
+                valueText: "+" + speedDelta + "%",
+                amount: speedDelta,
+                color: cc.color(110, 210, 255, 255),
+            };
+        }
+        return null;
     }
 
     _showPlayerHitEffect() {

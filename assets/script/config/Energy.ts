@@ -7,5 +7,6 @@ yyp.config.Energy = {
     ExpBase: 30,
     ExpStep: 15,
     LevelHpAdd: 5,
-    LevelAtkAdd: 0.5
+    LevelDamageAdd: 0.5,
+    LevelSpeedAdd: 18
 };

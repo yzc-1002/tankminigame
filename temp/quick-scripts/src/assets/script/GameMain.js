@@ -104,6 +104,7 @@ var GameMain = /** @class */ (function (_super) {
         yyp.eventCenter.on("game-resume", this._gameResume, this); //恢复
         yyp.eventCenter.on("multiplayer-hit", this._onMultiplayerHitReport, this); //多人命中上报
         yyp.eventCenter.on("multiplayer-player-death", this._onMultiplayerPlayerDeath, this);
+        yyp.eventCenter.on("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
     };
     //销毁事件
@@ -120,6 +121,7 @@ var GameMain = /** @class */ (function (_super) {
         yyp.eventCenter.off("game-resume", this._gameResume, this); //恢复
         yyp.eventCenter.off("multiplayer-hit", this._onMultiplayerHitReport, this); //多人命中上报
         yyp.eventCenter.off("multiplayer-player-death", this._onMultiplayerPlayerDeath, this);
+        yyp.eventCenter.off("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
         this._destroyUpgradeChoicePanel();
@@ -914,6 +916,7 @@ var GameMain = /** @class */ (function (_super) {
     GameMain.prototype._buildMultiplayerInputPacket = function () {
         var source = this._multiplayerInputs || {};
         var hit = this._multiplayerHitQueue.length > 0 ? this._multiplayerHitQueue.shift() : false;
+        var pickupEnergyId = source.pickupEnergyId == null ? null : source.pickupEnergyId;
         return {
             up: !!source.up,
             down: !!source.down,
@@ -921,6 +924,52 @@ var GameMain = /** @class */ (function (_super) {
             right: !!source.right,
             fire: source.fire ? source.fire : false,
             hit: hit || false,
+            pickupEnergyId: pickupEnergyId,
+            playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
+        };
+    };
+    GameMain.prototype._buildLocalMultiplayerPlayerSnapshot = function () {
+        var player = this._getLocalMultiplayerPlayer();
+        if (!player || !player.script) {
+            return null;
+        }
+        var dir = player.script._dir && player.script._dir.magSqr() > 0
+            ? cc.v2(player.script._dir).normalize()
+            : cc.v2(1, 0);
+        return {
+            x: Math.round(player.x),
+            y: Math.round(player.y),
+            dirX: Number(dir.x.toFixed(4)),
+            dirY: Number(dir.y.toFixed(4)),
+            speed: Number((player.script._currentSpeed || 0).toFixed(3)),
+            radius: player.script.getRadius ? player.script.getRadius() : 38,
+        };
+    };
+    GameMain.prototype._buildMultiplayerPlayerSetup = function () {
+        var tankType = LocalizedData_1.LocalizedData.getIntItem("_current_player_type_", 1);
+        var playerLevel = LocalizedData_1.LocalizedData.getIntItem("_player_" + tankType + "_", 1);
+        var config = yyp.config.Tank && yyp.config.Tank[tankType] ? yyp.config.Tank[tankType] : {};
+        var energySpawnPoints = [];
+        var mapBounds = null;
+        var spawnCandidates = [];
+        if (this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerEnergySpawnPoints) {
+            energySpawnPoints = this._fire._tiled.script.getMultiplayerEnergySpawnPoints(512);
+        }
+        if (this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerMapBounds) {
+            mapBounds = this._fire._tiled.script.getMultiplayerMapBounds();
+        }
+        if (this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerSpawnCandidates) {
+            spawnCandidates = this._fire._tiled.script.getMultiplayerSpawnCandidates();
+        }
+        return {
+            tankType: tankType,
+            playerLevel: playerLevel,
+            baseHp: (config.HP == null ? 50 : config.HP) * (playerLevel + 1),
+            baseAtk: (config.ATK == null ? 5 : config.ATK) * (playerLevel + 1),
+            baseSpeed: config.Speed == null ? 4 : config.Speed,
+            energySpawnPoints: energySpawnPoints,
+            mapBounds: mapBounds,
+            spawnCandidates: spawnCandidates,
         };
     };
     GameMain.prototype._onMultiplayerPlayerDeath = function (event) {
@@ -931,6 +980,15 @@ var GameMain = /** @class */ (function (_super) {
             this._multiplayerLocalDead = true;
             this._showMultiplayerStatus("你已被淘汰，等待本局结算...");
         }
+    };
+    GameMain.prototype._onMultiplayerEnergyPickup = function (event) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event || event.energyId == null) {
+            return;
+        }
+        if (!this._multiplayerInputs) {
+            this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false, hit: false };
+        }
+        this._multiplayerInputs.pickupEnergyId = event.energyId;
     };
     GameMain.prototype._updateMultiplayerStatusFromRoomState = function (payload) {
         if (!payload) {
@@ -1002,8 +1060,13 @@ var GameMain = /** @class */ (function (_super) {
         this._netManager.onRoomState = function (payload) {
             _this._updateMultiplayerStatusFromRoomState(payload);
         };
-        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots) {
-            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || []);
+        this._netManager.onConnected = function () {
+            if (_this._netManager) {
+                _this._netManager.sendPlayerSetup(_this._buildMultiplayerPlayerSetup());
+            }
+        };
+        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players) {
+            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || []);
         };
         this._netManager.onGameEnded = function (payload) {
             _this._endMultiplayerMatch(payload);
@@ -1015,7 +1078,8 @@ var GameMain = /** @class */ (function (_super) {
         };
         this._netManager.connect("ws://localhost:2567");
     };
-    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots) {
+    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players) {
+        if (players === void 0) { players = []; }
         this._hideMultiplayerStatus();
         this._multiplayerActive = true;
         this._multiplayerLocalDead = false;
@@ -1023,7 +1087,7 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerFireSeq = 1;
         this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false, hit: false };
         var self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._setupMultiplayerInputLoop();
@@ -1092,6 +1156,7 @@ var GameMain = /** @class */ (function (_super) {
             self._netManager.sendInput(self._buildMultiplayerInputPacket());
             self._multiplayerInputs.fire = false;
             self._multiplayerInputs.hit = false;
+            self._multiplayerInputs.pickupEnergyId = null;
             // Camera follow
             if (self._fire._tiled && self._fire._tiled.script) {
                 self._fire._tiled.script._centerOnLocalPlayer();
