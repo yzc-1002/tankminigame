@@ -2115,23 +2115,23 @@
     "relativePath": "script\\BulletE.ts"
   },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778577844852,
-    "meta": 1778578022342,
+    "asset": 1778727125138,
+    "meta": 1778727442427,
     "relativePath": "script\\GameMain.ts"
   },
-  "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778658692587,
-    "meta": 1778658880170,
-    "relativePath": "script\\network\\NetworkManager.ts"
-  },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778661250422,
-    "meta": 1778661434342,
+    "asset": 1778727153324,
+    "meta": 1778727443015,
     "relativePath": "script\\GameMap.ts"
   },
+  "08aed74e-b757-43ff-80e7-95f39a105a22": {
+    "asset": 1778726974200,
+    "meta": 1778727443049,
+    "relativePath": "script\\network\\NetworkManager.ts"
+  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778661241131,
-    "meta": 1778661434548,
+    "asset": 1778726981304,
+    "meta": 1778727443250,
     "relativePath": "script\\Player.ts"
   }
 }

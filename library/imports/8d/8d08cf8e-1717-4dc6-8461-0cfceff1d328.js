@@ -129,6 +129,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._multiplayerPlayers = []; //多人玩家列表
         _this._multiplayerBullets = {}; //多人同步子弹
         _this._localPlayerId = 0; //本地玩家ID
+        _this._multiplayerSpawnSlots = []; //多人出生槽位
         _this._levelId = 1; //当前关卡id
         _this._levelConfig = null; //当前关卡配置
         _this._roamFlg = false; //漫游标记
@@ -4324,6 +4325,10 @@ var GameMap = /** @class */ (function (_super) {
         this.node.stopAllActions();
         this._gaming = false;
         this._pause = false;
+        this._multiplayerMode = false;
+        this._multiplayerPlayers = [];
+        this._multiplayerBullets = {};
+        this._multiplayerSpawnSlots = [];
         this._killEffectTestMode = false;
         this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
@@ -4462,15 +4467,37 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
     };
+    GameMap.prototype._getMultiplayerSpawnCandidates = function () {
+        var result = [];
+        if (this._playerBornPos) {
+            result.push(cc.v2(this._playerBornPos));
+        }
+        for (var i = 0; i < this._enemyBornPos.length; i++) {
+            var pos = this._enemyBornPos[i];
+            if (pos) {
+                result.push(cc.v2(pos));
+            }
+        }
+        return result;
+    };
+    GameMap.prototype._resolveMultiplayerSpawnPosition = function (playerIdx, playerCount) {
+        var candidates = this._getMultiplayerSpawnCandidates();
+        if (candidates.length <= 0) {
+            var spawnOffset = cc.v2((playerIdx - (playerCount - 1) / 2) * 180, 0);
+            return this.clampMapInnerPosition(this._playerBornPos.add(spawnOffset), 60);
+        }
+        var slot = this._multiplayerSpawnSlots[playerIdx];
+        var index = slot == null ? playerIdx : slot;
+        var candidate = candidates[index % candidates.length];
+        return this.clampMapInnerPosition(candidate, 80);
+    };
     GameMap.prototype.createMultiplayerPlayer = function (playerIdx, playerCount) {
         var playerType = LocalizedData_1.LocalizedData.getIntItem("_current_player_type_", 1);
         var playerLevel = LocalizedData_1.LocalizedData.getIntItem("_player_" + playerType + "_", 1);
         var player = cc.instantiate(this.playerPrefab);
         player.parent = this._fire._tmLayerObstacle;
         player.zIndex = 100;
-        // Spread spawn positions
-        var spawnOffset = cc.v2((playerIdx - (playerCount - 1) / 2) * 180, 0);
-        var spawnPos = this.clampMapInnerPosition(this._playerBornPos.add(spawnOffset), 60);
+        var spawnPos = this._resolveMultiplayerSpawnPosition(playerIdx, playerCount);
         player.position = cc.v3(spawnPos);
         player.script.setMap(this);
         player.script.setPlayerType(playerType, playerLevel);
@@ -4501,11 +4528,12 @@ var GameMap = /** @class */ (function (_super) {
         }
         return player;
     };
-    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, onReady) {
+    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
+        this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
         this._clearAllTestNodes();
@@ -4544,10 +4572,10 @@ var GameMap = /** @class */ (function (_super) {
         for (var i = 0; i < frameData.inputs.length; i++) {
             var entry = frameData.inputs[i];
             var player = this._multiplayerPlayers[entry.playerId];
-            if (player && player.script && player.script.setFrameInput) {
+            if (player && cc.isValid(player) && player.script && player.script.setFrameInput) {
                 player.script.setFrameInput(entry.inputs);
             }
-            if (player && player.script && player.script.syncMultiplayerHp) {
+            if (player && cc.isValid(player) && player.script && player.script.syncMultiplayerHp) {
                 player.script.syncMultiplayerHp(entry.hp, entry.maxHp);
             }
         }

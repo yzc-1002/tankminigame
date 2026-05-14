@@ -126,6 +126,7 @@ export class GameMap extends BaseComponent {
     _multiplayerPlayers = []; //多人玩家列表
     _multiplayerBullets = {}; //多人同步子弹
     _localPlayerId = 0;       //本地玩家ID
+    _multiplayerSpawnSlots = []; //多人出生槽位
     _levelId        = 1;        //当前关卡id
     _levelConfig    = null;     //当前关卡配置
 
@@ -5132,6 +5133,10 @@ export class GameMap extends BaseComponent {
         this.node.stopAllActions();
         this._gaming = false;
         this._pause = false;
+        this._multiplayerMode = false;
+        this._multiplayerPlayers = [];
+        this._multiplayerBullets = {};
+        this._multiplayerSpawnSlots = [];
         this._killEffectTestMode = false;
         this._killBroadcastTestMode = false;
         this._playerHitTestMode = false;
@@ -5277,6 +5282,33 @@ export class GameMap extends BaseComponent {
         }
     }
     
+    _getMultiplayerSpawnCandidates() {
+        let result = [];
+        if (this._playerBornPos) {
+            result.push(cc.v2(this._playerBornPos));
+        }
+        for (let i = 0; i < this._enemyBornPos.length; i++) {
+            let pos = this._enemyBornPos[i];
+            if (pos) {
+                result.push(cc.v2(pos));
+            }
+        }
+        return result;
+    }
+
+    _resolveMultiplayerSpawnPosition(playerIdx, playerCount) {
+        let candidates = this._getMultiplayerSpawnCandidates();
+        if (candidates.length <= 0) {
+            let spawnOffset = cc.v2((playerIdx - (playerCount - 1) / 2) * 180, 0);
+            return this.clampMapInnerPosition(this._playerBornPos.add(spawnOffset), 60);
+        }
+
+        let slot = this._multiplayerSpawnSlots[playerIdx];
+        let index = slot == null ? playerIdx : slot;
+        let candidate = candidates[index % candidates.length];
+        return this.clampMapInnerPosition(candidate, 80);
+    }
+
     createMultiplayerPlayer(playerIdx, playerCount) {
         let playerType = LocalizedData.getIntItem("_current_player_type_",1);
         let playerLevel = LocalizedData.getIntItem(`_player_${playerType}_`, 1);
@@ -5285,9 +5317,7 @@ export class GameMap extends BaseComponent {
         player.parent = this._fire._tmLayerObstacle;
         player.zIndex = 100;
 
-        // Spread spawn positions
-        let spawnOffset = cc.v2((playerIdx - (playerCount - 1) / 2) * 180, 0);
-        let spawnPos = this.clampMapInnerPosition(this._playerBornPos.add(spawnOffset), 60);
+        let spawnPos = this._resolveMultiplayerSpawnPosition(playerIdx, playerCount);
         player.position = cc.v3(spawnPos);
         player.script.setMap(this);
         player.script.setPlayerType(playerType, playerLevel);
@@ -5319,11 +5349,12 @@ export class GameMap extends BaseComponent {
         return player;
     }
 
-    startMultiplayerGame(playerCount, localPlayerId, onReady) {
+    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
+        this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
 
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
@@ -5368,10 +5399,10 @@ export class GameMap extends BaseComponent {
         for (let i = 0; i < frameData.inputs.length; i++) {
             let entry = frameData.inputs[i];
             let player = this._multiplayerPlayers[entry.playerId];
-            if (player && player.script && player.script.setFrameInput) {
+            if (player && cc.isValid(player) && player.script && player.script.setFrameInput) {
                 player.script.setFrameInput(entry.inputs);
             }
-            if (player && player.script && player.script.syncMultiplayerHp) {
+            if (player && cc.isValid(player) && player.script && player.script.syncMultiplayerHp) {
                 player.script.syncMultiplayerHp(entry.hp, entry.maxHp);
             }
         }

@@ -4,15 +4,18 @@ export class NetworkManager {
     private _playerId: number = -1;
     private _roomId: string = "";
     private _tickRate: number = 20;
+    private _roomState: string = "waiting";
     private _frameCallbacks: Array<{ frame: number, inputs: Array<{ playerId: number, inputs: any }> }> = [];
     private _inputQueue: Array<{ frame: number, inputs: any }> = [];
     private _currentFrame: number = 0;
     private _expectingFrame: number = 1;
     private _disconnectCallback: () => void = null;
     private _frameCallback: (frameData: any) => void = null;
-    private _gameStartCallback: (playerId: number, playerCount: number) => void = null;
+    private _gameStartCallback: (playerId: number, playerCount: number, spawnSlots: number[]) => void = null;
     private _playerCountCallback: (count: number, max: number) => void = null;
     private _countdownCallback: (seconds: number) => void = null;
+    private _roomStateCallback: (payload: any) => void = null;
+    private _gameEndedCallback: (payload: any) => void = null;
 
     connect(url: string) {
         if (this.ws) {
@@ -86,12 +89,15 @@ export class NetworkManager {
     get playerId(): number { return this._playerId; }
     get tickRate(): number { return this._tickRate; }
     get currentFrame(): number { return this._currentFrame; }
+    get roomState(): string { return this._roomState; }
 
     set onDisconnect(cb: () => void) { this._disconnectCallback = cb; }
-    set onGameStart(cb: (playerId: number, playerCount: number) => void) { this._gameStartCallback = cb; }
+    set onGameStart(cb: (playerId: number, playerCount: number, spawnSlots: number[]) => void) { this._gameStartCallback = cb; }
     set onFrame(cb: (frameData: any) => void) { this._frameCallback = cb; }
     set onPlayerCount(cb: (count: number, max: number) => void) { this._playerCountCallback = cb; }
     set onCountdown(cb: (seconds: number) => void) { this._countdownCallback = cb; }
+    set onRoomState(cb: (payload: any) => void) { this._roomStateCallback = cb; }
+    set onGameEnded(cb: (payload: any) => void) { this._gameEndedCallback = cb; }
 
     private _normalizeInputs(inputs: any) {
         const source = inputs || {};
@@ -109,6 +115,10 @@ export class NetworkManager {
         switch (msg.type) {
             case "joined":
                 console.log(`[Network] Joined room ${msg.roomId}`);
+                this._roomId = msg.roomId || "";
+                if (msg.state) {
+                    this._roomState = msg.state;
+                }
                 break;
 
             case "playerCount":
@@ -125,20 +135,36 @@ export class NetworkManager {
                 }
                 break;
 
+            case "roomState":
+                this._roomId = msg.roomId || this._roomId;
+                this._roomState = msg.state || this._roomState;
+                if (this._roomStateCallback) {
+                    this._roomStateCallback(msg);
+                }
+                break;
+
             case "gameStart":
                 this._playerId = msg.playerId;
                 this._roomId = msg.roomId;
                 this._tickRate = msg.tickRate || 20;
                 this._currentFrame = 0;
+                this._roomState = "running";
                 console.log(`[Network] Game started as player ${this._playerId}`);
                 if (this._gameStartCallback) {
-                    this._gameStartCallback(this._playerId, msg.playerCount || 2);
+                    this._gameStartCallback(this._playerId, msg.playerCount || 2, msg.spawnSlots || []);
                 }
                 break;
 
             case "frame":
                 if (this._frameCallback) {
                     this._frameCallback(msg);
+                }
+                break;
+
+            case "gameEnded":
+                this._roomState = "ended";
+                if (this._gameEndedCallback) {
+                    this._gameEndedCallback(msg);
                 }
                 break;
 

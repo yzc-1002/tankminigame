@@ -1413,7 +1413,15 @@ var Player = /** @class */ (function (_super) {
         this._oilShellCount = 0;
         this._refreshSkillButtonMode();
         _super.prototype.doDeath.call(this);
-        yyp.eventCenter.emit("player-death", {});
+        if (this._multiplayerMode) {
+            yyp.eventCenter.emit("multiplayer-player-death", {
+                playerId: this._multiplayerPlayerId,
+                isLocal: !this._multiplayerRemote
+            });
+        }
+        else {
+            yyp.eventCenter.emit("player-death", {});
+        }
         this.node.destroy();
         // 爆炸效果
         // 显示结束界面

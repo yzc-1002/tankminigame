@@ -35,9 +35,14 @@ export default class GameMain extends BaseComponent {
     _netManager = null;         //网络管理器(多人)
     _multiplayerStatus = null;  //连接状态标签
     _multiplayerActive = false; //多人游戏进行中
+    _multiplayerLocalDead = false;
+    _multiplayerInputLoopTag = 7601;
     _multiplayerInputs = null;
     _multiplayerHitQueue = [];
     _multiplayerFireSeq = 1;
+    _multiplayerJoyMoveHandler = null;
+    _multiplayerJoyShootHandler = null;
+    _multiplayerCameraFollowCallback = null;
 
     onLoad() {
         //初始化变量
@@ -90,6 +95,7 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.on("game-pause",this._gamePause,this);                  //暂停
         yyp.eventCenter.on("game-resume",this._gameResume,this);                  //恢复
         yyp.eventCenter.on("multiplayer-hit",this._onMultiplayerHitReport,this); //多人命中上报
+        yyp.eventCenter.on("multiplayer-player-death", this._onMultiplayerPlayerDeath, this);
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
     }
 
@@ -106,9 +112,11 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.off("game-pause",this._gamePause,this);                  //暂停
         yyp.eventCenter.off("game-resume",this._gameResume,this);                  //恢复
         yyp.eventCenter.off("multiplayer-hit",this._onMultiplayerHitReport,this); //多人命中上报
+        yyp.eventCenter.off("multiplayer-player-death", this._onMultiplayerPlayerDeath, this);
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
         this._destroyUpgradeChoicePanel();
+        this._teardownMultiplayerInputLoop();
     }
 
     onDestroy() {
@@ -151,7 +159,9 @@ export default class GameMain extends BaseComponent {
     // 玩家死亡
     _playerDeath(event){
         // cc.log("failed!!!!!!!!!!!");
-            
+        if (this._multiplayerActive) {
+            return;
+        }
 
         
         if (RewardAd.getInstance().isLoad()) {
@@ -168,6 +178,9 @@ export default class GameMain extends BaseComponent {
     }
 
     _playerRevive(event){
+        if (this._multiplayerActive) {
+            return;
+        }
         if (event.type == true) {
             //复活
             this._fire._tiled.script.revive();
@@ -202,6 +215,14 @@ export default class GameMain extends BaseComponent {
     
     //准备开始
     _prepare(event){
+        if (this._netManager) {
+            this._netManager.onDisconnect = null;
+            this._netManager.disconnect();
+            this._netManager = null;
+        }
+        this._multiplayerActive = false;
+        this._multiplayerLocalDead = false;
+        this._teardownMultiplayerInputLoop();
         yyp.eventCenter.emit("sacrifice-button-visible",{visible:false});
         yyp.eventCenter.emit("cover-button-state",{visible:false});
         yyp.eventCenter.emit("skill-button-mode",{mode:"charge"});
@@ -957,7 +978,7 @@ export default class GameMain extends BaseComponent {
     }
 
     _onMultiplayerHitReport(event) {
-        if (!this._multiplayerActive || !event || !event.id) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event || !event.id) {
             return;
         }
         this._multiplayerHitQueue.push({
@@ -1004,9 +1025,78 @@ export default class GameMain extends BaseComponent {
         };
     }
 
-    _startMultiplayerGame() {
+    _onMultiplayerPlayerDeath(event) {
+        if (!this._multiplayerActive || !event) {
+            return;
+        }
+        if (event.isLocal) {
+            this._multiplayerLocalDead = true;
+            this._showMultiplayerStatus("你已被淘汰，等待本局结算...");
+        }
+    }
+
+    _updateMultiplayerStatusFromRoomState(payload) {
+        if (!payload) {
+            return;
+        }
+        if (payload.state == "waiting") {
+            this._showMultiplayerStatus("等待玩家加入 (" + payload.playerCount + "/" + payload.minPlayers + "-" + payload.maxPlayers + ")");
+        }
+        else if (payload.state == "countdown") {
+            this._showMultiplayerStatus("游戏倒计时 " + payload.countdown + " 秒");
+        }
+        else if (payload.state == "ended" && !this._multiplayerActive) {
+            this._showMultiplayerStatus("本局已结束");
+        }
+    }
+
+    _showMultiplayerFinish(isWin, winnerPlayerId) {
+        this._fire._lyStart.active = false;
+        this._fire._joystick.active = false;
+        this._fire._ui.active = false;
+        this._fire._nUpdate.script.refreshLevelInfo();
+        this._fire._tiled.script.setFinish();
+
+        let finish = cc.instantiate(this.finishPrefab);
+        finish.zIndex = 1000;
+        Utils.addtoCurrentScene(finish);
+        finish.script.setResult(this._levelId, isWin);
+
+        if (winnerPlayerId >= 0) {
+            this._showMultiplayerStatus(isWin ? "你获胜了" : ("玩家 " + (winnerPlayerId + 1) + " 获胜"));
+        }
+        else{
+            this._showMultiplayerStatus("本局平局");
+        }
+    }
+
+    _endMultiplayerMatch(payload) {
+        let winnerPlayerId = payload && payload.winnerPlayerId != null ? payload.winnerPlayerId : -1;
+        let localPlayerId = this._netManager ? this._netManager.playerId : -1;
+        let isWin = winnerPlayerId >= 0 && winnerPlayerId == localPlayerId;
+
         this._multiplayerActive = false;
+        this._teardownMultiplayerInputLoop();
+        this._multiplayerInputs = null;
         this._multiplayerHitQueue = [];
+        if (this._netManager) {
+            this._netManager.onDisconnect = null;
+            this._netManager.disconnect();
+            this._netManager = null;
+        }
+        this._showMultiplayerFinish(isWin, winnerPlayerId);
+    }
+
+    _startMultiplayerGame() {
+        if (this._netManager) {
+            this._netManager.onDisconnect = null;
+            this._netManager.disconnect();
+            this._netManager = null;
+        }
+        this._multiplayerActive = false;
+        this._multiplayerLocalDead = false;
+        this._multiplayerHitQueue = [];
+        this._teardownMultiplayerInputLoop();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
         this._showMultiplayerStatus("正在连接服务器 ws://localhost:2567 ...");
@@ -1018,37 +1108,62 @@ export default class GameMain extends BaseComponent {
         this._netManager.onPlayerCount = (count, max) => {
             this._showMultiplayerStatus("已连接，等待玩家 (" + count + "/" + max + ")");
         };
-        this._netManager.onGameStart = (playerId, playerCount) => {
-            this._startMultiplayerMatch(playerId, playerCount || 2);
+        this._netManager.onRoomState = (payload) => {
+            this._updateMultiplayerStatusFromRoomState(payload);
+        };
+        this._netManager.onGameStart = (playerId, playerCount, spawnSlots) => {
+            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || []);
+        };
+        this._netManager.onGameEnded = (payload) => {
+            this._endMultiplayerMatch(payload);
         };
         this._netManager.onDisconnect = () => {
             this._showMultiplayerStatus("连接断开");
             this._multiplayerActive = false;
+            this._teardownMultiplayerInputLoop();
         };
         this._netManager.connect("ws://localhost:2567");
     }
 
-    _startMultiplayerMatch(playerId, playerCount) {
+    _startMultiplayerMatch(playerId, playerCount, spawnSlots) {
         this._hideMultiplayerStatus();
         this._multiplayerActive = true;
+        this._multiplayerLocalDead = false;
         this._multiplayerHitQueue = [];
         this._multiplayerFireSeq = 1;
         this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false, hit: false };
 
         let self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._setupMultiplayerInputLoop();
         });
     }
 
+    _teardownMultiplayerInputLoop() {
+        this.node.stopActionByTag(this._multiplayerInputLoopTag);
+        if (this._multiplayerJoyMoveHandler) {
+            yyp.eventCenter.off("joy-stick", this._multiplayerJoyMoveHandler);
+            this._multiplayerJoyMoveHandler = null;
+        }
+        if (this._multiplayerJoyShootHandler) {
+            yyp.eventCenter.off("joy-stick-shoot", this._multiplayerJoyShootHandler);
+            this._multiplayerJoyShootHandler = null;
+        }
+        if (this._multiplayerCameraFollowCallback) {
+            this.unschedule(this._multiplayerCameraFollowCallback);
+            this._multiplayerCameraFollowCallback = null;
+        }
+    }
+
     _setupMultiplayerInputLoop() {
         let self = this;
+        this._teardownMultiplayerInputLoop();
 
         // Track movement via joy-stick EVENT (fires ratio:0 on release, reliable)
-        yyp.eventCenter.on("joy-stick", function (event) {
-            if (!self._multiplayerActive) return;
+        this._multiplayerJoyMoveHandler = function (event) {
+            if (!self._multiplayerActive || self._multiplayerLocalDead) return;
             if (event.ratio > 0 && event.dir && event.dir.magSqr() > 0) {
                 self._multiplayerInputs.up = event.dir.y > 0.3;
                 self._multiplayerInputs.down = event.dir.y < -0.3;
@@ -1061,15 +1176,17 @@ export default class GameMain extends BaseComponent {
                 self._multiplayerInputs.left = false;
                 self._multiplayerInputs.right = false;
             }
-        });
+        };
+        yyp.eventCenter.on("joy-stick", this._multiplayerJoyMoveHandler);
 
         // Track fire via event (single-shot event)
-        yyp.eventCenter.on("joy-stick-shoot", function (event) {
-            if (!self._multiplayerActive) return;
+        this._multiplayerJoyShootHandler = function (event) {
+            if (!self._multiplayerActive || self._multiplayerLocalDead) return;
             if (event.fire === true) {
                 self._multiplayerInputs.fire = self._buildMultiplayerFireCommand();
             }
-        });
+        };
+        yyp.eventCenter.on("joy-stick-shoot", this._multiplayerJoyShootHandler);
 
         // Frame sync: listen for frame data from server
         this._netManager.onFrame = function (frameData) {
@@ -1080,11 +1197,12 @@ export default class GameMain extends BaseComponent {
         };
 
         // Send local inputs at tick rate (20Hz)
-        this.node.runAction(cc.repeatForever(
+        let inputLoop = cc.repeatForever(
             cc.sequence(
                 cc.delayTime(1 / 20),
                 cc.callFunc(function () {
                     if (!self._multiplayerActive || !self._netManager || !self._netManager.connected) return;
+                    if (self._multiplayerLocalDead) return;
                     self._netManager.sendInput(self._buildMultiplayerInputPacket());
                     self._multiplayerInputs.fire = false;
                     self._multiplayerInputs.hit = false;
@@ -1095,14 +1213,17 @@ export default class GameMain extends BaseComponent {
                     }
                 })
             )
-        ));
+        );
+        inputLoop.setTag(this._multiplayerInputLoopTag);
+        this.node.runAction(inputLoop);
 
         // Smooth camera follow every frame via scheduler
-        this.schedule(function () {
+        this._multiplayerCameraFollowCallback = function () {
             if (!self._multiplayerActive) return;
             if (self._fire._tiled && self._fire._tiled.script) {
                 self._fire._tiled.script._centerOnLocalPlayer();
             }
-        }, 0.016, cc.macro.REPEAT_FOREVER);
+        };
+        this.schedule(this._multiplayerCameraFollowCallback, 0.016, cc.macro.REPEAT_FOREVER);
     }
 }
