@@ -87,7 +87,7 @@ var JoyStick = /** @class */ (function (_super) {
         if (controlType == "skill" && this._skillTouchId == null) {
             this._skillTouchId = touchId;
             if (this._skillMode == "oil") {
-                yyp.eventCenter.emit("oil-shell-trigger", {});
+                yyp.eventCenter.emit("oil-shell-trigger", { pressed: true });
             }
             else {
                 this._refreshChargeProgress(0);
@@ -148,7 +148,10 @@ var JoyStick = /** @class */ (function (_super) {
         }
         else if (touchId == this._skillTouchId) {
             this._skillTouchId = null;
-            if (this._skillMode == "charge") {
+            if (this._skillMode == "oil") {
+                yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, release: true });
+            }
+            else if (this._skillMode == "charge") {
                 yyp.eventCenter.emit("charge-cannon-release", {});
             }
         }
@@ -180,6 +183,9 @@ var JoyStick = /** @class */ (function (_super) {
         this._refreshChargeProgress(this._chargeProgressValue, this._chargeProgressColor);
         this._setSacrificeButtonPressed(false);
         this._setCoverButtonPressed(false);
+        if (this._skillMode == "oil") {
+            yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, cancelled: true });
+        }
         yyp.eventCenter.emit("joy-stick", { dir: this._moveDir, ratio: 0 });
     };
     JoyStick.prototype._getCurrentSkillButton = function () {
@@ -283,8 +289,12 @@ var JoyStick = /** @class */ (function (_super) {
         this._refreshChargeProgress(0);
     };
     JoyStick.prototype._setSkillButtonMode = function (mode) {
-        this._skillMode = mode == "oil" ? "oil" : "charge";
-        this._skillTouchId = null;
+        var nextMode = mode == "oil" ? "oil" : "charge";
+        var prevMode = this._skillMode;
+        this._skillMode = nextMode;
+        if (prevMode != this._skillMode) {
+            this._skillTouchId = null;
+        }
         if (this._fire._skillBtn) {
             this._fire._skillBtn.active = this._skillMode == "charge";
         }

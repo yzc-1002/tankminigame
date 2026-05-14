@@ -40,6 +40,8 @@ var PLAYER_EXP_STEP = 15;
 var CHARGE_CANNON_BULLET_TYPE = 99;
 var OIL_SHELL_BULLET_TYPE = 100;
 var OIL_SHELL_MAX_COUNT = 1;
+var OIL_THROW_PREVIEW_ARC_HEIGHT = 110;
+var OIL_THROW_AREA_RADIUS = 120;
 var LOW_HP_SCREEN_FLASH_IN = 0.2;
 var LOW_HP_SCREEN_FLASH_OUT = 0.5;
 var LOW_HP_SCREEN_FLASH_LOOP = 3;
@@ -77,6 +79,8 @@ var Player = /** @class */ (function (_super) {
         _this._chargeCannonReady = false;
         _this._chargeEffectNode = null;
         _this._oilShellCount = 0;
+        _this._oilShellPreviewing = false;
+        _this._oilShellPreviewTarget = null;
         _this._bulletMutationType = "";
         _this._bulletMutationData = null;
         _this._bulletMutationEffectNode = null;
@@ -120,6 +124,8 @@ var Player = /** @class */ (function (_super) {
         this._chargeCannonCharging = false;
         this._chargeCannonReady = false;
         this._oilShellCount = 0;
+        this._oilShellPreviewing = false;
+        this._oilShellPreviewTarget = null;
         this._bulletMutationType = "";
         this._bulletMutationData = null;
         this._bulletMutationEffectNode = null;
@@ -257,7 +263,8 @@ var Player = /** @class */ (function (_super) {
         }
         this._trySacrificeHpForEnergy();
     };
-    Player.prototype._doOilShellTrigger = function () {
+    Player.prototype._doOilShellTrigger = function (event) {
+        if (event === void 0) { event = null; }
         if (this._inGame == false) {
             return;
         }
@@ -265,7 +272,20 @@ var Player = /** @class */ (function (_super) {
             this._refreshSkillButtonMode();
             return;
         }
-        this._fireOilShell();
+        var pressed = !!(event && event.pressed === true);
+        var release = !!(event && event.release === true);
+        var cancelled = !!(event && event.cancelled === true);
+        if (pressed) {
+            this._startOilShellPreview();
+            return;
+        }
+        if (release) {
+            this._commitOilShellThrow();
+            return;
+        }
+        if (cancelled) {
+            this._cancelOilShellPreview();
+        }
     };
     Player.prototype._doCoverAction = function () {
         if (this._inGame == false || !this._map || !this._map.tryToggleCoverTestAttachment) {
@@ -1117,7 +1137,84 @@ var Player = /** @class */ (function (_super) {
         }
         MusicManager_1.MusicManager.playEffect("shoot");
     };
+    Player.prototype._startOilShellPreview = function () {
+        if (this._oilShellCount <= 0 || !this._map) {
+            return;
+        }
+        this._oilShellPreviewing = true;
+        this._oilShellPreviewTarget = this._getOilShellThrowTarget();
+        if (this._map.showOilShellPreview) {
+            this._map.showOilShellPreview(this.node.position, this._oilShellPreviewTarget, {
+                radius: OIL_THROW_PREVIEW_ARC_HEIGHT,
+                areaRadius: OIL_THROW_AREA_RADIUS,
+            });
+        }
+    };
+    Player.prototype._cancelOilShellPreview = function () {
+        this._oilShellPreviewing = false;
+        this._oilShellPreviewTarget = null;
+        if (this._map && this._map.hideOilShellPreview) {
+            this._map.hideOilShellPreview();
+        }
+    };
+    Player.prototype._commitOilShellThrow = function () {
+        if (!this._oilShellPreviewing || this._oilShellCount <= 0) {
+            this._cancelOilShellPreview();
+            return;
+        }
+        var target = this._oilShellPreviewTarget || this._getOilShellThrowTarget();
+        this._cancelOilShellPreview();
+        if (!target) {
+            return;
+        }
+        if (this._multiplayerMode && !this._multiplayerRemote) {
+            yyp.eventCenter.emit("multiplayer-throw-tar", {
+                x: Math.round(target.x),
+                y: Math.round(target.y),
+            });
+            return;
+        }
+        this._throwOilShellAt(target);
+    };
+    Player.prototype._getOilShellThrowTarget = function () {
+        var attackRadius = this._config && this._config.AttackRadius != null ? this._config.AttackRadius : 420;
+        var dir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
+        var target = cc.v2(this.node.position).add(dir.mul(attackRadius));
+        return this._map && this._map.clampMapInnerPosition
+            ? this._map.clampMapInnerPosition(target, OIL_THROW_AREA_RADIUS * 0.55)
+            : target;
+    };
+    Player.prototype._throwOilShellAt = function (target) {
+        var _this = this;
+        if (!target || this._oilShellCount <= 0) {
+            return;
+        }
+        this._oilShellCount = Math.max(0, this._oilShellCount - 1);
+        this._refreshSkillButtonMode();
+        if (this._map && this._map.playOilShellThrow) {
+            this._map.playOilShellThrow(this.node.position, target, {
+                areaRadius: OIL_THROW_AREA_RADIUS,
+                arcHeight: OIL_THROW_PREVIEW_ARC_HEIGHT,
+                onLand: function () {
+                    if (_this._map && _this._map.spawnOilSpill) {
+                        _this._map.spawnOilSpill(target);
+                    }
+                }
+            });
+        }
+        else {
+            this._fireOilShell();
+        }
+        this._playShootGlow(OIL_SHELL_BULLET_TYPE, { effectColor: cc.color(130, 92, 52, 220) });
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
+        MusicManager_1.MusicManager.playEffect("shoot");
+    };
     Player.prototype._refreshSkillButtonMode = function () {
+        if (this._multiplayerMode && this._multiplayerRemote) {
+            return;
+        }
         yyp.eventCenter.emit("skill-button-mode", { mode: this._oilShellCount > 0 ? "oil" : "charge" });
     };
     Player.prototype._getChargeConfig = function (key, defaultValue) {
@@ -1334,6 +1431,13 @@ var Player = /** @class */ (function (_super) {
         }
         if (state.moveSpeedScale != null && state.moveSpeedScale > 0) {
             this._moveSpeedScale = state.moveSpeedScale;
+        }
+        if (state.tarAmmoCount != null) {
+            var nextTarAmmoCount = Math.max(0, state.tarAmmoCount);
+            if (nextTarAmmoCount != this._oilShellCount) {
+                this._oilShellCount = nextTarAmmoCount;
+                this._refreshSkillButtonMode();
+            }
         }
         if (state.energyLevel != null && state.energyLevel > 0) {
             this._energyLevel = state.energyLevel;
@@ -1554,6 +1658,7 @@ var Player = /** @class */ (function (_super) {
         this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
         this._oilShellCount = 0;
+        this._cancelOilShellPreview();
         this._refreshSkillButtonMode();
         _super.prototype.doDeath.call(this);
         if (this._multiplayerMode) {

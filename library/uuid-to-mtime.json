@@ -2074,11 +2074,6 @@
     "meta": 1778148460174,
     "relativePath": "texture\\fenli.png"
   },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1778148881585,
-    "meta": 1778149320355,
-    "relativePath": "script\\JoyStick.ts"
-  },
   "b6d7dde2-cf35-4cb1-a508-2ecf5f0cf6c6": {
     "asset": 1778150202119,
     "meta": 1778150202149,
@@ -2104,11 +2099,6 @@
     "meta": 1778731112962,
     "relativePath": "script\\config\\Energy.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778740794259,
-    "meta": 1778740949992,
-    "relativePath": "script\\Player.ts"
-  },
   "a6c0f4fb-f74d-4c7a-9f3f-8df0b45a9c6f": {
     "asset": 1778748141723,
     "meta": 1778748613616,
@@ -2119,19 +2109,29 @@
     "meta": 1778750336962,
     "relativePath": "script\\BulletE.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778749911659,
-    "meta": 1778750337129,
-    "relativePath": "script\\GameMain.ts"
+  "08aed74e-b757-43ff-80e7-95f39a105a22": {
+    "asset": 1778752226657,
+    "meta": 1778752586482,
+    "relativePath": "script\\network\\NetworkManager.ts"
   },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778749921427,
-    "meta": 1778750337733,
+    "asset": 1778753746886,
+    "meta": 1778753823475,
     "relativePath": "script\\GameMap.ts"
   },
-  "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778749940619,
-    "meta": 1778750337763,
-    "relativePath": "script\\network\\NetworkManager.ts"
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778755564900,
+    "meta": 1778755699766,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778755834045,
+    "meta": 1778755886100,
+    "relativePath": "script\\JoyStick.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778755840073,
+    "meta": 1778755886329,
+    "relativePath": "script\\Player.ts"
   }
 }

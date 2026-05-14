@@ -19,6 +19,8 @@ const KILL_BROADCAST_DURATION = 2.2;
 const OIL_SPILL_DURATION = 10;
 const OIL_SPILL_RADIUS = 120;
 const OIL_SPILL_SLOW_FACTOR = 0.52;
+const TAR_SPILL_RADIUS = 120;
+const TAR_PICKUP_SINGLEPLAYER_INTERVAL = 6;
 const OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
 const COVER_TEST_FRAME_UUID = "f27215a4-32b0-4a3c-b87d-69a3dc03e37a";
 const ENERGY_EGG_FRAME_UUID = "5c9b12c3-9fd1-4472-b633-d31d7ce29bf2";
@@ -99,6 +101,7 @@ export class GameMap extends BaseComponent {
     _skills             = [];       //随机生成的技能
     _energys            = [];       //地图上的能量
     _energyCdTime       = 0;        //能量生成间隔时间
+    _tarPickupCdTime    = 0;        //单机焦油拾取物生成间隔
 
     _pause          = false;    //是否处于暂停状态
     _gaming         = false;    //是否处于游戏中 
@@ -128,6 +131,9 @@ export class GameMap extends BaseComponent {
     _multiplayerEnergyMap = {}; //多人同步能量
     _multiplayerEnergyEggMap = {}; //多人同步能量蛋
     _multiplayerSpecialEventMap = {};
+    _multiplayerTarPickupMap = {};
+    _multiplayerTarSpillMap = {};
+    _pendingTarThrowMap = {};
     _localPlayerId = 0;       //本地玩家ID
     _multiplayerSpawnSlots = []; //多人出生槽位
     _levelId        = 1;        //当前关卡id
@@ -151,6 +157,7 @@ export class GameMap extends BaseComponent {
     _portalPairs = [];
     _centrifugalRingData = null;
     _oilSpills = [];
+    _oilShellPreviewNode = null;
     _oilSpillFrame = null;
     _oilSpillFrameLoading = false;
     _oilSpillFrameCallbacks = [];
@@ -3073,6 +3080,23 @@ export class GameMap extends BaseComponent {
         return pickup;
     }
 
+    spawnTarPickupAt(pos, pickupId = null) {
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+        let pickup = new cc.Node("OilPickup");
+        pickup.parent = this._fire._tmLayerObstacle;
+        pickup.addComponent(OilPickup);
+        pickup.position = cc.v3(pos || this._getOilTestPickupPos());
+        pickup.zIndex = this.judgezIndex(pickup.y);
+        pickup.script.setInGame(18);
+        if (pickupId != null) {
+            pickup["__tarPickupId"] = pickupId;
+        }
+        this._skills.push(pickup);
+        return pickup;
+    }
+
     createCoverTestEnemy() {
         if (!this._player || !cc.isValid(this._player)) {
             return null;
@@ -3686,6 +3710,7 @@ export class GameMap extends BaseComponent {
 
             if (this.isTestMode() == false) {
                 this._updateEnergy(dt);
+                this._updateSinglePlayerTarPickup(dt);
             }
 
             if (this._player && cc.isValid(this._player)) {
@@ -3815,6 +3840,114 @@ export class GameMap extends BaseComponent {
         };
         this._oilSpills.push(spill);
         return root;
+    }
+
+    showOilShellPreview(fromPos, toPos, options: any = {}) {
+        this.hideOilShellPreview();
+        if (!this._tmDecal || !cc.isValid(this._tmDecal) || !fromPos || !toPos) {
+            return;
+        }
+        let root = new cc.Node("_oilShellPreview");
+        root.parent = this._tmDecal;
+        root.zIndex = 4000;
+        this._oilShellPreviewNode = root;
+
+        let line = new cc.Node("_oilShellPreviewLine");
+        line.parent = root;
+        let graphics = line.addComponent(cc.Graphics);
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(190, 150, 92, 220);
+        let start = cc.v2(fromPos);
+        let end = cc.v2(toPos);
+        let control = start.add(end).mul(0.5).add(cc.v2(0, options.radius || 110));
+        graphics.moveTo(start.x, start.y);
+        for (let i = 1; i <= 18; i++) {
+            let t = i / 18;
+            let inv = 1 - t;
+            let point = start.mul(inv * inv).add(control.mul(2 * inv * t)).add(end.mul(t * t));
+            graphics.lineTo(point.x, point.y);
+        }
+        graphics.stroke();
+
+        let target = new cc.Node("_oilShellPreviewTarget");
+        target.parent = root;
+        target.setPosition(cc.v3(end));
+        let targetGraphics = target.addComponent(cc.Graphics);
+        let areaRadius = options.areaRadius || OIL_SPILL_RADIUS;
+        targetGraphics.lineWidth = 4;
+        targetGraphics.strokeColor = cc.color(115, 88, 54, 220);
+        targetGraphics.circle(0, 0, areaRadius * 0.92);
+        targetGraphics.stroke();
+        targetGraphics.fillColor = cc.color(24, 20, 18, 55);
+        targetGraphics.circle(0, 0, areaRadius * 0.72);
+        targetGraphics.fill();
+    }
+
+    hideOilShellPreview() {
+        if (this._oilShellPreviewNode && cc.isValid(this._oilShellPreviewNode)) {
+            this._oilShellPreviewNode.destroy();
+        }
+        this._oilShellPreviewNode = null;
+    }
+
+    playOilShellThrow(fromPos, toPos, options: any = {}) {
+        if (!this._fire._tmLayerObstacle || !fromPos || !toPos) {
+            if (options && options.onLand) {
+                options.onLand();
+            }
+            return;
+        }
+        let shell = new cc.Node("_oilThrowShell");
+        shell.parent = this._fire._tmLayerObstacle;
+        shell.setPosition(cc.v3(fromPos));
+        shell.zIndex = 5200;
+        let graphics = shell.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(70, 48, 28, 235);
+        graphics.circle(0, 0, 18);
+        graphics.fill();
+        graphics.fillColor = cc.color(24, 18, 14, 220);
+        graphics.circle(-6, 2, 7);
+        graphics.fill();
+        graphics.circle(7, -3, 8);
+        graphics.fill();
+
+        let start = cc.v2(fromPos);
+        let end = cc.v2(toPos);
+        let control = start.add(end).mul(0.5).add(cc.v2(0, options.arcHeight || 110));
+        let duration = 0.28;
+        let self = this;
+        let tData = { value: 0 };
+        shell.runAction(cc.sequence(
+            cc.spawn(
+                cc.rotateBy(duration, 220),
+                cc.sequence(
+                    cc.callFunc(function () {
+                        shell["__throwScheduler"] = function () {
+                            tData.value += 1 / Math.max(1, Math.floor(duration * 60));
+                            if (tData.value > 1) {
+                                tData.value = 1;
+                            }
+                            let t = tData.value;
+                            let inv = 1 - t;
+                            let point = start.mul(inv * inv).add(control.mul(2 * inv * t)).add(end.mul(t * t));
+                            shell.setPosition(cc.v3(point));
+                            shell.zIndex = 5200;
+                        };
+                        self.schedule(shell["__throwScheduler"], 0);
+                    }),
+                    cc.delayTime(duration)
+                )
+            ),
+            cc.callFunc(function () {
+                if (shell["__throwScheduler"]) {
+                    self.unschedule(shell["__throwScheduler"]);
+                }
+                shell.destroy();
+                if (options && options.onLand) {
+                    options.onLand();
+                }
+            })
+        ));
     }
 
     getTerrainSpeedFactor(pos, radius = 0) {
@@ -4393,6 +4526,12 @@ export class GameMap extends BaseComponent {
                 let playerRect = this._player.script.getPlayerBoundingBox();
                 let skillRect = skill.script.getSkillBoundingBox();
                 if (cc.Intersection.rectRect(playerRect,skillRect)) {
+                    if (this._multiplayerMode && skill["__tarPickupId"] != null) {
+                        yyp.eventCenter.emit("multiplayer-tar-pickup", {
+                            pickupId: skill["__tarPickupId"],
+                        });
+                        return;
+                    }
                     skill.script.emitSkill();
                     this._skills.splice(i,1);
                     skill.destroy();
@@ -4459,6 +4598,29 @@ export class GameMap extends BaseComponent {
         this.createEnergy();
     }
 
+    _updateSinglePlayerTarPickup(dt) {
+        if (this._multiplayerMode || !this._gaming || !this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        for (let i = this._skills.length - 1; i >= 0; i--) {
+            let skill = this._skills[i];
+            if (!cc.isValid(skill)) {
+                this._skills.splice(i, 1);
+                continue;
+            }
+            if (skill.name == "OilPickup") {
+                return;
+            }
+        }
+
+        this._tarPickupCdTime += dt;
+        if (this._tarPickupCdTime < TAR_PICKUP_SINGLEPLAYER_INTERVAL) {
+            return;
+        }
+        this._tarPickupCdTime = 0;
+        this.spawnTarPickupAt(this._getOilTestPickupPos());
+    }
+
     //计算zIndex
     judgezIndex(y){
         return this._tmSize.height - Math.floor(y);
@@ -4491,6 +4653,7 @@ export class GameMap extends BaseComponent {
         yyp.eventCenter.emit("current-enemycount",{enemycount:this._maxEnemyCount});
 
         this._roamFlg = false;
+        this._tarPickupCdTime = TAR_PICKUP_SINGLEPLAYER_INTERVAL - 1.2;
         
         let will = this._correctMapPosition(cc.v2(-this._playerBornPos.x,-this._playerBornPos.y));
         let self = this;
@@ -5398,6 +5561,7 @@ export class GameMap extends BaseComponent {
             }
         }
         this._oilSpills = [];
+        this.hideOilShellPreview();
         this._coverTestCovers = [];
         this._coverTestEnemy = null;
         for (let i = 0; i < this._energyEggs.length; i++) {
@@ -5561,17 +5725,22 @@ export class GameMap extends BaseComponent {
         return player;
     }
 
-    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, onReady) {
+    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
         this._multiplayerEnergyMap = {};
         this._multiplayerEnergyEggMap = {};
         this._multiplayerSpecialEventMap = {};
+        this._multiplayerTarPickupMap = {};
+        this._multiplayerTarSpillMap = {};
+        this._pendingTarThrowMap = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
         let playerStates = Array.isArray(players) ? players : [];
         let initialSpecialEvents = Array.isArray(specialEvents) ? specialEvents : [];
+        let initialTarPickups = Array.isArray(tarPickups) ? tarPickups : [];
+        let initialTarSpills = Array.isArray(tarSpills) ? tarSpills : [];
 
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
@@ -5608,6 +5777,12 @@ export class GameMap extends BaseComponent {
                 }
                 for (let i = 0; i < initialSpecialEvents.length; i++) {
                     self._applyMultiplayerSpecialEventSpawn(initialSpecialEvents[i]);
+                }
+                for (let i = 0; i < initialTarPickups.length; i++) {
+                    self._spawnMultiplayerTarPickup(initialTarPickups[i]);
+                }
+                for (let i = 0; i < initialTarSpills.length; i++) {
+                    self._spawnMultiplayerTarSpill(initialTarSpills[i]);
                 }
                 self._gaming = true;
                 // Center camera on local player immediately
@@ -5673,7 +5848,124 @@ export class GameMap extends BaseComponent {
             else if (command.type === "specialEventRemove") {
                 this._applyMultiplayerSpecialEventRemove(command.eventId, command.eventType);
             }
+            else if (command.type === "tarPickupSpawn") {
+                this._spawnMultiplayerTarPickup(command.pickup);
+            }
+            else if (command.type === "tarPickupRemove") {
+                this._removeMultiplayerTarPickup(command.pickupId);
+            }
+            else if (command.type === "tarThrow") {
+                this._playMultiplayerTarThrow(command);
+            }
+            else if (command.type === "tarSpillSpawn") {
+                this._spawnMultiplayerTarSpill(command.spill);
+            }
+            else if (command.type === "tarSpillRemove") {
+                this._removeMultiplayerTarSpill(command.spillId);
+            }
         }
+    }
+
+    _spawnMultiplayerTarPickup(pickupData) {
+        if (!this._multiplayerMode || !pickupData || pickupData.id == null) {
+            return;
+        }
+        if (this._multiplayerTarPickupMap[pickupData.id] && cc.isValid(this._multiplayerTarPickupMap[pickupData.id])) {
+            return;
+        }
+        let pickup = this.spawnTarPickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id);
+        if (pickup) {
+            this._multiplayerTarPickupMap[pickupData.id] = pickup;
+        }
+    }
+
+    _removeMultiplayerTarPickup(pickupId) {
+        if (pickupId == null) {
+            return;
+        }
+        let pickup = this._multiplayerTarPickupMap[pickupId];
+        delete this._multiplayerTarPickupMap[pickupId];
+        if (!pickup) {
+            return;
+        }
+        for (let i = this._skills.length - 1; i >= 0; i--) {
+            if (this._skills[i] === pickup) {
+                this._skills.splice(i, 1);
+                break;
+            }
+        }
+        if (cc.isValid(pickup)) {
+            pickup.destroy();
+        }
+    }
+
+    _spawnMultiplayerTarSpill(spillData) {
+        if (!this._multiplayerMode || !spillData || spillData.id == null) {
+            return;
+        }
+        let pendingThrow = this._pendingTarThrowMap[spillData.id];
+        if (pendingThrow) {
+            pendingThrow.spillData = spillData;
+            return;
+        }
+        if (this._multiplayerTarSpillMap[spillData.id] && cc.isValid(this._multiplayerTarSpillMap[spillData.id])) {
+            return;
+        }
+        let node = this.spawnOilSpill(cc.v2(spillData.x || 0, spillData.y || 0), {
+            radius: spillData.radius,
+            duration: spillData.remainTime || spillData.duration,
+            slowFactor: spillData.slowFactor,
+        });
+        if (node) {
+            node["__tarSpillId"] = spillData.id;
+            this._multiplayerTarSpillMap[spillData.id] = node;
+        }
+    }
+
+    _removeMultiplayerTarSpill(spillId) {
+        if (spillId == null) {
+            return;
+        }
+        let node = this._multiplayerTarSpillMap[spillId];
+        delete this._multiplayerTarSpillMap[spillId];
+        for (let i = this._oilSpills.length - 1; i >= 0; i--) {
+            let spill = this._oilSpills[i];
+            if (spill && spill.node === node) {
+                this._oilSpills.splice(i, 1);
+                break;
+            }
+        }
+        if (node && cc.isValid(node)) {
+            node.destroy();
+        }
+    }
+
+    _playMultiplayerTarThrow(command) {
+        if (!command || !command.from || !command.to) {
+            return;
+        }
+        if (command.spillId != null) {
+            this._pendingTarThrowMap[command.spillId] = this._pendingTarThrowMap[command.spillId] || {};
+        }
+        let self = this;
+        this.playOilShellThrow(cc.v2(command.from), cc.v2(command.to), {
+            areaRadius: TAR_SPILL_RADIUS,
+            arcHeight: 110,
+            onLand: function () {
+                if (command.spillId == null) {
+                    return;
+                }
+                let pendingThrow = self._pendingTarThrowMap[command.spillId];
+                if (pendingThrow && pendingThrow.spillData) {
+                    let spillData = pendingThrow.spillData;
+                    delete self._pendingTarThrowMap[command.spillId];
+                    self._spawnMultiplayerTarSpill(spillData);
+                }
+                else{
+                    delete self._pendingTarThrowMap[command.spillId];
+                }
+            }
+        });
     }
 
     onMultiplayerEnergySpawn(energyData) {

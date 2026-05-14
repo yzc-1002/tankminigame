@@ -40,6 +40,7 @@ export default class GameMain extends BaseComponent {
     _multiplayerInputs = null;
     _multiplayerHitQueue = [];
     _multiplayerBulletEventQueue = [];
+    _multiplayerTarThrowRepeat = 0;
     _multiplayerFireSeq = 1;
     _multiplayerJoyMoveHandler = null;
     _multiplayerJoyShootHandler = null;
@@ -99,6 +100,8 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.on("multiplayer-bullet-event", this._onMultiplayerBulletEvent, this);
         yyp.eventCenter.on("multiplayer-player-death", this._onMultiplayerPlayerDeath, this);
         yyp.eventCenter.on("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
+        yyp.eventCenter.on("multiplayer-tar-pickup", this._onMultiplayerTarPickup, this);
+        yyp.eventCenter.on("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
     }
 
@@ -118,6 +121,8 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.off("multiplayer-bullet-event", this._onMultiplayerBulletEvent, this);
         yyp.eventCenter.off("multiplayer-player-death", this._onMultiplayerPlayerDeath, this);
         yyp.eventCenter.off("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
+        yyp.eventCenter.off("multiplayer-tar-pickup", this._onMultiplayerTarPickup, this);
+        yyp.eventCenter.off("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
         this._destroyUpgradeChoicePanel();
@@ -229,6 +234,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerLocalDead = false;
         this._teardownMultiplayerInputLoop();
         this._multiplayerBulletEventQueue = [];
+        this._multiplayerTarThrowRepeat = 0;
         yyp.eventCenter.emit("sacrifice-button-visible",{visible:false});
         yyp.eventCenter.emit("cover-button-state",{visible:false});
         yyp.eventCenter.emit("skill-button-mode",{mode:"charge"});
@@ -1018,13 +1024,70 @@ export default class GameMain extends BaseComponent {
         };
     }
 
+    _createDefaultMultiplayerInputs() {
+        return {
+            up: false,
+            down: false,
+            left: false,
+            right: false,
+            fire: false,
+            hit: false,
+            pickupEnergyId: null,
+            pickupTarId: null,
+            throwTar: false,
+        };
+    }
+
+    _ensureMultiplayerInputs() {
+        if (!this._multiplayerInputs) {
+            this._multiplayerInputs = this._createDefaultMultiplayerInputs();
+        }
+        if (this._multiplayerInputs.pickupEnergyId === undefined) {
+            this._multiplayerInputs.pickupEnergyId = null;
+        }
+        if (this._multiplayerInputs.pickupTarId === undefined) {
+            this._multiplayerInputs.pickupTarId = null;
+        }
+        if (this._multiplayerInputs.throwTar === undefined) {
+            this._multiplayerInputs.throwTar = false;
+        }
+        return this._multiplayerInputs;
+    }
+
+    _clearMultiplayerOneShotInputs() {
+        let inputs = this._ensureMultiplayerInputs();
+        inputs.fire = false;
+        inputs.hit = false;
+        inputs.pickupEnergyId = null;
+        inputs.pickupTarId = null;
+        if (this._multiplayerTarThrowRepeat > 0) {
+            this._multiplayerTarThrowRepeat--;
+            if (this._multiplayerTarThrowRepeat <= 0) {
+                this._multiplayerTarThrowRepeat = 0;
+                inputs.throwTar = false;
+            }
+        }
+        else{
+            inputs.throwTar = false;
+        }
+    }
+
+    _flushMultiplayerInputsNow() {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !this._netManager || !this._netManager.connected) {
+            return;
+        }
+        this._netManager.sendInput(this._buildMultiplayerInputPacket());
+        this._clearMultiplayerOneShotInputs();
+    }
+
     _buildMultiplayerInputPacket() {
-        let source = this._multiplayerInputs || {};
+        let source = this._ensureMultiplayerInputs();
         let hit = this._multiplayerHitQueue.length > 0 ? this._multiplayerHitQueue.shift() : false;
         let bulletEvents = this._multiplayerBulletEventQueue.length > 0
             ? this._multiplayerBulletEventQueue.splice(0, this._multiplayerBulletEventQueue.length)
             : [];
         let pickupEnergyId = source.pickupEnergyId == null ? null : source.pickupEnergyId;
+        let pickupTarId = source.pickupTarId == null ? null : source.pickupTarId;
         return {
             up: !!source.up,
             down: !!source.down,
@@ -1034,6 +1097,8 @@ export default class GameMain extends BaseComponent {
             hit: hit || false,
             bulletEvents: bulletEvents,
             pickupEnergyId: pickupEnergyId,
+            pickupTarId: pickupTarId,
+            throwTar: source.throwTar ? source.throwTar : false,
             playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
         };
     }
@@ -1079,6 +1144,7 @@ export default class GameMain extends BaseComponent {
             baseHp: (config.HP == null ? 50 : config.HP) * (playerLevel + 1),
             baseAtk: (config.ATK == null ? 5 : config.ATK) * (playerLevel + 1),
             baseSpeed: config.Speed == null ? 4 : config.Speed,
+            baseAttackRadius: config.AttackRadius == null ? 420 : config.AttackRadius,
             energySpawnPoints: energySpawnPoints,
             mapBounds: mapBounds,
             spawnCandidates: spawnCandidates,
@@ -1099,10 +1165,29 @@ export default class GameMain extends BaseComponent {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !event || event.energyId == null) {
             return;
         }
-        if (!this._multiplayerInputs) {
-            this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false, hit: false };
+        let inputs = this._ensureMultiplayerInputs();
+        inputs.pickupEnergyId = event.energyId;
+    }
+
+    _onMultiplayerTarPickup(event) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event || event.pickupId == null) {
+            return;
         }
-        this._multiplayerInputs.pickupEnergyId = event.energyId;
+        let inputs = this._ensureMultiplayerInputs();
+        inputs.pickupTarId = event.pickupId;
+    }
+
+    _onMultiplayerThrowTar(event) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event) {
+            return;
+        }
+        let inputs = this._ensureMultiplayerInputs();
+        inputs.throwTar = {
+            x: event.x,
+            y: event.y,
+        };
+        this._multiplayerTarThrowRepeat = 4;
+        this._flushMultiplayerInputsNow();
     }
 
     _onMultiplayerBulletEvent(event) {
@@ -1165,6 +1250,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerInputs = null;
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
+        this._multiplayerTarThrowRepeat = 0;
         if (this._netManager) {
             this._netManager.onDisconnect = null;
             this._netManager.disconnect();
@@ -1183,6 +1269,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerLocalDead = false;
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
+        this._multiplayerTarThrowRepeat = 0;
         this._teardownMultiplayerInputLoop();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
@@ -1203,8 +1290,8 @@ export default class GameMain extends BaseComponent {
                 this._netManager.sendPlayerSetup(this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents) => {
-            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || []);
+        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills) => {
+            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || []);
         };
         this._netManager.onGameEnded = (payload) => {
             this._endMultiplayerMatch(payload);
@@ -1217,17 +1304,18 @@ export default class GameMain extends BaseComponent {
         this._netManager.connect("ws://localhost:2567");
     }
 
-    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = []) {
+    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = []) {
         this._hideMultiplayerStatus();
         this._multiplayerActive = true;
         this._multiplayerLocalDead = false;
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
+        this._multiplayerTarThrowRepeat = 0;
         this._multiplayerFireSeq = 1;
-        this._multiplayerInputs = { up: false, down: false, left: false, right: false, fire: false, hit: false };
+        this._multiplayerInputs = this._createDefaultMultiplayerInputs();
 
         let self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._setupMultiplayerInputLoop();
@@ -1297,9 +1385,7 @@ export default class GameMain extends BaseComponent {
                     if (!self._multiplayerActive || !self._netManager || !self._netManager.connected) return;
                     if (self._multiplayerLocalDead) return;
                     self._netManager.sendInput(self._buildMultiplayerInputPacket());
-                    self._multiplayerInputs.fire = false;
-                    self._multiplayerInputs.hit = false;
-                    self._multiplayerInputs.pickupEnergyId = null;
+                    self._clearMultiplayerOneShotInputs();
 
                     // Camera follow
                     if (self._fire._tiled && self._fire._tiled.script) {

@@ -42,6 +42,15 @@ const SPECIAL_EVENT_DAMAGE_RADIUS = 60;
 const SPECIAL_EVENT_SPEED_RADIUS = 60;
 const SPECIAL_EVENT_BLACK_HOLE_RADIUS = 100;
 const SPECIAL_EVENT_BLACK_HOLE_DESTROY_RADIUS = 14;
+const TAR_PICKUP_MAX_COUNT = 1;
+const TAR_PICKUP_START_DELAY = 1;
+const TAR_PICKUP_RESPAWN_MIN = 10;
+const TAR_PICKUP_RESPAWN_MAX = 16;
+const TAR_PICKUP_RADIUS = 42;
+const TAR_PICKUP_TOUCH_RADIUS = 92;
+const TAR_SPILL_DURATION = 10;
+const TAR_SPILL_RADIUS = 120;
+const TAR_SPILL_SLOW_FACTOR = 0.52;
 
 const ROOM_STATE = {
   WAITING: 'waiting',
@@ -79,6 +88,11 @@ const room = {
   nextSpecialEventId: 1,
   specialEventSpawnCd: 0,
   activeSpecialEvent: null,
+  tarPickups: [],
+  nextTarPickupId: 1,
+  tarPickupSpawnCd: 0,
+  tarSpills: [],
+  nextTarSpillId: 1,
 };
 
 function isSocketOpen(ws) {
@@ -181,6 +195,7 @@ function createPlayerState(setup = {}) {
     baseHp,
     baseAtk,
     baseSpeed,
+    baseAttackRadius: setup.baseAttackRadius == null ? 420 : setup.baseAttackRadius,
     hp: baseHp,
     maxHp: baseHp,
     atk: baseAtk,
@@ -188,6 +203,7 @@ function createPlayerState(setup = {}) {
     energyLevel: 1,
     energyExp: 0,
     energyNeedExp: PLAYER_EXP_BASE,
+    tarAmmoCount: 0,
   };
 }
 
@@ -198,6 +214,7 @@ function applyPlayerSetup(player, setup = {}) {
   player.baseHp = state.baseHp;
   player.baseAtk = state.baseAtk;
   player.baseSpeed = state.baseSpeed;
+  player.baseAttackRadius = state.baseAttackRadius;
   player.hp = state.hp;
   player.maxHp = state.maxHp;
   player.atk = state.atk;
@@ -205,6 +222,7 @@ function applyPlayerSetup(player, setup = {}) {
   player.energyLevel = state.energyLevel;
   player.energyExp = state.energyExp;
   player.energyNeedExp = state.energyNeedExp;
+  player.tarAmmoCount = state.tarAmmoCount;
 }
 
 function resetPlayerRuntimeState(player) {
@@ -214,6 +232,7 @@ function resetPlayerRuntimeState(player) {
     baseHp: player.baseHp,
     baseAtk: player.baseAtk,
     baseSpeed: player.baseSpeed,
+    baseAttackRadius: player.baseAttackRadius,
   });
   player.hp = state.hp;
   player.maxHp = state.maxHp;
@@ -222,6 +241,7 @@ function resetPlayerRuntimeState(player) {
   player.energyLevel = state.energyLevel;
   player.energyExp = state.energyExp;
   player.energyNeedExp = state.energyNeedExp;
+  player.tarAmmoCount = state.tarAmmoCount;
 }
 
 function sanitizeSpawnPoints(points) {
@@ -379,6 +399,289 @@ function chooseEnergySpawnPoint(minMargin = 520, avoidEggs = true) {
     return source[Math.floor(Math.random() * source.length)] || null;
   }
   return null;
+}
+
+function isTarPickupPointAvailable(point) {
+  if (!point) {
+    return false;
+  }
+  for (let i = 0; i < room.tarPickups.length; i++) {
+    const pickup = room.tarPickups[i];
+    if (pickup && !pickup.removed && Math.sqrt(distanceSqr(pickup, point)) < 180) {
+      return false;
+    }
+  }
+  for (let i = 0; i < room.tarSpills.length; i++) {
+    const spill = room.tarSpills[i];
+    if (spill && !spill.removed && Math.sqrt(distanceSqr(spill, point)) < spill.radius + 90) {
+      return false;
+    }
+  }
+  for (let i = 0; i < room.energies.length; i++) {
+    const energy = room.energies[i];
+    if (energy && Math.sqrt(distanceSqr(energy, point)) < 130) {
+      return false;
+    }
+  }
+  for (let i = 0; i < room.energyEggs.length; i++) {
+    const egg = room.energyEggs[i];
+    if (egg && !egg.removed && Math.sqrt(distanceSqr(egg, point)) < 160) {
+      return false;
+    }
+  }
+  for (let i = 0; i < room.players.length; i++) {
+    const player = room.players[i];
+    if (!player || player.dead || player.disconnected) {
+      continue;
+    }
+    if (Math.sqrt(distanceSqr(getPlayerRuntimePosition(player), point)) < 160) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function chooseTarPickupSpawnPoint() {
+  const candidates = getSpecialEventSpawnSources();
+  const preferred = [];
+  const fallback = [];
+  for (let i = 0; i < candidates.length; i++) {
+    const point = clampPointToBounds(candidates[i], TAR_PICKUP_RADIUS + 12);
+    if (isTarPickupPointAvailable(point)) {
+      preferred.push(point);
+    } else {
+      fallback.push(point);
+    }
+  }
+  const source = preferred.length > 0 ? preferred : fallback;
+  if (source.length > 0) {
+    return pickOne(source);
+  }
+  return clampPointToBounds({
+    x: Math.floor(Math.random() * 2800) - 1400,
+    y: Math.floor(Math.random() * 1800) - 900,
+  }, TAR_PICKUP_RADIUS + 12);
+}
+
+function createTarPickup(point) {
+  if (!point) {
+    return null;
+  }
+  const pos = clampPointToBounds(point, TAR_PICKUP_RADIUS + 12);
+  return {
+    id: room.nextTarPickupId++,
+    x: pos.x,
+    y: pos.y,
+    radius: TAR_PICKUP_RADIUS,
+    removed: false,
+  };
+}
+
+function spawnTarPickupInFrame(frameCommands) {
+  const aliveCount = room.tarPickups.filter((pickup) => pickup && !pickup.removed).length;
+  if (aliveCount >= TAR_PICKUP_MAX_COUNT) {
+    return null;
+  }
+  const pickup = createTarPickup(chooseTarPickupSpawnPoint());
+  if (!pickup) {
+    return null;
+  }
+  room.tarPickups.push(pickup);
+  appendFrameCommand(frameCommands, {
+    type: 'tarPickupSpawn',
+    pickup: {
+      id: pickup.id,
+      x: pickup.x,
+      y: pickup.y,
+      radius: pickup.radius,
+    },
+  });
+  return pickup;
+}
+
+function removeTarPickupInFrame(pickupId, frameCommands, reason = 'pickup') {
+  const index = room.tarPickups.findIndex((item) => item && item.id === pickupId && !item.removed);
+  if (index < 0) {
+    return null;
+  }
+  const pickup = room.tarPickups[index];
+  pickup.removed = true;
+  room.tarPickups.splice(index, 1);
+  appendFrameCommand(frameCommands, {
+    type: 'tarPickupRemove',
+    pickupId,
+    reason,
+  });
+  return pickup;
+}
+
+function tryConsumeTarPickup(player, pickupId, frameCommands) {
+  if (!player || player.dead || player.disconnected || pickupId == null) {
+    return false;
+  }
+  if ((player.tarAmmoCount || 0) >= 1) {
+    return false;
+  }
+  const pickup = room.tarPickups.find((item) => item && item.id === pickupId && !item.removed);
+  if (!pickup) {
+    return false;
+  }
+  const playerPos = getPlayerRuntimePosition(player);
+  if (Math.sqrt(distanceSqr(playerPos, pickup)) > TAR_PICKUP_TOUCH_RADIUS) {
+    return false;
+  }
+  if (!removeTarPickupInFrame(pickupId, frameCommands, 'pickup')) {
+    return false;
+  }
+  player.tarAmmoCount = 1;
+  room.tarPickupSpawnCd = randomBetween(TAR_PICKUP_RESPAWN_MIN, TAR_PICKUP_RESPAWN_MAX);
+  return true;
+}
+
+function sanitizeThrowTarPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const x = Number(payload.x);
+  const y = Number(payload.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return { x, y };
+}
+
+function createTarSpill(point) {
+  if (!point) {
+    return null;
+  }
+  const pos = clampPointToBounds(point, TAR_SPILL_RADIUS * 0.55);
+  return {
+    id: room.nextTarSpillId++,
+    x: pos.x,
+    y: pos.y,
+    radius: TAR_SPILL_RADIUS,
+    duration: TAR_SPILL_DURATION,
+    remainTime: TAR_SPILL_DURATION,
+    slowFactor: TAR_SPILL_SLOW_FACTOR,
+    removed: false,
+  };
+}
+
+function spawnTarSpillInFrame(spill, player, frameCommands) {
+  if (!spill) {
+    return null;
+  }
+  room.tarSpills.push(spill);
+  appendFrameCommand(frameCommands, {
+    type: 'tarSpillSpawn',
+    spill: {
+      id: spill.id,
+      x: spill.x,
+      y: spill.y,
+      radius: spill.radius,
+      duration: spill.duration,
+      remainTime: spill.remainTime,
+      slowFactor: spill.slowFactor,
+      ownerPlayerId: player ? player.playerId : -1,
+    },
+  });
+  return spill;
+}
+
+function removeTarSpillInFrame(spillId, frameCommands, reason = 'timeout') {
+  const spill = room.tarSpills.find((item) => item && item.id === spillId && !item.removed);
+  if (!spill) {
+    return;
+  }
+  spill.removed = true;
+  appendFrameCommand(frameCommands, {
+    type: 'tarSpillRemove',
+    spillId,
+    reason,
+  });
+}
+
+function tryThrowTarByPlayer(player, throwTar, frameCommands) {
+  if (!player || player.dead || player.disconnected || !throwTar) {
+    return false;
+  }
+  if ((player.tarAmmoCount || 0) <= 0) {
+    return false;
+  }
+  const playerPos = getPlayerRuntimePosition(player);
+  const attackRadius = Number.isFinite(player.baseAttackRadius) && player.baseAttackRadius > 0
+    ? player.baseAttackRadius
+    : 420;
+  const dir = {
+    x: throwTar.x - playerPos.x,
+    y: throwTar.y - playerPos.y,
+  };
+  const len = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
+  const runtimeDir = getPlayerRuntimeDir(player);
+  const normalized = len > 0.001
+    ? { x: dir.x / len, y: dir.y / len }
+    : runtimeDir;
+  const throwDistance = Math.min(attackRadius, Math.max(30, len > 0.001 ? len : attackRadius));
+  const target = clampPointToBounds({
+    x: playerPos.x + normalized.x * throwDistance,
+    y: playerPos.y + normalized.y * throwDistance,
+  }, TAR_SPILL_RADIUS * 0.55);
+  const spill = createTarSpill(target);
+  if (!spill) {
+    return false;
+  }
+  player.tarAmmoCount = 0;
+  appendFrameCommand(frameCommands, {
+    type: 'tarThrow',
+    playerId: player.playerId,
+    from: {
+      x: playerPos.x,
+      y: playerPos.y,
+    },
+    to: {
+      x: spill.x,
+      y: spill.y,
+    },
+    spillId: spill.id,
+    flightTime: 0.28,
+  });
+  spawnTarSpillInFrame(spill, player, frameCommands);
+  return true;
+}
+
+function updateTarPickupSpawns(frameCommands) {
+  const aliveCount = room.tarPickups.filter((pickup) => pickup && !pickup.removed).length;
+  if (aliveCount >= TAR_PICKUP_MAX_COUNT) {
+    return;
+  }
+  if (room.elapsedSeconds < TAR_PICKUP_START_DELAY) {
+    return;
+  }
+  if (room.tarPickupSpawnCd > 0) {
+    room.tarPickupSpawnCd -= TICK_INTERVAL / 1000;
+    return;
+  }
+  if (room.players.some((player) => (player && !player.dead && !player.disconnected && (player.tarAmmoCount || 0) > 0))) {
+    room.tarPickupSpawnCd = 1;
+    return;
+  }
+  spawnTarPickupInFrame(frameCommands);
+  room.tarPickupSpawnCd = randomBetween(TAR_PICKUP_RESPAWN_MIN, TAR_PICKUP_RESPAWN_MAX);
+}
+
+function updateTarSpills(frameCommands) {
+  for (let i = 0; i < room.tarSpills.length; i++) {
+    const spill = room.tarSpills[i];
+    if (!spill || spill.removed) {
+      continue;
+    }
+    spill.remainTime -= TICK_INTERVAL / 1000;
+    if (spill.remainTime <= 0) {
+      spill.remainTime = 0;
+      removeTarSpillInFrame(spill.id, frameCommands, 'timeout');
+    }
+  }
+  room.tarSpills = room.tarSpills.filter((spill) => spill && !spill.removed);
 }
 
 function createRandomEnergy() {
@@ -634,6 +937,7 @@ function buildPlayerStateCommand(player) {
     energyLevel: player.energyLevel,
     energyExp: player.energyExp,
     energyNeedExp: player.energyNeedExp,
+    tarAmmoCount: player.tarAmmoCount || 0,
     dead: !!player.dead,
     disconnected: !!player.disconnected,
   };
@@ -1081,6 +1385,7 @@ function tick() {
       right: false,
       fire: false,
       hit: false,
+      throwTar: false,
     };
 
     if (p.dead || p.disconnected) {
@@ -1138,6 +1443,12 @@ function tick() {
       if (src.pickupEnergyId != null) {
         tryConsumeEnergy(p, src.pickupEnergyId, eventCommands);
       }
+      if (src.pickupTarId != null) {
+        tryConsumeTarPickup(p, src.pickupTarId, eventCommands);
+      }
+      if (src.throwTar) {
+        inputs.throwTar = src.throwTar;
+      }
       if (src.playerSnapshot) {
         p.lastSnapshot = sanitizePlayerSnapshot(src.playerSnapshot);
         if (p.lastSnapshot) {
@@ -1173,6 +1484,10 @@ function tick() {
       }
     }
 
+    if (inputs.throwTar) {
+      tryThrowTarByPlayer(p, sanitizeThrowTarPayload(inputs.throwTar), eventCommands);
+    }
+
     p.lastInputs = {
       up: inputs.up,
       down: inputs.down,
@@ -1190,6 +1505,8 @@ function tick() {
 
   updateEnergyEggs(frameCommands);
   updateSpecialEvents(frameCommands);
+  updateTarPickupSpawns(frameCommands);
+  updateTarSpills(frameCommands);
 
   broadcast({
     type: 'frame',
@@ -1289,6 +1606,11 @@ function startGame() {
   room.nextSpecialEventId = 1;
   room.specialEventSpawnCd = 0;
   room.activeSpecialEvent = null;
+  room.tarPickups = [];
+  room.nextTarPickupId = 1;
+  room.tarPickupSpawnCd = 0;
+  room.tarSpills = [];
+  room.nextTarSpillId = 1;
   initMatchEnergyEggPlan();
 
   room.players.forEach((p, index) => {
@@ -1319,6 +1641,8 @@ function startGame() {
       spawnSlots: room.spawnSlots,
       energies: room.energies,
       specialEvents: room.activeSpecialEvent ? [room.activeSpecialEvent] : [],
+      tarPickups: room.tarPickups,
+      tarSpills: room.tarSpills,
       players: room.players.map((player) => ({
         playerId: player.playerId,
         tankType: player.tankType,
@@ -1330,6 +1654,7 @@ function startGame() {
         energyLevel: player.energyLevel,
         energyExp: player.energyExp,
         energyNeedExp: player.energyNeedExp,
+        tarAmmoCount: player.tarAmmoCount || 0,
         dead: !!player.dead,
       })),
     }));
@@ -1456,6 +1781,10 @@ function handleMessage(ws, msg) {
       if (bounds) {
         room.mapBounds = bounds;
       }
+      const attackRadius = Number(msg.payload && msg.payload.baseAttackRadius);
+      if (Number.isFinite(attackRadius) && attackRadius > 0) {
+        ws.baseAttackRadius = attackRadius;
+      }
       break;
     }
     case 'ping': {
@@ -1493,6 +1822,11 @@ function resetRoom() {
   room.nextSpecialEventId = 1;
   room.specialEventSpawnCd = 0;
   room.activeSpecialEvent = null;
+  room.tarPickups = [];
+  room.nextTarPickupId = 1;
+  room.tarPickupSpawnCd = 0;
+  room.tarSpills = [];
+  room.nextTarSpillId = 1;
   console.log('[Room] Reset');
 }
 

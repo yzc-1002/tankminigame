@@ -15,6 +15,8 @@ const PLAYER_EXP_STEP = 15;
 const CHARGE_CANNON_BULLET_TYPE = 99;
 const OIL_SHELL_BULLET_TYPE = 100;
 const OIL_SHELL_MAX_COUNT = 1;
+const OIL_THROW_PREVIEW_ARC_HEIGHT = 110;
+const OIL_THROW_AREA_RADIUS = 120;
 const LOW_HP_SCREEN_FLASH_IN = 0.2;
 const LOW_HP_SCREEN_FLASH_OUT = 0.5;
 const LOW_HP_SCREEN_FLASH_LOOP = 3;
@@ -56,6 +58,8 @@ export class Player extends Tank {
     _chargeCannonReady = false;
     _chargeEffectNode = null;
     _oilShellCount = 0;
+    _oilShellPreviewing = false;
+    _oilShellPreviewTarget = null;
     _bulletMutationType = "";
     _bulletMutationData = null;
     _bulletMutationEffectNode = null;
@@ -102,6 +106,8 @@ export class Player extends Tank {
         this._chargeCannonCharging = false;
         this._chargeCannonReady = false;
         this._oilShellCount = 0;
+        this._oilShellPreviewing = false;
+        this._oilShellPreviewTarget = null;
         this._bulletMutationType = "";
         this._bulletMutationData = null;
         this._bulletMutationEffectNode = null;
@@ -249,7 +255,7 @@ export class Player extends Tank {
         this._trySacrificeHpForEnergy();
     }
 
-    _doOilShellTrigger() {
+    _doOilShellTrigger(event = null) {
         if (this._inGame == false) {
             return;
         }
@@ -257,7 +263,20 @@ export class Player extends Tank {
             this._refreshSkillButtonMode();
             return;
         }
-        this._fireOilShell();
+        let pressed = !!(event && event.pressed === true);
+        let release = !!(event && event.release === true);
+        let cancelled = !!(event && event.cancelled === true);
+        if (pressed) {
+            this._startOilShellPreview();
+            return;
+        }
+        if (release) {
+            this._commitOilShellThrow();
+            return;
+        }
+        if (cancelled) {
+            this._cancelOilShellPreview();
+        }
     }
 
     _doCoverAction() {
@@ -1363,7 +1382,88 @@ export class Player extends Tank {
         MusicManager.playEffect("shoot");
     }
 
+    _startOilShellPreview() {
+        if (this._oilShellCount <= 0 || !this._map) {
+            return;
+        }
+        this._oilShellPreviewing = true;
+        this._oilShellPreviewTarget = this._getOilShellThrowTarget();
+        if (this._map.showOilShellPreview) {
+            this._map.showOilShellPreview(this.node.position, this._oilShellPreviewTarget, {
+                radius: OIL_THROW_PREVIEW_ARC_HEIGHT,
+                areaRadius: OIL_THROW_AREA_RADIUS,
+            });
+        }
+    }
+
+    _cancelOilShellPreview() {
+        this._oilShellPreviewing = false;
+        this._oilShellPreviewTarget = null;
+        if (this._map && this._map.hideOilShellPreview) {
+            this._map.hideOilShellPreview();
+        }
+    }
+
+    _commitOilShellThrow() {
+        if (!this._oilShellPreviewing || this._oilShellCount <= 0) {
+            this._cancelOilShellPreview();
+            return;
+        }
+        let target = this._oilShellPreviewTarget || this._getOilShellThrowTarget();
+        this._cancelOilShellPreview();
+        if (!target) {
+            return;
+        }
+        if (this._multiplayerMode && !this._multiplayerRemote) {
+            yyp.eventCenter.emit("multiplayer-throw-tar", {
+                x: Math.round(target.x),
+                y: Math.round(target.y),
+            });
+            return;
+        }
+        this._throwOilShellAt(target);
+    }
+
+    _getOilShellThrowTarget() {
+        let attackRadius = this._config && this._config.AttackRadius != null ? this._config.AttackRadius : 420;
+        let dir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
+        let target = cc.v2(this.node.position).add(dir.mul(attackRadius));
+        return this._map && this._map.clampMapInnerPosition
+            ? this._map.clampMapInnerPosition(target, OIL_THROW_AREA_RADIUS * 0.55)
+            : target;
+    }
+
+    _throwOilShellAt(target) {
+        if (!target || this._oilShellCount <= 0) {
+            return;
+        }
+        this._oilShellCount = Math.max(0, this._oilShellCount - 1);
+        this._refreshSkillButtonMode();
+        if (this._map && this._map.playOilShellThrow) {
+            this._map.playOilShellThrow(this.node.position, target, {
+                areaRadius: OIL_THROW_AREA_RADIUS,
+                arcHeight: OIL_THROW_PREVIEW_ARC_HEIGHT,
+                onLand: () => {
+                    if (this._map && this._map.spawnOilSpill) {
+                        this._map.spawnOilSpill(target);
+                    }
+                }
+            });
+        }
+        else{
+            this._fireOilShell();
+        }
+        this._playShootGlow(OIL_SHELL_BULLET_TYPE, {effectColor: cc.color(130, 92, 52, 220)});
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
+        MusicManager.playEffect("shoot");
+    }
+
     _refreshSkillButtonMode() {
+        if (this._multiplayerMode && this._multiplayerRemote) {
+            return;
+        }
         yyp.eventCenter.emit("skill-button-mode", {mode: this._oilShellCount > 0 ? "oil" : "charge"});
     }
 
@@ -1624,6 +1724,13 @@ export class Player extends Tank {
         }
         if (state.moveSpeedScale != null && state.moveSpeedScale > 0) {
             this._moveSpeedScale = state.moveSpeedScale;
+        }
+        if (state.tarAmmoCount != null) {
+            let nextTarAmmoCount = Math.max(0, state.tarAmmoCount);
+            if (nextTarAmmoCount != this._oilShellCount) {
+                this._oilShellCount = nextTarAmmoCount;
+                this._refreshSkillButtonMode();
+            }
         }
         if (state.energyLevel != null && state.energyLevel > 0) {
             this._energyLevel = state.energyLevel;
@@ -1893,6 +2000,7 @@ export class Player extends Tank {
         this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
         this._oilShellCount = 0;
+        this._cancelOilShellPreview();
         this._refreshSkillButtonMode();
         super.doDeath();
         if (this._multiplayerMode) {

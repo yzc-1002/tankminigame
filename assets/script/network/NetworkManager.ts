@@ -12,7 +12,7 @@ export class NetworkManager {
     private _disconnectCallback: () => void = null;
     private _connectedCallback: () => void = null;
     private _frameCallback: (frameData: any) => void = null;
-    private _gameStartCallback: (playerId: number, playerCount: number, spawnSlots: number[], energies: any[], players?: any[], specialEvents?: any[]) => void = null;
+    private _gameStartCallback: (playerId: number, playerCount: number, spawnSlots: number[], energies: any[], players?: any[], specialEvents?: any[], tarPickups?: any[], tarSpills?: any[]) => void = null;
     private _playerCountCallback: (count: number, max: number) => void = null;
     private _countdownCallback: (seconds: number) => void = null;
     private _roomStateCallback: (payload: any) => void = null;
@@ -105,7 +105,7 @@ export class NetworkManager {
 
     set onDisconnect(cb: () => void) { this._disconnectCallback = cb; }
     set onConnected(cb: () => void) { this._connectedCallback = cb; }
-    set onGameStart(cb: (playerId: number, playerCount: number, spawnSlots: number[], energies: any[], players?: any[], specialEvents?: any[]) => void) { this._gameStartCallback = cb; }
+    set onGameStart(cb: (playerId: number, playerCount: number, spawnSlots: number[], energies: any[], players?: any[], specialEvents?: any[], tarPickups?: any[], tarSpills?: any[]) => void) { this._gameStartCallback = cb; }
     set onFrame(cb: (frameData: any) => void) { this._frameCallback = cb; }
     set onPlayerCount(cb: (count: number, max: number) => void) { this._playerCountCallback = cb; }
     set onCountdown(cb: (seconds: number) => void) { this._countdownCallback = cb; }
@@ -124,6 +124,8 @@ export class NetworkManager {
             hit: source.hit ? source.hit : false,
             bulletEvents: Array.isArray(source.bulletEvents) ? source.bulletEvents : [],
             pickupEnergyId: source.pickupEnergyId == null ? null : source.pickupEnergyId,
+            pickupTarId: source.pickupTarId == null ? null : source.pickupTarId,
+            throwTar: source.throwTar ? source.throwTar : false,
             playerSnapshot: snapshot ? {
                 x: snapshot.x,
                 y: snapshot.y,
@@ -175,7 +177,7 @@ export class NetworkManager {
                 this._roomState = "running";
                 console.log(`[Network] Game started as player ${this._playerId}`);
                 if (this._gameStartCallback) {
-                    this._gameStartCallback(this._playerId, msg.playerCount || 2, msg.spawnSlots || [], msg.energies || [], msg.players || [], msg.specialEvents || []);
+                    this._gameStartCallback(this._playerId, msg.playerCount || 2, msg.spawnSlots || [], msg.energies || [], msg.players || [], msg.specialEvents || [], msg.tarPickups || [], msg.tarSpills || []);
                 }
                 break;
 

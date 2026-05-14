@@ -45,6 +45,8 @@ var KILL_BROADCAST_DURATION = 2.2;
 var OIL_SPILL_DURATION = 10;
 var OIL_SPILL_RADIUS = 120;
 var OIL_SPILL_SLOW_FACTOR = 0.52;
+var TAR_SPILL_RADIUS = 120;
+var TAR_PICKUP_SINGLEPLAYER_INTERVAL = 6;
 var OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
 var COVER_TEST_FRAME_UUID = "f27215a4-32b0-4a3c-b87d-69a3dc03e37a";
 var ENERGY_EGG_FRAME_UUID = "5c9b12c3-9fd1-4472-b633-d31d7ce29bf2";
@@ -103,6 +105,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._skills = []; //随机生成的技能
         _this._energys = []; //地图上的能量
         _this._energyCdTime = 0; //能量生成间隔时间
+        _this._tarPickupCdTime = 0; //单机焦油拾取物生成间隔
         _this._pause = false; //是否处于暂停状态
         _this._gaming = false; //是否处于游戏中 
         _this._killEffectTestMode = false; //击杀效果测试模式
@@ -131,6 +134,9 @@ var GameMap = /** @class */ (function (_super) {
         _this._multiplayerEnergyMap = {}; //多人同步能量
         _this._multiplayerEnergyEggMap = {}; //多人同步能量蛋
         _this._multiplayerSpecialEventMap = {};
+        _this._multiplayerTarPickupMap = {};
+        _this._multiplayerTarSpillMap = {};
+        _this._pendingTarThrowMap = {};
         _this._localPlayerId = 0; //本地玩家ID
         _this._multiplayerSpawnSlots = []; //多人出生槽位
         _this._levelId = 1; //当前关卡id
@@ -152,6 +158,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._portalPairs = [];
         _this._centrifugalRingData = null;
         _this._oilSpills = [];
+        _this._oilShellPreviewNode = null;
         _this._oilSpillFrame = null;
         _this._oilSpillFrameLoading = false;
         _this._oilSpillFrameCallbacks = [];
@@ -2577,6 +2584,23 @@ var GameMap = /** @class */ (function (_super) {
         this._skills.push(pickup);
         return pickup;
     };
+    GameMap.prototype.spawnTarPickupAt = function (pos, pickupId) {
+        if (pickupId === void 0) { pickupId = null; }
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+        var pickup = new cc.Node("OilPickup");
+        pickup.parent = this._fire._tmLayerObstacle;
+        pickup.addComponent(OilPickup_1.OilPickup);
+        pickup.position = cc.v3(pos || this._getOilTestPickupPos());
+        pickup.zIndex = this.judgezIndex(pickup.y);
+        pickup.script.setInGame(18);
+        if (pickupId != null) {
+            pickup["__tarPickupId"] = pickupId;
+        }
+        this._skills.push(pickup);
+        return pickup;
+    };
     GameMap.prototype.createCoverTestEnemy = function () {
         if (!this._player || !cc.isValid(this._player)) {
             return null;
@@ -3114,6 +3138,7 @@ var GameMap = /** @class */ (function (_super) {
             this.rollMap();
             if (this.isTestMode() == false) {
                 this._updateEnergy(dt);
+                this._updateSinglePlayerTarPickup(dt);
             }
             if (this._player && cc.isValid(this._player)) {
                 this._playerLastPos = this._player.position;
@@ -3221,6 +3246,101 @@ var GameMap = /** @class */ (function (_super) {
         };
         this._oilSpills.push(spill);
         return root;
+    };
+    GameMap.prototype.showOilShellPreview = function (fromPos, toPos, options) {
+        if (options === void 0) { options = {}; }
+        this.hideOilShellPreview();
+        if (!this._tmDecal || !cc.isValid(this._tmDecal) || !fromPos || !toPos) {
+            return;
+        }
+        var root = new cc.Node("_oilShellPreview");
+        root.parent = this._tmDecal;
+        root.zIndex = 4000;
+        this._oilShellPreviewNode = root;
+        var line = new cc.Node("_oilShellPreviewLine");
+        line.parent = root;
+        var graphics = line.addComponent(cc.Graphics);
+        graphics.lineWidth = 4;
+        graphics.strokeColor = cc.color(190, 150, 92, 220);
+        var start = cc.v2(fromPos);
+        var end = cc.v2(toPos);
+        var control = start.add(end).mul(0.5).add(cc.v2(0, options.radius || 110));
+        graphics.moveTo(start.x, start.y);
+        for (var i = 1; i <= 18; i++) {
+            var t = i / 18;
+            var inv = 1 - t;
+            var point = start.mul(inv * inv).add(control.mul(2 * inv * t)).add(end.mul(t * t));
+            graphics.lineTo(point.x, point.y);
+        }
+        graphics.stroke();
+        var target = new cc.Node("_oilShellPreviewTarget");
+        target.parent = root;
+        target.setPosition(cc.v3(end));
+        var targetGraphics = target.addComponent(cc.Graphics);
+        var areaRadius = options.areaRadius || OIL_SPILL_RADIUS;
+        targetGraphics.lineWidth = 4;
+        targetGraphics.strokeColor = cc.color(115, 88, 54, 220);
+        targetGraphics.circle(0, 0, areaRadius * 0.92);
+        targetGraphics.stroke();
+        targetGraphics.fillColor = cc.color(24, 20, 18, 55);
+        targetGraphics.circle(0, 0, areaRadius * 0.72);
+        targetGraphics.fill();
+    };
+    GameMap.prototype.hideOilShellPreview = function () {
+        if (this._oilShellPreviewNode && cc.isValid(this._oilShellPreviewNode)) {
+            this._oilShellPreviewNode.destroy();
+        }
+        this._oilShellPreviewNode = null;
+    };
+    GameMap.prototype.playOilShellThrow = function (fromPos, toPos, options) {
+        if (options === void 0) { options = {}; }
+        if (!this._fire._tmLayerObstacle || !fromPos || !toPos) {
+            if (options && options.onLand) {
+                options.onLand();
+            }
+            return;
+        }
+        var shell = new cc.Node("_oilThrowShell");
+        shell.parent = this._fire._tmLayerObstacle;
+        shell.setPosition(cc.v3(fromPos));
+        shell.zIndex = 5200;
+        var graphics = shell.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(70, 48, 28, 235);
+        graphics.circle(0, 0, 18);
+        graphics.fill();
+        graphics.fillColor = cc.color(24, 18, 14, 220);
+        graphics.circle(-6, 2, 7);
+        graphics.fill();
+        graphics.circle(7, -3, 8);
+        graphics.fill();
+        var start = cc.v2(fromPos);
+        var end = cc.v2(toPos);
+        var control = start.add(end).mul(0.5).add(cc.v2(0, options.arcHeight || 110));
+        var duration = 0.28;
+        var self = this;
+        var tData = { value: 0 };
+        shell.runAction(cc.sequence(cc.spawn(cc.rotateBy(duration, 220), cc.sequence(cc.callFunc(function () {
+            shell["__throwScheduler"] = function () {
+                tData.value += 1 / Math.max(1, Math.floor(duration * 60));
+                if (tData.value > 1) {
+                    tData.value = 1;
+                }
+                var t = tData.value;
+                var inv = 1 - t;
+                var point = start.mul(inv * inv).add(control.mul(2 * inv * t)).add(end.mul(t * t));
+                shell.setPosition(cc.v3(point));
+                shell.zIndex = 5200;
+            };
+            self.schedule(shell["__throwScheduler"], 0);
+        }), cc.delayTime(duration))), cc.callFunc(function () {
+            if (shell["__throwScheduler"]) {
+                self.unschedule(shell["__throwScheduler"]);
+            }
+            shell.destroy();
+            if (options && options.onLand) {
+                options.onLand();
+            }
+        })));
     };
     GameMap.prototype.getTerrainSpeedFactor = function (pos, radius) {
         if (radius === void 0) { radius = 0; }
@@ -3719,6 +3839,12 @@ var GameMap = /** @class */ (function (_super) {
                 var playerRect = this._player.script.getPlayerBoundingBox();
                 var skillRect = skill.script.getSkillBoundingBox();
                 if (cc.Intersection.rectRect(playerRect, skillRect)) {
+                    if (this._multiplayerMode && skill["__tarPickupId"] != null) {
+                        yyp.eventCenter.emit("multiplayer-tar-pickup", {
+                            pickupId: skill["__tarPickupId"],
+                        });
+                        return;
+                    }
                     skill.script.emitSkill();
                     this._skills.splice(i, 1);
                     skill.destroy();
@@ -3779,6 +3905,27 @@ var GameMap = /** @class */ (function (_super) {
         this._energyCdTime = 0;
         this.createEnergy();
     };
+    GameMap.prototype._updateSinglePlayerTarPickup = function (dt) {
+        if (this._multiplayerMode || !this._gaming || !this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        for (var i = this._skills.length - 1; i >= 0; i--) {
+            var skill = this._skills[i];
+            if (!cc.isValid(skill)) {
+                this._skills.splice(i, 1);
+                continue;
+            }
+            if (skill.name == "OilPickup") {
+                return;
+            }
+        }
+        this._tarPickupCdTime += dt;
+        if (this._tarPickupCdTime < TAR_PICKUP_SINGLEPLAYER_INTERVAL) {
+            return;
+        }
+        this._tarPickupCdTime = 0;
+        this.spawnTarPickupAt(this._getOilTestPickupPos());
+    };
     //计算zIndex
     GameMap.prototype.judgezIndex = function (y) {
         return this._tmSize.height - Math.floor(y);
@@ -3809,6 +3956,7 @@ var GameMap = /** @class */ (function (_super) {
         yyp.eventCenter.emit("current-levelid", { levelid: this._levelId });
         yyp.eventCenter.emit("current-enemycount", { enemycount: this._maxEnemyCount });
         this._roamFlg = false;
+        this._tarPickupCdTime = TAR_PICKUP_SINGLEPLAYER_INTERVAL - 1.2;
         var will = this._correctMapPosition(cc.v2(-this._playerBornPos.x, -this._playerBornPos.y));
         var self = this;
         this.node.runAction(cc.sequence(cc.moveTo(0.2, will), cc.callFunc(function () {
@@ -4572,6 +4720,7 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
         this._oilSpills = [];
+        this.hideOilShellPreview();
         this._coverTestCovers = [];
         this._coverTestEnemy = null;
         for (var i = 0; i < this._energyEggs.length; i++) {
@@ -4726,17 +4875,22 @@ var GameMap = /** @class */ (function (_super) {
         }
         return player;
     };
-    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, onReady) {
+    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
         this._multiplayerEnergyMap = {};
         this._multiplayerEnergyEggMap = {};
         this._multiplayerSpecialEventMap = {};
+        this._multiplayerTarPickupMap = {};
+        this._multiplayerTarSpillMap = {};
+        this._pendingTarThrowMap = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
         var playerStates = Array.isArray(players) ? players : [];
         var initialSpecialEvents = Array.isArray(specialEvents) ? specialEvents : [];
+        var initialTarPickups = Array.isArray(tarPickups) ? tarPickups : [];
+        var initialTarSpills = Array.isArray(tarSpills) ? tarSpills : [];
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
         this._clearAllTestNodes();
@@ -4768,6 +4922,12 @@ var GameMap = /** @class */ (function (_super) {
             }
             for (var i = 0; i < initialSpecialEvents.length; i++) {
                 self._applyMultiplayerSpecialEventSpawn(initialSpecialEvents[i]);
+            }
+            for (var i = 0; i < initialTarPickups.length; i++) {
+                self._spawnMultiplayerTarPickup(initialTarPickups[i]);
+            }
+            for (var i = 0; i < initialTarSpills.length; i++) {
+                self._spawnMultiplayerTarSpill(initialTarSpills[i]);
             }
             self._gaming = true;
             // Center camera on local player immediately
@@ -4831,7 +4991,119 @@ var GameMap = /** @class */ (function (_super) {
             else if (command.type === "specialEventRemove") {
                 this._applyMultiplayerSpecialEventRemove(command.eventId, command.eventType);
             }
+            else if (command.type === "tarPickupSpawn") {
+                this._spawnMultiplayerTarPickup(command.pickup);
+            }
+            else if (command.type === "tarPickupRemove") {
+                this._removeMultiplayerTarPickup(command.pickupId);
+            }
+            else if (command.type === "tarThrow") {
+                this._playMultiplayerTarThrow(command);
+            }
+            else if (command.type === "tarSpillSpawn") {
+                this._spawnMultiplayerTarSpill(command.spill);
+            }
+            else if (command.type === "tarSpillRemove") {
+                this._removeMultiplayerTarSpill(command.spillId);
+            }
         }
+    };
+    GameMap.prototype._spawnMultiplayerTarPickup = function (pickupData) {
+        if (!this._multiplayerMode || !pickupData || pickupData.id == null) {
+            return;
+        }
+        if (this._multiplayerTarPickupMap[pickupData.id] && cc.isValid(this._multiplayerTarPickupMap[pickupData.id])) {
+            return;
+        }
+        var pickup = this.spawnTarPickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id);
+        if (pickup) {
+            this._multiplayerTarPickupMap[pickupData.id] = pickup;
+        }
+    };
+    GameMap.prototype._removeMultiplayerTarPickup = function (pickupId) {
+        if (pickupId == null) {
+            return;
+        }
+        var pickup = this._multiplayerTarPickupMap[pickupId];
+        delete this._multiplayerTarPickupMap[pickupId];
+        if (!pickup) {
+            return;
+        }
+        for (var i = this._skills.length - 1; i >= 0; i--) {
+            if (this._skills[i] === pickup) {
+                this._skills.splice(i, 1);
+                break;
+            }
+        }
+        if (cc.isValid(pickup)) {
+            pickup.destroy();
+        }
+    };
+    GameMap.prototype._spawnMultiplayerTarSpill = function (spillData) {
+        if (!this._multiplayerMode || !spillData || spillData.id == null) {
+            return;
+        }
+        var pendingThrow = this._pendingTarThrowMap[spillData.id];
+        if (pendingThrow) {
+            pendingThrow.spillData = spillData;
+            return;
+        }
+        if (this._multiplayerTarSpillMap[spillData.id] && cc.isValid(this._multiplayerTarSpillMap[spillData.id])) {
+            return;
+        }
+        var node = this.spawnOilSpill(cc.v2(spillData.x || 0, spillData.y || 0), {
+            radius: spillData.radius,
+            duration: spillData.remainTime || spillData.duration,
+            slowFactor: spillData.slowFactor,
+        });
+        if (node) {
+            node["__tarSpillId"] = spillData.id;
+            this._multiplayerTarSpillMap[spillData.id] = node;
+        }
+    };
+    GameMap.prototype._removeMultiplayerTarSpill = function (spillId) {
+        if (spillId == null) {
+            return;
+        }
+        var node = this._multiplayerTarSpillMap[spillId];
+        delete this._multiplayerTarSpillMap[spillId];
+        for (var i = this._oilSpills.length - 1; i >= 0; i--) {
+            var spill = this._oilSpills[i];
+            if (spill && spill.node === node) {
+                this._oilSpills.splice(i, 1);
+                break;
+            }
+        }
+        if (node && cc.isValid(node)) {
+            node.destroy();
+        }
+    };
+    GameMap.prototype._playMultiplayerTarThrow = function (command) {
+        if (!command || !command.from || !command.to) {
+            return;
+        }
+        if (command.spillId != null) {
+            this._pendingTarThrowMap[command.spillId] = this._pendingTarThrowMap[command.spillId] || {};
+        }
+        var self = this;
+        this.playOilShellThrow(cc.v2(command.from), cc.v2(command.to), {
+            areaRadius: TAR_SPILL_RADIUS,
+            arcHeight: 110,
+            onLand: function () {
+                if (command.spillId == null) {
+                    return;
+                }
+                var pendingThrow = self._pendingTarThrowMap[command.spillId];
+                if (pendingThrow && pendingThrow.spillData) {
+                    var spillData = pendingThrow.spillData;
+                    delete self._pendingTarThrowMap[command.spillId];
+                    self._spawnMultiplayerTarSpill(spillData);
+                }
+                else {
+                    delete self._pendingTarThrowMap[command.spillId];
+                }
+            }
+        });
     };
     GameMap.prototype.onMultiplayerEnergySpawn = function (energyData) {
         if (!this._multiplayerMode || !energyData || energyData.id == null) {
