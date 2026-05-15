@@ -185,6 +185,7 @@ export class GameMap extends BaseComponent {
     _energyEggBushFrameCallbacks = [];
     _energyEggs = [];
     _energyEggBushes = [];
+    _multiplayerBushes = [];
 
     //加载完成
     onLoad () {
@@ -3449,6 +3450,29 @@ export class GameMap extends BaseComponent {
         return result;
     }
 
+    getMultiplayerBushSpawnPoints(limit = 24) {
+        let candidates = this._getMultiplayerSpawnCandidates();
+        if (!candidates || candidates.length <= 0) {
+            return [];
+        }
+        let result = [];
+        let step = Math.max(1, Math.floor(candidates.length / Math.max(1, limit)));
+        for (let i = 0; i < candidates.length; i += step) {
+            let pos = candidates[i];
+            if (!pos) {
+                continue;
+            }
+            result.push({
+                x: Math.round(pos.x),
+                y: Math.round(pos.y),
+            });
+            if (result.length >= limit) {
+                break;
+            }
+        }
+        return result;
+    }
+
     //获取最近的敌人
     getNearEnemy() {
         let ret = null;
@@ -5672,6 +5696,13 @@ export class GameMap extends BaseComponent {
             }
         }
         this._energyEggBushes = [];
+        for (let i = 0; i < this._multiplayerBushes.length; i++) {
+            let bush = this._multiplayerBushes[i];
+            if (bush && bush.node && cc.isValid(bush.node)) {
+                bush.node.destroy();
+            }
+        }
+        this._multiplayerBushes = [];
         yyp.eventCenter.emit("cover-button-state",{visible:false});
 
         this._bornEnemyCount = 0;
@@ -5822,7 +5853,7 @@ export class GameMap extends BaseComponent {
         return player;
     }
 
-    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, safeZone, onReady) {
+    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
@@ -5845,6 +5876,7 @@ export class GameMap extends BaseComponent {
         let initialTarSpills = Array.isArray(tarSpills) ? tarSpills : [];
         let initialBlackHolePickups = Array.isArray(blackHolePickups) ? blackHolePickups : [];
         let initialBlackHoleZones = Array.isArray(blackHoleZones) ? blackHoleZones : [];
+        let initialBushes = Array.isArray(bushes) ? bushes : [];
 
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
@@ -5875,6 +5907,7 @@ export class GameMap extends BaseComponent {
                 for (let i = 0; i < playerCount; i++) {
                     self.createMultiplayerPlayer(i, playerCount, playerStates[i] || null);
                 }
+                self._initMultiplayerBushes(initialBushes);
                 let initialEnergies = energies || [];
                 for (let i = 0; i < initialEnergies.length; i++) {
                     self.onMultiplayerEnergySpawn(initialEnergies[i]);
@@ -5896,6 +5929,7 @@ export class GameMap extends BaseComponent {
                 }
                 self._applyMultiplayerSafeZoneState(safeZone || null);
                 self._gaming = true;
+                self._refreshMultiplayerBushVisibility();
                 // Center camera on local player immediately
                 self._centerOnLocalPlayer();
                 if (onReady) onReady();
@@ -5907,6 +5941,7 @@ export class GameMap extends BaseComponent {
         if (!this._multiplayerMode) return;
         let commands = frameData && Array.isArray(frameData.commands) ? frameData.commands : [];
         this._applyMultiplayerFrameCommands(commands);
+        this._refreshMultiplayerBushVisibility();
 
         this._centerOnLocalPlayer();
     }
@@ -5997,6 +6032,160 @@ export class GameMap extends BaseComponent {
             }
             else if (command.type === "safeZoneDamage") {
                 this._applyMultiplayerSafeZoneDamage(command);
+            }
+        }
+    }
+
+    _initMultiplayerBushes(bushes = []) {
+        for (let i = 0; i < this._multiplayerBushes.length; i++) {
+            let bush = this._multiplayerBushes[i];
+            if (bush && bush.node && cc.isValid(bush.node)) {
+                bush.node.destroy();
+            }
+        }
+        this._multiplayerBushes = [];
+        for (let i = 0; i < bushes.length; i++) {
+            let bushData = bushes[i];
+            let bush = this._createMultiplayerBushNode(bushData);
+            if (bush) {
+                this._multiplayerBushes.push(bush);
+            }
+        }
+    }
+
+    _createMultiplayerBushNode(bushData) {
+        if (!bushData || !this._fire._tmLayerObstacle) {
+            return null;
+        }
+        let pos = cc.v2(bushData.x || 0, bushData.y || 0);
+        let radius = bushData.radius == null ? 94 : bushData.radius;
+        let root = new cc.Node("_multiplayerBush");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(pos));
+        root.zIndex = this.judgezIndex(pos.y) + 2;
+
+        let shadow = new cc.Node("_multiplayerBushShadow");
+        shadow.parent = root;
+        shadow.setPosition(0, -14);
+        let shadowGraphics = shadow.addComponent(cc.Graphics);
+        shadowGraphics.fillColor = cc.color(0, 0, 0, 60);
+        shadowGraphics.ellipse(0, 0, radius * 0.62, radius * 0.22);
+        shadowGraphics.fill();
+
+        let spriteNode = new cc.Node("_multiplayerBushSprite");
+        spriteNode.parent = root;
+        spriteNode.setPosition(0, 8);
+        spriteNode.setContentSize(radius * 1.95, radius * 1.95);
+        let sprite = spriteNode.addComponent(cc.Sprite);
+        sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+        this._loadEnergyEggBushFrame((spriteFrame) => {
+            if (sprite && cc.isValid(sprite) && spriteFrame) {
+                sprite.spriteFrame = spriteFrame;
+            }
+        });
+
+        return {
+            id: bushData.id == null ? this._multiplayerBushes.length + 1 : bushData.id,
+            node: root,
+            radius: radius,
+            multiplayer: true,
+        };
+    }
+
+    _getMultiplayerBushById(bushId) {
+        if (bushId == null) {
+            return null;
+        }
+        for (let i = 0; i < this._multiplayerBushes.length; i++) {
+            let bush = this._multiplayerBushes[i];
+            if (bush && bush.id == bushId && bush.node && cc.isValid(bush.node)) {
+                return bush;
+            }
+        }
+        return null;
+    }
+
+    _refreshMultiplayerBushVisibility() {
+        if (!this._multiplayerMode) {
+            return;
+        }
+
+        let localPlayer = this._multiplayerPlayers[this._localPlayerId];
+        let localBushId = null;
+        if (localPlayer && cc.isValid(localPlayer) && localPlayer.script) {
+            localBushId = localPlayer.script._multiplayerInBush ? localPlayer.script._multiplayerBushId : null;
+        }
+
+        for (let i = 0; i < this._multiplayerBushes.length; i++) {
+            let bush = this._multiplayerBushes[i];
+            if (!bush || !bush.node || !cc.isValid(bush.node)) {
+                continue;
+            }
+            bush.node.zIndex = this.judgezIndex(bush.node.y) + 2;
+            bush.node.opacity = localBushId != null && bush.id == localBushId ? 155 : 255;
+        }
+
+        for (let i = 0; i < this._multiplayerPlayers.length; i++) {
+            let player = this._multiplayerPlayers[i];
+            if (!player || !cc.isValid(player) || !player.script) {
+                continue;
+            }
+            let playerBushId = player.script._multiplayerInBush ? player.script._multiplayerBushId : null;
+            let visibleMode = "normal";
+            if (playerBushId != null) {
+                if (i == this._localPlayerId) {
+                    visibleMode = "selfBush";
+                }
+                else if (localBushId == null || localBushId != playerBushId) {
+                    visibleMode = "hidden";
+                }
+                else{
+                    visibleMode = "selfBush";
+                }
+            }
+            if (player.script.setBushVisibilityMode) {
+                player.script.setBushVisibilityMode(visibleMode);
+            }
+        }
+
+        for (let i = 0; i < this._energys.length; i++) {
+            let energy = this._energys[i];
+            if (!energy || !cc.isValid(energy) || localBushId == null) {
+                if (energy && cc.isValid(energy)) {
+                    energy.opacity = 255;
+                }
+                continue;
+            }
+            let bush = this._getMultiplayerBushById(localBushId);
+            let hidden = bush && cc.v2(energy.position).sub(bush.node.position).mag() <= bush.radius * 0.8;
+            energy.opacity = hidden ? 110 : 255;
+        }
+
+        for (let i = 0; i < this._skills.length; i++) {
+            let skill = this._skills[i];
+            if (!skill || !cc.isValid(skill) || localBushId == null) {
+                if (skill && cc.isValid(skill)) {
+                    skill.opacity = 255;
+                }
+                continue;
+            }
+            let bush = this._getMultiplayerBushById(localBushId);
+            let hidden = bush && cc.v2(skill.position).sub(bush.node.position).mag() <= bush.radius * 0.8;
+            skill.opacity = hidden ? 110 : 255;
+        }
+
+        for (let i = 0; i < this._oilSpills.length; i++) {
+            let spill = this._oilSpills[i];
+            if (!spill || !spill.node || !cc.isValid(spill.node) || localBushId == null) {
+                if (spill && spill.node && cc.isValid(spill.node)) {
+                    spill.node.opacity = Math.max(0, spill.node.opacity);
+                }
+                continue;
+            }
+            let bush = this._getMultiplayerBushById(localBushId);
+            let hidden = bush && cc.v2(spill.node.position).sub(bush.node.position).mag() <= bush.radius * 0.82;
+            if (hidden) {
+                spill.node.opacity = Math.min(spill.node.opacity, 120);
             }
         }
     }

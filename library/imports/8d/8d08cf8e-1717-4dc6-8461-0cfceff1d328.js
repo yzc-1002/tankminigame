@@ -186,6 +186,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._energyEggBushFrameCallbacks = [];
         _this._energyEggs = [];
         _this._energyEggBushes = [];
+        _this._multiplayerBushes = [];
         return _this;
     }
     //加载完成
@@ -2926,6 +2927,29 @@ var GameMap = /** @class */ (function (_super) {
         }
         return result;
     };
+    GameMap.prototype.getMultiplayerBushSpawnPoints = function (limit) {
+        if (limit === void 0) { limit = 24; }
+        var candidates = this._getMultiplayerSpawnCandidates();
+        if (!candidates || candidates.length <= 0) {
+            return [];
+        }
+        var result = [];
+        var step = Math.max(1, Math.floor(candidates.length / Math.max(1, limit)));
+        for (var i = 0; i < candidates.length; i += step) {
+            var pos = candidates[i];
+            if (!pos) {
+                continue;
+            }
+            result.push({
+                x: Math.round(pos.x),
+                y: Math.round(pos.y),
+            });
+            if (result.length >= limit) {
+                break;
+            }
+        }
+        return result;
+    };
     //获取最近的敌人
     GameMap.prototype.getNearEnemy = function () {
         var ret = null;
@@ -4828,6 +4852,13 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
         this._energyEggBushes = [];
+        for (var i = 0; i < this._multiplayerBushes.length; i++) {
+            var bush = this._multiplayerBushes[i];
+            if (bush && bush.node && cc.isValid(bush.node)) {
+                bush.node.destroy();
+            }
+        }
+        this._multiplayerBushes = [];
         yyp.eventCenter.emit("cover-button-state", { visible: false });
         this._bornEnemyCount = 0;
         this._deathEnemyCount = 0;
@@ -4969,7 +5000,7 @@ var GameMap = /** @class */ (function (_super) {
         }
         return player;
     };
-    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, safeZone, onReady) {
+    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
@@ -4992,6 +5023,7 @@ var GameMap = /** @class */ (function (_super) {
         var initialTarSpills = Array.isArray(tarSpills) ? tarSpills : [];
         var initialBlackHolePickups = Array.isArray(blackHolePickups) ? blackHolePickups : [];
         var initialBlackHoleZones = Array.isArray(blackHoleZones) ? blackHoleZones : [];
+        var initialBushes = Array.isArray(bushes) ? bushes : [];
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
         this._clearAllTestNodes();
@@ -5017,6 +5049,7 @@ var GameMap = /** @class */ (function (_super) {
             for (var i = 0; i < playerCount; i++) {
                 self.createMultiplayerPlayer(i, playerCount, playerStates[i] || null);
             }
+            self._initMultiplayerBushes(initialBushes);
             var initialEnergies = energies || [];
             for (var i = 0; i < initialEnergies.length; i++) {
                 self.onMultiplayerEnergySpawn(initialEnergies[i]);
@@ -5038,6 +5071,7 @@ var GameMap = /** @class */ (function (_super) {
             }
             self._applyMultiplayerSafeZoneState(safeZone || null);
             self._gaming = true;
+            self._refreshMultiplayerBushVisibility();
             // Center camera on local player immediately
             self._centerOnLocalPlayer();
             if (onReady)
@@ -5049,6 +5083,7 @@ var GameMap = /** @class */ (function (_super) {
             return;
         var commands = frameData && Array.isArray(frameData.commands) ? frameData.commands : [];
         this._applyMultiplayerFrameCommands(commands);
+        this._refreshMultiplayerBushVisibility();
         this._centerOnLocalPlayer();
     };
     GameMap.prototype._applyMultiplayerFrameCommands = function (commands) {
@@ -5137,6 +5172,148 @@ var GameMap = /** @class */ (function (_super) {
             }
             else if (command.type === "safeZoneDamage") {
                 this._applyMultiplayerSafeZoneDamage(command);
+            }
+        }
+    };
+    GameMap.prototype._initMultiplayerBushes = function (bushes) {
+        if (bushes === void 0) { bushes = []; }
+        for (var i = 0; i < this._multiplayerBushes.length; i++) {
+            var bush = this._multiplayerBushes[i];
+            if (bush && bush.node && cc.isValid(bush.node)) {
+                bush.node.destroy();
+            }
+        }
+        this._multiplayerBushes = [];
+        for (var i = 0; i < bushes.length; i++) {
+            var bushData = bushes[i];
+            var bush = this._createMultiplayerBushNode(bushData);
+            if (bush) {
+                this._multiplayerBushes.push(bush);
+            }
+        }
+    };
+    GameMap.prototype._createMultiplayerBushNode = function (bushData) {
+        if (!bushData || !this._fire._tmLayerObstacle) {
+            return null;
+        }
+        var pos = cc.v2(bushData.x || 0, bushData.y || 0);
+        var radius = bushData.radius == null ? 94 : bushData.radius;
+        var root = new cc.Node("_multiplayerBush");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(pos));
+        root.zIndex = this.judgezIndex(pos.y) + 2;
+        var shadow = new cc.Node("_multiplayerBushShadow");
+        shadow.parent = root;
+        shadow.setPosition(0, -14);
+        var shadowGraphics = shadow.addComponent(cc.Graphics);
+        shadowGraphics.fillColor = cc.color(0, 0, 0, 60);
+        shadowGraphics.ellipse(0, 0, radius * 0.62, radius * 0.22);
+        shadowGraphics.fill();
+        var spriteNode = new cc.Node("_multiplayerBushSprite");
+        spriteNode.parent = root;
+        spriteNode.setPosition(0, 8);
+        spriteNode.setContentSize(radius * 1.95, radius * 1.95);
+        var sprite = spriteNode.addComponent(cc.Sprite);
+        sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+        this._loadEnergyEggBushFrame(function (spriteFrame) {
+            if (sprite && cc.isValid(sprite) && spriteFrame) {
+                sprite.spriteFrame = spriteFrame;
+            }
+        });
+        return {
+            id: bushData.id == null ? this._multiplayerBushes.length + 1 : bushData.id,
+            node: root,
+            radius: radius,
+            multiplayer: true,
+        };
+    };
+    GameMap.prototype._getMultiplayerBushById = function (bushId) {
+        if (bushId == null) {
+            return null;
+        }
+        for (var i = 0; i < this._multiplayerBushes.length; i++) {
+            var bush = this._multiplayerBushes[i];
+            if (bush && bush.id == bushId && bush.node && cc.isValid(bush.node)) {
+                return bush;
+            }
+        }
+        return null;
+    };
+    GameMap.prototype._refreshMultiplayerBushVisibility = function () {
+        if (!this._multiplayerMode) {
+            return;
+        }
+        var localPlayer = this._multiplayerPlayers[this._localPlayerId];
+        var localBushId = null;
+        if (localPlayer && cc.isValid(localPlayer) && localPlayer.script) {
+            localBushId = localPlayer.script._multiplayerInBush ? localPlayer.script._multiplayerBushId : null;
+        }
+        for (var i = 0; i < this._multiplayerBushes.length; i++) {
+            var bush = this._multiplayerBushes[i];
+            if (!bush || !bush.node || !cc.isValid(bush.node)) {
+                continue;
+            }
+            bush.node.zIndex = this.judgezIndex(bush.node.y) + 2;
+            bush.node.opacity = localBushId != null && bush.id == localBushId ? 155 : 255;
+        }
+        for (var i = 0; i < this._multiplayerPlayers.length; i++) {
+            var player = this._multiplayerPlayers[i];
+            if (!player || !cc.isValid(player) || !player.script) {
+                continue;
+            }
+            var playerBushId = player.script._multiplayerInBush ? player.script._multiplayerBushId : null;
+            var visibleMode = "normal";
+            if (playerBushId != null) {
+                if (i == this._localPlayerId) {
+                    visibleMode = "selfBush";
+                }
+                else if (localBushId == null || localBushId != playerBushId) {
+                    visibleMode = "hidden";
+                }
+                else {
+                    visibleMode = "selfBush";
+                }
+            }
+            if (player.script.setBushVisibilityMode) {
+                player.script.setBushVisibilityMode(visibleMode);
+            }
+        }
+        for (var i = 0; i < this._energys.length; i++) {
+            var energy = this._energys[i];
+            if (!energy || !cc.isValid(energy) || localBushId == null) {
+                if (energy && cc.isValid(energy)) {
+                    energy.opacity = 255;
+                }
+                continue;
+            }
+            var bush = this._getMultiplayerBushById(localBushId);
+            var hidden = bush && cc.v2(energy.position).sub(bush.node.position).mag() <= bush.radius * 0.8;
+            energy.opacity = hidden ? 110 : 255;
+        }
+        for (var i = 0; i < this._skills.length; i++) {
+            var skill = this._skills[i];
+            if (!skill || !cc.isValid(skill) || localBushId == null) {
+                if (skill && cc.isValid(skill)) {
+                    skill.opacity = 255;
+                }
+                continue;
+            }
+            var bush = this._getMultiplayerBushById(localBushId);
+            var hidden = bush && cc.v2(skill.position).sub(bush.node.position).mag() <= bush.radius * 0.8;
+            skill.opacity = hidden ? 110 : 255;
+        }
+        for (var i = 0; i < this._oilSpills.length; i++) {
+            var spill = this._oilSpills[i];
+            if (!spill || !spill.node || !cc.isValid(spill.node) || localBushId == null) {
+                if (spill && spill.node && cc.isValid(spill.node)) {
+                    spill.node.opacity = Math.max(0, spill.node.opacity);
+                }
+                continue;
+            }
+            var bush = this._getMultiplayerBushById(localBushId);
+            var hidden = bush && cc.v2(spill.node.position).sub(bush.node.position).mag() <= bush.radius * 0.82;
+            if (hidden) {
+                spill.node.opacity = Math.min(spill.node.opacity, 120);
             }
         }
     };

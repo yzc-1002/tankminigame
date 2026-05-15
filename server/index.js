@@ -76,6 +76,11 @@ const SAFE_ZONE_DAMAGE_INTERVAL = 1;
 const SAFE_ZONE_DAMAGE_PER_TICK = 4;
 const SAFE_ZONE_WARNING_SECONDS = 10;
 const FINAL_STAGE_ALIVE_THRESHOLD = 2;
+const MULTIPLAYER_BUSH_COUNT = 10;
+const MULTIPLAYER_BUSH_RADIUS = 94;
+const MULTIPLAYER_BUSH_MIN_GAP = 220;
+const MULTIPLAYER_BUSH_SPAWN_PADDING = 120;
+const MULTIPLAYER_BUSH_MIN_SPAWN_DISTANCE = 210;
 
 const ROOM_STATE = {
   WAITING: 'waiting',
@@ -100,6 +105,8 @@ const room = {
   nextEnergyId: 1,
   energySpawnCd: 0,
   energySpawnPoints: [],
+  bushSpawnPoints: [],
+  bushes: [],
   mapBounds: {
     halfWidth: 1400,
     halfHeight: 900,
@@ -324,6 +331,40 @@ function sanitizeMapBounds(bounds) {
     halfWidth,
     halfHeight,
   };
+}
+
+function sanitizeBushes(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const result = [];
+  const used = {};
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i];
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const id = item.id == null ? result.length + 1 : Number(item.id);
+    const x = Number(item.x);
+    const y = Number(item.y);
+    const radius = Number(item.radius);
+    if (!Number.isFinite(id) || !Number.isFinite(x) || !Number.isFinite(y)) {
+      continue;
+    }
+    const key = `${Math.round(x)}:${Math.round(y)}`;
+    if (used[key]) {
+      continue;
+    }
+    used[key] = true;
+    const point = clampPointToBounds({ x, y }, MULTIPLAYER_BUSH_SPAWN_PADDING);
+    result.push({
+      id,
+      x: Math.round(point.x),
+      y: Math.round(point.y),
+      radius: Number.isFinite(radius) && radius > 24 ? Math.round(radius) : MULTIPLAYER_BUSH_RADIUS,
+    });
+  }
+  return result;
 }
 
 function sanitizePlayerSnapshot(snapshot) {
@@ -682,6 +723,87 @@ function getPlayerRuntimeRadius(player) {
     return Math.max(16, player.lastSnapshot.radius);
   }
   return PLAYER_DEFAULT_RADIUS;
+}
+
+function getBushById(bushId) {
+  if (bushId == null) {
+    return null;
+  }
+  for (let i = 0; i < room.bushes.length; i++) {
+    const bush = room.bushes[i];
+    if (bush && bush.id === bushId) {
+      return bush;
+    }
+  }
+  return null;
+}
+
+function findBushContainingPlayer(player) {
+  if (!player || player.dead || player.disconnected) {
+    return null;
+  }
+  const pos = getPlayerRuntimePosition(player);
+  const playerRadius = getPlayerRuntimeRadius(player);
+  for (let i = 0; i < room.bushes.length; i++) {
+    const bush = room.bushes[i];
+    if (!bush) {
+      continue;
+    }
+    const hideRadius = Math.max(24, (bush.radius || MULTIPLAYER_BUSH_RADIUS) - playerRadius * 0.22);
+    if (distanceSqr(pos, bush) <= hideRadius * hideRadius) {
+      return bush;
+    }
+  }
+  return null;
+}
+
+function buildInitialBushes() {
+  const source = Array.isArray(room.bushSpawnPoints) && room.bushSpawnPoints.length > 0
+    ? shuffle(room.bushSpawnPoints)
+    : [];
+  const result = [];
+  const spawnPositions = room.players.map((player) => getSpawnPositionBySlot(player.spawnSlot));
+  for (let i = 0; i < source.length; i++) {
+    const point = source[i];
+    if (!point) {
+      continue;
+    }
+
+    let blocked = false;
+    for (let j = 0; j < spawnPositions.length; j++) {
+      const spawnPos = spawnPositions[j];
+      if (spawnPos && Math.sqrt(distanceSqr(spawnPos, point)) < MULTIPLAYER_BUSH_MIN_SPAWN_DISTANCE) {
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) {
+      continue;
+    }
+
+    for (let j = 0; j < result.length; j++) {
+      const bush = result[j];
+      if (Math.sqrt(distanceSqr(bush, point)) < MULTIPLAYER_BUSH_MIN_GAP) {
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) {
+      continue;
+    }
+
+    const pos = clampPointToBounds(point, MULTIPLAYER_BUSH_SPAWN_PADDING);
+    result.push({
+      id: result.length + 1,
+      x: Math.round(pos.x),
+      y: Math.round(pos.y),
+      radius: MULTIPLAYER_BUSH_RADIUS,
+    });
+    if (result.length >= MULTIPLAYER_BUSH_COUNT) {
+      break;
+    }
+  }
+  return result;
 }
 
 function applySafeZoneDamageToPlayer(player, frameCommands) {
@@ -1501,6 +1623,9 @@ function updateSpecialEvents(frameCommands) {
 }
 
 function buildPlayerStateCommand(player) {
+  const bush = findBushContainingPlayer(player);
+  player.inBush = !!bush;
+  player.bushId = bush ? bush.id : null;
   return {
     type: 'playerState',
     playerId: player.playerId,
@@ -1513,6 +1638,8 @@ function buildPlayerStateCommand(player) {
     energyNeedExp: player.energyNeedExp,
     tarAmmoCount: player.tarAmmoCount || 0,
     blackHoleAmmoCount: player.blackHoleAmmoCount || 0,
+    inBush: !!player.inBush,
+    bushId: player.bushId == null ? null : player.bushId,
     dead: !!player.dead,
     disconnected: !!player.disconnected,
   };
@@ -2234,6 +2361,7 @@ function startGame() {
     p.spawnSlot = room.spawnSlots[index];
     syncPlayerSpawnPosition(p);
   });
+  room.bushes = buildInitialBushes();
 
   for (let i = 0; i < Math.min(ENERGY_MAX_COUNT, 3); i++) {
     spawnEnergy();
@@ -2257,6 +2385,7 @@ function startGame() {
       tarSpills: room.tarSpills,
       blackHolePickups: room.blackHolePickups,
       blackHoleZones: room.blackHoleZones,
+      bushes: room.bushes,
       safeZone: room.safeZone,
       players: room.players.map((player) => ({
         playerId: player.playerId,
@@ -2391,6 +2520,12 @@ function handleMessage(ws, msg) {
       if (Array.isArray(msg.payload && msg.payload.energySpawnPoints) && msg.payload.energySpawnPoints.length > 0) {
         room.energySpawnPoints = sanitizeSpawnPoints(msg.payload.energySpawnPoints);
       }
+      if (Array.isArray(msg.payload && msg.payload.bushSpawnPoints) && msg.payload.bushSpawnPoints.length > 0) {
+        room.bushSpawnPoints = sanitizeSpawnPoints(msg.payload.bushSpawnPoints);
+      }
+      if (Array.isArray(msg.payload && msg.payload.bushes) && msg.payload.bushes.length > 0) {
+        room.bushes = sanitizeBushes(msg.payload.bushes);
+      }
       if (Array.isArray(msg.payload && msg.payload.spawnCandidates) && msg.payload.spawnCandidates.length > 0) {
         room.spawnCandidates = sanitizeSpawnPoints(msg.payload.spawnCandidates);
       }
@@ -2426,6 +2561,8 @@ function resetRoom() {
   room.nextEnergyId = 1;
   room.energySpawnCd = 0;
   room.energySpawnPoints = [];
+  room.bushSpawnPoints = [];
+  room.bushes = [];
   room.spawnCandidates = [];
   room.mapBounds = {
     halfWidth: 1400,

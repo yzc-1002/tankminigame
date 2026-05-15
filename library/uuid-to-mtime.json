@@ -1989,11 +1989,6 @@
     "meta": 1778835814836,
     "relativePath": "script\\Finish.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778835680257,
-    "meta": 1778835815684,
-    "relativePath": "script\\GameMap.ts"
-  },
   "bc87592d-3055-4635-bb55-a57728de0328": {
     "asset": 1778835088953,
     "meta": 1778835815740,
@@ -2009,20 +2004,10 @@
     "meta": 1778835815744,
     "relativePath": "script\\network"
   },
-  "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778835088968,
-    "meta": 1778835815774,
-    "relativePath": "script\\network\\NetworkManager.ts"
-  },
   "f60d2c9a-5abd-4e9e-a544-4c2bd3a90006": {
     "asset": 1778835088954,
     "meta": 1778835815790,
     "relativePath": "script\\OilPickup.ts"
-  },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778835088956,
-    "meta": 1778835815960,
-    "relativePath": "script\\Player.ts"
   },
   "679e8691-724f-4458-bfad-083b068c568c": {
     "asset": 1778835088957,
@@ -2130,8 +2115,23 @@
     "relativePath": "texture\\ui\\barrelRed_side.png"
   },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778836539344,
-    "meta": 1778836563717,
+    "asset": 1778837461434,
+    "meta": 1778837840320,
     "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778837605194,
+    "meta": 1778837840940,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "08aed74e-b757-43ff-80e7-95f39a105a22": {
+    "asset": 1778837446992,
+    "meta": 1778837840965,
+    "relativePath": "script\\network\\NetworkManager.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778837545219,
+    "meta": 1778837841141,
+    "relativePath": "script\\Player.ts"
   }
 }

@@ -77,6 +77,9 @@ export class Player extends Tank {
     _multiplayerMode = false;       //多人模式(禁用本地摇杆)
     _multiplayerRemote = false;     //多人远端玩家
     _multiplayerPlayerId = -1;      //多人玩家ID
+    _multiplayerInBush = false;
+    _multiplayerBushId = null;
+    _bushVisibilityMode = "normal";
 
     onLoad () {
         super.onLoad();
@@ -126,6 +129,9 @@ export class Player extends Tank {
         this._lowHpScreenEffect = null;
         this._shootInputDir = this._barrelDir;
         this._localPreviewBarrelDir = null;
+        this._multiplayerInBush = false;
+        this._multiplayerBushId = null;
+        this._bushVisibilityMode = "normal";
     }
 
     //设置坦克类型
@@ -581,6 +587,30 @@ export class Player extends Tank {
         this._fire._lbPlayerName.$Label.string = showName;
         this._fire._lbPlayerName.color = isLocal ? cc.color(180, 255, 180, 255) : cc.color(210, 230, 255, 255);
         this._fire._lbPlayerName.active = showName.length > 0;
+    }
+
+    setBushVisibilityMode(mode = "normal") {
+        let nextMode = mode == "hidden" ? "hidden" : (mode == "selfBush" ? "selfBush" : "normal");
+        if (this._bushVisibilityMode === nextMode) {
+            return;
+        }
+        this._bushVisibilityMode = nextMode;
+        this._refreshBushVisibilityState();
+    }
+
+    _refreshBushVisibilityState() {
+        let mode = this._bushVisibilityMode || "normal";
+        let bodyOpacity = mode == "hidden" ? 0 : (mode == "selfBush" ? 120 : 255);
+        let barrelOpacity = mode == "hidden" ? 0 : (mode == "selfBush" ? 120 : 255);
+        let hudVisible = mode != "hidden";
+        this.node.opacity = bodyOpacity;
+        if (this._fire && this._fire._lyBarrel && cc.isValid(this._fire._lyBarrel)) {
+            this._fire._lyBarrel.opacity = barrelOpacity;
+        }
+        if (this._fire && this._fire._lifebar && cc.isValid(this._fire._lifebar)) {
+            this._fire._lifebar.active = hudVisible && this._inGame;
+            this._fire._lifebar.opacity = mode == "selfBush" ? 168 : 255;
+        }
     }
 
     _showSacrificeTip(text) {
@@ -1992,6 +2022,8 @@ export class Player extends Tank {
         if (state.energyNeedExp != null && state.energyNeedExp > 0) {
             this._energyNeedExp = state.energyNeedExp;
         }
+        this._multiplayerInBush = !!state.inBush;
+        this._multiplayerBushId = state.bushId == null ? null : state.bushId;
 
         if (this._energyLevel > prevEnergyLevel) {
             let choice = this._buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale);
@@ -2017,6 +2049,7 @@ export class Player extends Tank {
         if (this._hp == 0) {
             this.doDeath();
         }
+        this._refreshBushVisibilityState();
     }
 
     _buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale) {
@@ -2281,6 +2314,7 @@ export class Player extends Tank {
         this._inGame = true;
         this._fire._lifebar.active = true;
         this._refreshSkillButtonMode();
+        this._refreshBushVisibilityState();
     }
     
     //获取碰撞框

@@ -1437,6 +1437,10 @@ var GameMain = /** @class */ (function (_super) {
         if (this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerSpawnCandidates) {
             spawnCandidates = this._fire._tiled.script.getMultiplayerSpawnCandidates();
         }
+        var bushSpawnPoints = [];
+        if (this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerBushSpawnPoints) {
+            bushSpawnPoints = this._fire._tiled.script.getMultiplayerBushSpawnPoints();
+        }
         return {
             tankType: MULTIPLAYER_DEFAULT_TANK_TYPE,
             playerLevel: MULTIPLAYER_FIXED_PLAYER_LEVEL,
@@ -1447,6 +1451,7 @@ var GameMain = /** @class */ (function (_super) {
             energySpawnPoints: energySpawnPoints,
             mapBounds: mapBounds,
             spawnCandidates: spawnCandidates,
+            bushSpawnPoints: bushSpawnPoints,
         };
     };
     GameMain.prototype._onMultiplayerPlayerDeath = function (event) {
@@ -1609,8 +1614,8 @@ var GameMain = /** @class */ (function (_super) {
                 _this._netManager.sendPlayerSetup(_this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, safeZone) {
-            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], safeZone || null);
+        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone) {
+            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], safeZone || null);
         };
         this._netManager.onGameEnded = function (payload) {
             _this._endMultiplayerMatch(payload);
@@ -1624,13 +1629,14 @@ var GameMain = /** @class */ (function (_super) {
         };
         this._netManager.connect("ws://localhost:2567");
     };
-    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, safeZone) {
+    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone) {
         if (players === void 0) { players = []; }
         if (specialEvents === void 0) { specialEvents = []; }
         if (tarPickups === void 0) { tarPickups = []; }
         if (tarSpills === void 0) { tarSpills = []; }
         if (blackHolePickups === void 0) { blackHolePickups = []; }
         if (blackHoleZones === void 0) { blackHoleZones = []; }
+        if (bushes === void 0) { bushes = []; }
         if (safeZone === void 0) { safeZone = null; }
         this._hideMultiplayerStatus();
         this._hideMultiplayerAnnouncement();
@@ -1643,7 +1649,7 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerFireSeq = 1;
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
         var self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], safeZone || null, function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], safeZone || null, function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._scheduleMultiplayerMinimapRefresh();

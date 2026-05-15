@@ -98,6 +98,9 @@ var Player = /** @class */ (function (_super) {
         _this._multiplayerMode = false; //多人模式(禁用本地摇杆)
         _this._multiplayerRemote = false; //多人远端玩家
         _this._multiplayerPlayerId = -1; //多人玩家ID
+        _this._multiplayerInBush = false;
+        _this._multiplayerBushId = null;
+        _this._bushVisibilityMode = "normal";
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -144,6 +147,9 @@ var Player = /** @class */ (function (_super) {
         this._lowHpScreenEffect = null;
         this._shootInputDir = this._barrelDir;
         this._localPreviewBarrelDir = null;
+        this._multiplayerInBush = false;
+        this._multiplayerBushId = null;
+        this._bushVisibilityMode = "normal";
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -559,6 +565,29 @@ var Player = /** @class */ (function (_super) {
         this._fire._lbPlayerName.$Label.string = showName;
         this._fire._lbPlayerName.color = isLocal ? cc.color(180, 255, 180, 255) : cc.color(210, 230, 255, 255);
         this._fire._lbPlayerName.active = showName.length > 0;
+    };
+    Player.prototype.setBushVisibilityMode = function (mode) {
+        if (mode === void 0) { mode = "normal"; }
+        var nextMode = mode == "hidden" ? "hidden" : (mode == "selfBush" ? "selfBush" : "normal");
+        if (this._bushVisibilityMode === nextMode) {
+            return;
+        }
+        this._bushVisibilityMode = nextMode;
+        this._refreshBushVisibilityState();
+    };
+    Player.prototype._refreshBushVisibilityState = function () {
+        var mode = this._bushVisibilityMode || "normal";
+        var bodyOpacity = mode == "hidden" ? 0 : (mode == "selfBush" ? 120 : 255);
+        var barrelOpacity = mode == "hidden" ? 0 : (mode == "selfBush" ? 120 : 255);
+        var hudVisible = mode != "hidden";
+        this.node.opacity = bodyOpacity;
+        if (this._fire && this._fire._lyBarrel && cc.isValid(this._fire._lyBarrel)) {
+            this._fire._lyBarrel.opacity = barrelOpacity;
+        }
+        if (this._fire && this._fire._lifebar && cc.isValid(this._fire._lifebar)) {
+            this._fire._lifebar.active = hudVisible && this._inGame;
+            this._fire._lifebar.opacity = mode == "selfBush" ? 168 : 255;
+        }
     };
     Player.prototype._showSacrificeTip = function (text) {
         var channel = SDKManager_1.default.getChannel();
@@ -1674,6 +1703,8 @@ var Player = /** @class */ (function (_super) {
         if (state.energyNeedExp != null && state.energyNeedExp > 0) {
             this._energyNeedExp = state.energyNeedExp;
         }
+        this._multiplayerInBush = !!state.inBush;
+        this._multiplayerBushId = state.bushId == null ? null : state.bushId;
         if (this._energyLevel > prevEnergyLevel) {
             var choice = this._buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale);
             if (choice) {
@@ -1695,6 +1726,7 @@ var Player = /** @class */ (function (_super) {
         if (this._hp == 0) {
             this.doDeath();
         }
+        this._refreshBushVisibilityState();
     };
     Player.prototype._buildUpgradeChoiceFromStateDelta = function (prevMaxHp, prevAtk, prevMoveSpeedScale) {
         var hpDelta = this._maxHp - prevMaxHp;
@@ -1912,6 +1944,7 @@ var Player = /** @class */ (function (_super) {
         this._inGame = true;
         this._fire._lifebar.active = true;
         this._refreshSkillButtonMode();
+        this._refreshBushVisibilityState();
     };
     //获取碰撞框
     Player.prototype.getPlayerBoundingBox = function () {
