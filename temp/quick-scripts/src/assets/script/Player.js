@@ -88,6 +88,7 @@ var Player = /** @class */ (function (_super) {
         _this._lowHpHeartbeatEffectId = -1;
         _this._lowHpScreenEffect = null;
         _this._shootInputDir = cc.v2(1, 0); //射击摇杆目标方向
+        _this._localPreviewBarrelDir = null; //本地联机玩家炮管预览方向(仅表现层)
         _this._frameInput = null; //网络帧输入(多人)
         _this._multiplayerMode = false; //多人模式(禁用本地摇杆)
         _this._multiplayerRemote = false; //多人远端玩家
@@ -133,6 +134,7 @@ var Player = /** @class */ (function (_super) {
         this._lowHpHeartbeatEffectId = -1;
         this._lowHpScreenEffect = null;
         this._shootInputDir = this._barrelDir;
+        this._localPreviewBarrelDir = null;
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -208,6 +210,15 @@ var Player = /** @class */ (function (_super) {
         if (event.fire === true) {
             this._tryFireOnce();
         }
+    };
+    Player.prototype.updateMultiplayerLocalAimPreview = function (dir) {
+        if (!this._multiplayerMode || this._multiplayerRemote) {
+            return;
+        }
+        if (!dir || dir.magSqr() <= 0) {
+            return;
+        }
+        this._localPreviewBarrelDir = cc.v2(dir).normalize();
     };
     //网络帧输入(多人模式)
     Player.prototype.setFrameInput = function (inputs) {
@@ -492,6 +503,35 @@ var Player = /** @class */ (function (_super) {
             this._fire._expBar.$ProgressBar.progress = this._energyNeedExp > 0 ? this._energyExp / this._energyNeedExp : 0;
         }
     };
+    Player.prototype._ensureMultiplayerNameUI = function () {
+        if (!this._fire._lifebar || this._fire._lbPlayerName) {
+            return;
+        }
+        var nameNode = new cc.Node("_lbPlayerName");
+        nameNode.parent = this._fire._lifebar;
+        nameNode.setPosition(0, 26);
+        nameNode.setContentSize(120, 24);
+        nameNode.zIndex = 12;
+        var nameLabel = nameNode.addComponent(cc.Label);
+        nameLabel.fontSize = 18;
+        nameLabel.lineHeight = 20;
+        nameLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        nameLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        nameNode.color = cc.color(255, 255, 255, 255);
+        nameNode["$Label"] = nameLabel;
+        this._fire._lbPlayerName = nameNode;
+    };
+    Player.prototype.setMultiplayerDisplayName = function (name, isLocal) {
+        if (isLocal === void 0) { isLocal = false; }
+        this._ensureMultiplayerNameUI();
+        if (!this._fire._lbPlayerName || !this._fire._lbPlayerName.$Label) {
+            return;
+        }
+        var showName = name || "";
+        this._fire._lbPlayerName.$Label.string = showName;
+        this._fire._lbPlayerName.color = isLocal ? cc.color(180, 255, 180, 255) : cc.color(210, 230, 255, 255);
+        this._fire._lbPlayerName.active = showName.length > 0;
+    };
     Player.prototype._showSacrificeTip = function (text) {
         var channel = SDKManager_1.default.getChannel();
         if (channel && channel.showToast) {
@@ -549,6 +589,7 @@ var Player = /** @class */ (function (_super) {
             this._refreshMoveEffect();
             this._refreshBarrelDir();
             this._refreshAngle(dt, false);
+            this._refreshDisplayBarrelAngle(dt);
             if (this._map && this._map.syncAttachedCoverTestCover) {
                 this._map.syncAttachedCoverTestCover(this);
             }
@@ -942,6 +983,41 @@ var Player = /** @class */ (function (_super) {
         if (this._shootInputDir && this._shootInputDir.magSqr() > 0) {
             this._barrelDir = this._shootInputDir;
         }
+    };
+    Player.prototype._getDisplayBarrelDir = function () {
+        if (this._multiplayerMode && !this._multiplayerRemote && this._localPreviewBarrelDir && this._localPreviewBarrelDir.magSqr() > 0) {
+            return this._localPreviewBarrelDir;
+        }
+        return this._barrelDir;
+    };
+    Player.prototype._refreshDisplayBarrelAngle = function (dt) {
+        if (dt === void 0) { dt = 1 / 60; }
+        if (!this._multiplayerMode || this._multiplayerRemote) {
+            return;
+        }
+        var displayDir = this._getDisplayBarrelDir();
+        if (!displayDir || displayDir.magSqr() <= 0) {
+            return;
+        }
+        var fromAngle = this._fire._lyBarrel.angle;
+        var toAngle = Utils_1.Utils.vectorsToDegress(displayDir);
+        var disAngle = toAngle - fromAngle;
+        if (disAngle > 180) {
+            fromAngle = fromAngle + 360;
+            disAngle = toAngle - fromAngle;
+        }
+        else if (disAngle < -180) {
+            fromAngle = fromAngle - 360;
+            disAngle = toAngle - fromAngle;
+        }
+        var maxTurnAngle = this._getFrameValue("AngularSpeed", 10, dt) * 1.6;
+        if (maxTurnAngle <= 0 || Math.abs(disAngle) <= maxTurnAngle) {
+            this._fire._lyBarrel.angle = toAngle;
+        }
+        else {
+            this._fire._lyBarrel.angle = this._fire._lyBarrel.angle + (disAngle > 0 ? maxTurnAngle : -maxTurnAngle);
+        }
+        this._fire._lyBarrel.angle = Utils_1.Utils.correctionAngle(this._fire._lyBarrel.angle);
     };
     // 右侧按钮抬起时直接发射一发, 不走按住持续发射逻辑
     Player.prototype.fireOnce = function () {

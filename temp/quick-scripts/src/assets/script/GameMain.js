@@ -32,6 +32,12 @@ var Analytics_1 = require("./ad/Analytics");
 var InsertAd_1 = require("./ad/InsertAd");
 var RewardAd_1 = require("./ad/RewardAd");
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
+var MULTIPLAYER_DEFAULT_TANK_TYPE = 1;
+var MULTIPLAYER_FIXED_PLAYER_LEVEL = 1;
+var MULTIPLAYER_FIXED_BASE_HP = 20;
+var MULTIPLAYER_FIXED_BASE_ATK = 6;
+var MULTIPLAYER_FIXED_BASE_SPEED = 5;
+var MULTIPLAYER_FIXED_ATTACK_RADIUS = 400;
 var GameMain = /** @class */ (function (_super) {
     __extends(GameMain, _super);
     function GameMain() {
@@ -1045,7 +1051,6 @@ var GameMain = /** @class */ (function (_super) {
             return true;
         }
         if (command.type === "matchResult") {
-            this._showMultiplayerAnnouncement("本局结算", command.text || "", "danger", command.duration || 3);
             return true;
         }
         return false;
@@ -1185,9 +1190,6 @@ var GameMain = /** @class */ (function (_super) {
         };
     };
     GameMain.prototype._buildMultiplayerPlayerSetup = function () {
-        var tankType = LocalizedData_1.LocalizedData.getIntItem("_current_player_type_", 1);
-        var playerLevel = LocalizedData_1.LocalizedData.getIntItem("_player_" + tankType + "_", 1);
-        var config = yyp.config.Tank && yyp.config.Tank[tankType] ? yyp.config.Tank[tankType] : {};
         var energySpawnPoints = [];
         var mapBounds = null;
         var spawnCandidates = [];
@@ -1201,12 +1203,12 @@ var GameMain = /** @class */ (function (_super) {
             spawnCandidates = this._fire._tiled.script.getMultiplayerSpawnCandidates();
         }
         return {
-            tankType: tankType,
-            playerLevel: playerLevel,
-            baseHp: (config.HP == null ? 50 : config.HP) * (playerLevel + 1),
-            baseAtk: (config.ATK == null ? 5 : config.ATK) * (playerLevel + 1),
-            baseSpeed: config.Speed == null ? 4 : config.Speed,
-            baseAttackRadius: config.AttackRadius == null ? 420 : config.AttackRadius,
+            tankType: MULTIPLAYER_DEFAULT_TANK_TYPE,
+            playerLevel: MULTIPLAYER_FIXED_PLAYER_LEVEL,
+            baseHp: MULTIPLAYER_FIXED_BASE_HP,
+            baseAtk: MULTIPLAYER_FIXED_BASE_ATK,
+            baseSpeed: MULTIPLAYER_FIXED_BASE_SPEED,
+            baseAttackRadius: MULTIPLAYER_FIXED_ATTACK_RADIUS,
             energySpawnPoints: energySpawnPoints,
             mapBounds: mapBounds,
             spawnCandidates: spawnCandidates,
@@ -1285,7 +1287,14 @@ var GameMain = /** @class */ (function (_super) {
         var finish = cc.instantiate(this.finishPrefab);
         finish.zIndex = 1000;
         Utils_1.Utils.addtoCurrentScene(finish);
-        finish.script.setResult(this._levelId, isWin, true);
+        var resultText = "";
+        if (winnerPlayerId >= 0) {
+            resultText = isWin ? "本局胜利，你获得了最终胜利" : ("本局失利，玩家" + (winnerPlayerId + 1) + "获胜");
+        }
+        else {
+            resultText = "本局平局，等待下一局再战";
+        }
+        finish.script.setResult(this._levelId, isWin, true, resultText);
         if (winnerPlayerId >= 0) {
             this._showMultiplayerStatus(isWin ? "你获胜了" : ("玩家 " + (winnerPlayerId + 1) + " 获胜"));
         }
@@ -1426,6 +1435,10 @@ var GameMain = /** @class */ (function (_super) {
             var inputs = self._ensureMultiplayerInputs();
             if (event.dir && event.dir.magSqr() > 0) {
                 var aimDir = cc.v2(event.dir).normalize();
+                var player = self._getLocalMultiplayerPlayer();
+                if (player && player.script && player.script.updateMultiplayerLocalAimPreview) {
+                    player.script.updateMultiplayerLocalAimPreview(aimDir);
+                }
                 inputs.aim = {
                     x: aimDir.x,
                     y: aimDir.y,

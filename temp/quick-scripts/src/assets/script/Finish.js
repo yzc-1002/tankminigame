@@ -49,8 +49,9 @@ var Finish = /** @class */ (function (_super) {
             self._fire._toggle.active = true;
         })));
     };
-    Finish.prototype.setResult = function (levelId, result, isMultiplayer) {
+    Finish.prototype.setResult = function (levelId, result, isMultiplayer, multiplayerResultText) {
         if (isMultiplayer === void 0) { isMultiplayer = false; }
+        if (multiplayerResultText === void 0) { multiplayerResultText = ""; }
         this._levelId = levelId;
         this._result = result;
         //关卡
@@ -67,18 +68,22 @@ var Finish = /** @class */ (function (_super) {
         //按钮
         this._fire._nToggle.opacity = 0;
         this._fire._toggle.active = false;
+        var multiplayerTips = multiplayerResultText || "";
+        if (!multiplayerTips && isMultiplayer) {
+            multiplayerTips = this._result ? "本局胜利，已完成多人结算" : "本局失利，等待下一局再战";
+        }
         if (this._result == true) {
             Analytics_1.Analytics.getInstance().eventEx('win_game', { "level": this._levelId });
             MusicManager_1.MusicManager.playEffect("win");
             if (isMultiplayer && this._fire._lbRewardsTIps && this._fire._lbRewardsTIps.$Label) {
-                this._fire._lbRewardsTIps.$Label.string = "本局胜利，已完成多人结算";
+                this._fire._lbRewardsTIps.$Label.string = multiplayerTips;
             }
         }
         else {
             Analytics_1.Analytics.getInstance().eventEx('failed_game', { "level": this._levelId });
             MusicManager_1.MusicManager.playEffect("failed");
             if (isMultiplayer && this._fire._lbRewardsTIps && this._fire._lbRewardsTIps.$Label) {
-                this._fire._lbRewardsTIps.$Label.string = "本局失利，等待下一局再战";
+                this._fire._lbRewardsTIps.$Label.string = multiplayerTips;
             }
         }
         var ani = this.node.getComponent(cc.Animation);

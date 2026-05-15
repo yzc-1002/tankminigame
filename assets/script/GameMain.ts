@@ -9,6 +9,12 @@ import {InsertAd} from "./ad/InsertAd";
 import {RewardAd} from "./ad/RewardAd";
 
 const {ccclass, property} = cc._decorator;
+const MULTIPLAYER_DEFAULT_TANK_TYPE = 1;
+const MULTIPLAYER_FIXED_PLAYER_LEVEL = 1;
+const MULTIPLAYER_FIXED_BASE_HP = 20;
+const MULTIPLAYER_FIXED_BASE_ATK = 6;
+const MULTIPLAYER_FIXED_BASE_SPEED = 5;
+const MULTIPLAYER_FIXED_ATTACK_RADIUS = 400;
 
 @ccclass
 export default class GameMain extends BaseComponent {
@@ -1157,7 +1163,6 @@ export default class GameMain extends BaseComponent {
             return true;
         }
         if (command.type === "matchResult") {
-            this._showMultiplayerAnnouncement("本局结算", command.text || "", "danger", command.duration || 3);
             return true;
         }
         return false;
@@ -1309,9 +1314,6 @@ export default class GameMain extends BaseComponent {
     }
 
     _buildMultiplayerPlayerSetup() {
-        let tankType = LocalizedData.getIntItem("_current_player_type_",1);
-        let playerLevel = LocalizedData.getIntItem(`_player_${tankType}_`, 1);
-        let config = yyp.config.Tank && yyp.config.Tank[tankType] ? yyp.config.Tank[tankType] : {};
         let energySpawnPoints = [];
         let mapBounds = null;
         let spawnCandidates = [];
@@ -1325,12 +1327,12 @@ export default class GameMain extends BaseComponent {
             spawnCandidates = this._fire._tiled.script.getMultiplayerSpawnCandidates();
         }
         return {
-            tankType: tankType,
-            playerLevel: playerLevel,
-            baseHp: (config.HP == null ? 50 : config.HP) * (playerLevel + 1),
-            baseAtk: (config.ATK == null ? 5 : config.ATK) * (playerLevel + 1),
-            baseSpeed: config.Speed == null ? 4 : config.Speed,
-            baseAttackRadius: config.AttackRadius == null ? 420 : config.AttackRadius,
+            tankType: MULTIPLAYER_DEFAULT_TANK_TYPE,
+            playerLevel: MULTIPLAYER_FIXED_PLAYER_LEVEL,
+            baseHp: MULTIPLAYER_FIXED_BASE_HP,
+            baseAtk: MULTIPLAYER_FIXED_BASE_ATK,
+            baseSpeed: MULTIPLAYER_FIXED_BASE_SPEED,
+            baseAttackRadius: MULTIPLAYER_FIXED_ATTACK_RADIUS,
             energySpawnPoints: energySpawnPoints,
             mapBounds: mapBounds,
             spawnCandidates: spawnCandidates,
@@ -1417,7 +1419,14 @@ export default class GameMain extends BaseComponent {
         let finish = cc.instantiate(this.finishPrefab);
         finish.zIndex = 1000;
         Utils.addtoCurrentScene(finish);
-        finish.script.setResult(this._levelId, isWin, true);
+        let resultText = "";
+        if (winnerPlayerId >= 0) {
+            resultText = isWin ? "本局胜利，你获得了最终胜利" : ("本局失利，玩家" + (winnerPlayerId + 1) + "获胜");
+        }
+        else{
+            resultText = "本局平局，等待下一局再战";
+        }
+        finish.script.setResult(this._levelId, isWin, true, resultText);
 
         if (winnerPlayerId >= 0) {
             this._showMultiplayerStatus(isWin ? "你获胜了" : ("玩家 " + (winnerPlayerId + 1) + " 获胜"));
@@ -1560,6 +1569,10 @@ export default class GameMain extends BaseComponent {
             let inputs = self._ensureMultiplayerInputs();
             if (event.dir && event.dir.magSqr() > 0) {
                 let aimDir = cc.v2(event.dir).normalize();
+                let player = self._getLocalMultiplayerPlayer();
+                if (player && player.script && player.script.updateMultiplayerLocalAimPreview) {
+                    player.script.updateMultiplayerLocalAimPreview(aimDir);
+                }
                 inputs.aim = {
                     x: aimDir.x,
                     y: aimDir.y,

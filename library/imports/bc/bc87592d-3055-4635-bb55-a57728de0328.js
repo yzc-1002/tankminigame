@@ -171,6 +171,10 @@ var JoyStick = /** @class */ (function (_super) {
         if (moveRatio > 0) {
             yyp.eventCenter.emit("joy-stick", { dir: this._moveDir, ratio: moveRatio });
         }
+        var shootRatio = this._limitStickRange(this._fire._sprBg02, this._fire._sprJoystick02, this._shootTouchPos, this._shootDir);
+        if (this._shootTouchId != null && shootRatio > 0 && this._shootDir.magSqr() > 0) {
+            yyp.eventCenter.emit("joy-stick-shoot", { dir: this._shootDir, ratio: shootRatio });
+        }
     };
     JoyStick.prototype.onDisable = function () {
         this._moveTouchId = null;

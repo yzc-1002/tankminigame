@@ -23,6 +23,12 @@ const ENERGY_EGG_BURST_COUNT = 12;
 const ENERGY_EGG_BURST_SCATTER_RADIUS = 136;
 const PLAYER_DEFAULT_RADIUS = 38;
 const PLAYER_DIR_FALLBACK = { x: 1, y: 0 };
+const MULTIPLAYER_DEFAULT_TANK_TYPE = 1;
+const MULTIPLAYER_FIXED_PLAYER_LEVEL = 1;
+const MULTIPLAYER_FIXED_BASE_HP = 20;
+const MULTIPLAYER_FIXED_BASE_ATK = 6;
+const MULTIPLAYER_FIXED_BASE_SPEED = 5;
+const MULTIPLAYER_FIXED_ATTACK_RADIUS = 400;
 const PLAYER_EXP_BASE = 30;
 const PLAYER_EXP_STEP = 15;
 const PLAYER_LEVEL_HP_ADD = 5;
@@ -195,18 +201,18 @@ function getPlayerEnergyNeedExp(player) {
 }
 
 function createPlayerState(setup = {}) {
-  const tankType = setup.tankType == null ? 1 : setup.tankType;
-  const playerLevel = setup.playerLevel == null ? 1 : setup.playerLevel;
-  const baseHp = setup.baseHp == null ? 100 : setup.baseHp;
-  const baseAtk = setup.baseAtk == null ? 5 : setup.baseAtk;
-  const baseSpeed = setup.baseSpeed == null ? 4 : setup.baseSpeed;
+  const tankType = MULTIPLAYER_DEFAULT_TANK_TYPE;
+  const playerLevel = MULTIPLAYER_FIXED_PLAYER_LEVEL;
+  const baseHp = MULTIPLAYER_FIXED_BASE_HP;
+  const baseAtk = MULTIPLAYER_FIXED_BASE_ATK;
+  const baseSpeed = MULTIPLAYER_FIXED_BASE_SPEED;
   return {
     tankType,
     playerLevel,
     baseHp,
     baseAtk,
     baseSpeed,
-    baseAttackRadius: setup.baseAttackRadius == null ? 420 : setup.baseAttackRadius,
+    baseAttackRadius: MULTIPLAYER_FIXED_ATTACK_RADIUS,
     hp: baseHp,
     maxHp: baseHp,
     atk: baseAtk,

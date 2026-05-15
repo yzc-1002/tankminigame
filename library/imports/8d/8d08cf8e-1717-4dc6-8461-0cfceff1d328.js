@@ -4873,6 +4873,9 @@ var GameMap = /** @class */ (function (_super) {
                 catch (e) { }
             }
         });
+        if (player.script && player.script.setMultiplayerDisplayName) {
+            player.script.setMultiplayerDisplayName("player" + (playerIdx + 1), playerIdx === this._localPlayerId);
+        }
         this._multiplayerPlayers[playerIdx] = player;
         if (playerIdx === this._localPlayerId) {
             this._player = player;

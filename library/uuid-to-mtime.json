@@ -545,8 +545,8 @@
     "relativePath": "prefab\\Finish.anim"
   },
   "01a8523b-49fa-4898-a034-8539983880a1": {
-    "asset": 1776754824961,
-    "meta": 1776754824964,
+    "asset": 1778815101198,
+    "meta": 1778815101200,
     "relativePath": "prefab\\Finish.prefab"
   },
   "a7976efa-dcd2-4d89-9b42-43c437d4e6f4": {
@@ -1980,8 +1980,8 @@
     "relativePath": "script\\config\\Tank.ts"
   },
   "9eb8f898-f012-4150-bd35-1b087a918955": {
-    "asset": 1777540972917,
-    "meta": 1777540972917,
+    "asset": 1778815469830,
+    "meta": 1778815469831,
     "relativePath": "prefab\\GameMain.prefab"
   },
   "f36d749b-573e-4e8e-841e-8e150a30225a": {
@@ -2104,34 +2104,34 @@
     "meta": 1778750336962,
     "relativePath": "script\\BulletE.ts"
   },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1778755834045,
-    "meta": 1778755886100,
-    "relativePath": "script\\JoyStick.ts"
-  },
-  "338d292b-a0b2-48c1-bc72-756e6d01841b": {
-    "asset": 1778757624143,
-    "meta": 1778757711922,
-    "relativePath": "script\\Finish.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778757605735,
-    "meta": 1778757712805,
-    "relativePath": "script\\GameMap.ts"
-  },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778812599152,
-    "meta": 1778812777300,
-    "relativePath": "script\\GameMain.ts"
-  },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
     "asset": 1778812605315,
     "meta": 1778812777339,
     "relativePath": "script\\network\\NetworkManager.ts"
   },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778814049712,
+    "meta": 1778814120422,
+    "relativePath": "script\\JoyStick.ts"
+  },
+  "338d292b-a0b2-48c1-bc72-756e6d01841b": {
+    "asset": 1778814850343,
+    "meta": 1778814897279,
+    "relativePath": "script\\Finish.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778815806275,
+    "meta": 1778815935407,
+    "relativePath": "script\\GameMap.ts"
+  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778812618235,
-    "meta": 1778812777565,
+    "asset": 1778815800553,
+    "meta": 1778815935642,
     "relativePath": "script\\Player.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778817098143,
+    "meta": 1778817105369,
+    "relativePath": "script\\GameMain.ts"
   }
 }
