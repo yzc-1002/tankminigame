@@ -316,7 +316,7 @@ export class Bullet extends BaseComponent {
                     this.node.setPosition(willPosition);
 
                     //黑洞引力
-                    if (this._map && this._map._blackHoleTestMode && this._map._blackHoleAreaData) {
+                    if (this._map && this._map._blackHoleAreaData) {
                         let bhData = this._map._blackHoleAreaData;
                         let bulletPos = cc.v2(this.node.position);
                         let toCenter = bhData.center.sub(bulletPos);

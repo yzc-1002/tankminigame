@@ -1924,11 +1924,6 @@
     "meta": 1778835814508,
     "relativePath": "script\\base\\Utils.ts"
   },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1778835088945,
-    "meta": 1778835814637,
-    "relativePath": "script\\BulletE.ts"
-  },
   "619e5825-d4d3-4057-96c4-d47592d96f58": {
     "asset": 1778835088941,
     "meta": 1778835814642,
@@ -2133,5 +2128,10 @@
     "asset": 1778839192917,
     "meta": 1778839244685,
     "relativePath": "script\\Player.ts"
+  },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1778839483883,
+    "meta": 1778839574175,
+    "relativePath": "script\\BulletE.ts"
   }
 }

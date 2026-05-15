@@ -311,7 +311,7 @@ var Bullet = /** @class */ (function (_super) {
                     var willPosition = currPosition.add(cc.v3(this._dir.mul(this._speed)));
                     this.node.setPosition(willPosition);
                     //黑洞引力
-                    if (this._map && this._map._blackHoleTestMode && this._map._blackHoleAreaData) {
+                    if (this._map && this._map._blackHoleAreaData) {
                         var bhData = this._map._blackHoleAreaData;
                         var bulletPos = cc.v2(this.node.position);
                         var toCenter = bhData.center.sub(bulletPos);
