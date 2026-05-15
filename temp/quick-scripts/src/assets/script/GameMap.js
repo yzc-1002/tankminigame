@@ -5633,6 +5633,37 @@ var GameMap = /** @class */ (function (_super) {
         var will = this._correctMapPosition(cc.v2(-pos.x, -pos.y));
         this.node.setPosition(will);
     };
+    GameMap.prototype.getMapBounds = function () {
+        if (!this._tmSize) {
+            return null;
+        }
+        return {
+            halfWidth: Math.max(0, this._tmSize.width / 2),
+            halfHeight: Math.max(0, this._tmSize.height / 2),
+        };
+    };
+    GameMap.prototype.getMultiplayerSafeZoneState = function () {
+        if (!this._multiplayerMode || !this._multiplayerSafeZone) {
+            return null;
+        }
+        return {
+            centerX: this._multiplayerSafeZone.centerX || 0,
+            centerY: this._multiplayerSafeZone.centerY || 0,
+            startRadius: this._multiplayerSafeZone.startRadius || 0,
+            targetRadius: this._multiplayerSafeZone.targetRadius || 0,
+            radius: this._multiplayerSafeZone.radius || 0,
+            startDelay: this._multiplayerSafeZone.startDelay || 0,
+            shrinkDuration: this._multiplayerSafeZone.shrinkDuration || 0,
+            damageInterval: this._multiplayerSafeZone.damageInterval || 0,
+            damagePerTick: this._multiplayerSafeZone.damagePerTick || 0,
+            active: !!this._multiplayerSafeZone.active,
+            shrinking: !!this._multiplayerSafeZone.shrinking,
+            finished: !!this._multiplayerSafeZone.finished,
+            progress: this._multiplayerSafeZone.progress || 0,
+            waitRemaining: this._multiplayerSafeZone.waitRemaining || 0,
+            shrinkRemaining: this._multiplayerSafeZone.shrinkRemaining || 0,
+        };
+    };
     GameMap.prototype._clearAllTestNodes = function () {
         this._clearPortalTestNodes();
         this._clearCentrifugalRingTestNodes();

@@ -529,45 +529,15 @@
     "meta": 1776683591473,
     "relativePath": "prefab\\Boom.prefab"
   },
-  "3fc53a6e-3d1c-43fa-afa9-4399c2f68ee3": {
-    "asset": 1777375661865,
-    "meta": 1777375661866,
-    "relativePath": "prefab\\Bullet.prefab"
-  },
   "e16bf3a6-0f73-41d9-84b9-2b83608e9fd1": {
     "asset": 1776683591480,
     "meta": 1776683591481,
     "relativePath": "prefab\\CoinItem.prefab"
   },
-  "4d38b462-8e22-4750-9b34-9e71af4253f2": {
-    "asset": 1776743121226,
-    "meta": 1776743121235,
-    "relativePath": "prefab\\Finish.anim"
-  },
-  "01a8523b-49fa-4898-a034-8539983880a1": {
-    "asset": 1778815101198,
-    "meta": 1778815101200,
-    "relativePath": "prefab\\Finish.prefab"
-  },
-  "a7976efa-dcd2-4d89-9b42-43c437d4e6f4": {
-    "asset": 1777022409740,
-    "meta": 1777022409741,
-    "relativePath": "prefab\\GameMap.prefab"
-  },
-  "099f4dde-58f4-4a3e-b662-48642286555d": {
-    "asset": 1778492671382,
-    "meta": 1778492671383,
-    "relativePath": "prefab\\JoyStick.prefab"
-  },
   "7aefe2c8-be5c-46a7-a3d9-dae9628bdd2b": {
     "asset": 1609561794000,
     "meta": 1776683591506,
     "relativePath": "prefab\\obstacle"
-  },
-  "f6e0f61e-6d81-46ed-a947-95e0ed1ade94": {
-    "asset": 1776744087299,
-    "meta": 1776744087300,
-    "relativePath": "prefab\\New Node.prefab"
   },
   "62ab33f7-5bb5-4f26-a2a3-68261b73d476": {
     "asset": 1776930753935,
@@ -599,11 +569,6 @@
     "meta": 1776683591529,
     "relativePath": "prefab\\skill"
   },
-  "8eb7e509-4f8a-4052-8104-f7bc3f659231": {
-    "asset": 1776744149106,
-    "meta": 1776744149107,
-    "relativePath": "prefab\\Setting.prefab"
-  },
   "24268077-3473-412a-81cf-725649348735": {
     "asset": 1609561794000,
     "meta": 1776683591537,
@@ -613,16 +578,6 @@
     "asset": 1777366083764,
     "meta": 1777366083765,
     "relativePath": "prefab\\skill\\SkillIcon.prefab"
-  },
-  "dc7df1dc-ce23-4957-bc91-9a2f3a8adc66": {
-    "asset": 1777282964455,
-    "meta": 1777282964457,
-    "relativePath": "prefab\\tank\\Enemy.prefab"
-  },
-  "3f74484c-3245-4998-936d-db3a2c0a15af": {
-    "asset": 1777425582805,
-    "meta": 1777425582806,
-    "relativePath": "prefab\\tank\\Player.prefab"
   },
   "eb0b5760-61d1-4717-a9ba-ba2cdb03b127": {
     "asset": 1776683591553,
@@ -638,11 +593,6 @@
     "asset": 1609561794000,
     "meta": 1776683591556,
     "relativePath": "resources\\default"
-  },
-  "6e4c589d-3289-4cfb-8303-eb6962daef19": {
-    "asset": 1776744155474,
-    "meta": 1776744155476,
-    "relativePath": "prefab\\Upgrade.prefab"
   },
   "cee59b64-5aa0-4aad-b678-ea93cb692d70": {
     "asset": 1609561796000,
@@ -1830,308 +1780,358 @@
     "relativePath": "script\\base\\LinkPrefab.ts"
   },
   "174d1775-6d17-4a2c-aa7e-ba21382e96a6": {
-    "asset": 1776940061769,
-    "meta": 1777018455904,
+    "asset": 1778835088856,
+    "meta": 1778835810853,
     "relativePath": "map1"
   },
-  "883376d7-2957-43fc-bbc2-3e4a6e9e43f8": {
-    "asset": 1776930948958,
-    "meta": 1776930972050,
-    "relativePath": "map\\map01.tmx"
-  },
   "8790ec7d-8bac-4535-8608-5431c0350e73": {
-    "asset": 1776936116527,
-    "meta": 1776936121679,
+    "asset": 1778835088848,
+    "meta": 1778835816306,
     "relativePath": "map1\\map002.tmx"
   },
-  "4fca405f-1fc6-47cc-8382-58263bf7e229": {
-    "asset": 1776936116674,
-    "meta": 1776936116823,
-    "relativePath": "map1\\tile.png"
-  },
-  "8165b565-e1d1-44ea-8713-dbf373cb2dca": {
-    "asset": 1776937327816,
-    "meta": 1776937340743,
-    "relativePath": "map1\\tankTiles_retina.png"
+  "883376d7-2957-43fc-bbc2-3e4a6e9e43f8": {
+    "asset": 1778835088846,
+    "meta": 1778835816309,
+    "relativePath": "map\\map01.tmx"
   },
   "81812004-9ee9-4b2f-ae0b-8f489f83446d": {
-    "asset": 1776937407674,
-    "meta": 1776938535610,
+    "asset": 1778835088851,
+    "meta": 1778835810872,
     "relativePath": "map1\\tankSprite.tsx"
   },
-  "0344b5f3-0daf-44ae-86ba-94c09643ba1b": {
-    "asset": 1777024881695,
-    "meta": 1777024918867,
-    "relativePath": "texture\\rocker_02.png"
-  },
-  "777b006b-8af6-4723-8375-e6411962005f": {
-    "asset": 1777024881695,
-    "meta": 1777024911817,
-    "relativePath": "texture\\rocker_bg02.png"
-  },
   "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
-    "asset": 1777258784011,
-    "meta": 1777258785591,
+    "asset": 1778835088850,
+    "meta": 1778835816311,
     "relativePath": "map1\\tankMap.tmx"
   },
-  "1e8b141b-5b9d-48bb-aac6-bbfe073b2e61": {
-    "asset": 1777277837759,
-    "meta": 1777277837764,
-    "relativePath": "scene\\StartScene.fire"
+  "4fca405f-1fc6-47cc-8382-58263bf7e229": {
+    "asset": 1778835088856,
+    "meta": 1778835810916,
+    "relativePath": "map1\\tile.png"
   },
-  "2d2f792f-a40c-49bb-a189-ed176a246e49": {
-    "asset": 1777544075953,
-    "meta": 1777544075957,
-    "relativePath": "scene\\GameScene.fire"
+  "3fc53a6e-3d1c-43fa-afa9-4399c2f68ee3": {
+    "asset": 1778835810923,
+    "meta": 1778835810924,
+    "relativePath": "prefab\\Bullet.prefab"
   },
-  "5806deda-365d-4894-85af-1b8fa8c177d4": {
-    "asset": 1777283081763,
-    "meta": 1777283093961,
-    "relativePath": "texture\\skillBtn.png"
+  "8165b565-e1d1-44ea-8713-dbf373cb2dca": {
+    "asset": 1778835088854,
+    "meta": 1778835810934,
+    "relativePath": "map1\\tankTiles_retina.png"
   },
-  "ce150c3a-bc4d-4d1e-ba8f-bffdc7462430": {
-    "asset": 1777364820217,
-    "meta": 1777364820258,
-    "relativePath": "texture\\ui\\barrelRed_side.png"
+  "4d38b462-8e22-4750-9b34-9e71af4253f2": {
+    "asset": 1778835088859,
+    "meta": 1778835810940,
+    "relativePath": "prefab\\Finish.anim"
   },
-  "6cf484e9-0877-40d3-88ac-435112f83938": {
-    "asset": 1777364820217,
-    "meta": 1777364820260,
-    "relativePath": "texture\\ui\\barrelGreen_side.png"
+  "01a8523b-49fa-4898-a034-8539983880a1": {
+    "asset": 1778835810946,
+    "meta": 1778835810947,
+    "relativePath": "prefab\\Finish.prefab"
   },
-  "3702e84b-88f5-4424-a6e6-a2d897d9c848": {
-    "asset": 1777364820219,
-    "meta": 1777364820274,
-    "relativePath": "texture\\ui\\barrelBlack_side.png"
+  "a7976efa-dcd2-4d89-9b42-43c437d4e6f4": {
+    "asset": 1778835810951,
+    "meta": 1778835810953,
+    "relativePath": "prefab\\GameMap.prefab"
   },
-  "06b91696-719b-4d17-a055-1cd51b512f6b": {
-    "asset": 1777365453529,
-    "meta": 1777366014490,
-    "relativePath": "script\\EnergyItem.ts"
+  "9eb8f898-f012-4150-bd35-1b087a918955": {
+    "asset": 1778835810959,
+    "meta": 1778835810961,
+    "relativePath": "prefab\\GameMain.prefab"
   },
-  "3b29bff1-28ed-4a5c-a0ac-08ee56136f8e": {
-    "asset": 1777368050887,
-    "meta": 1777368299323,
-    "relativePath": "script\\config\\Bullet.ts"
+  "099f4dde-58f4-4a3e-b662-48642286555d": {
+    "asset": 1778835810964,
+    "meta": 1778835810965,
+    "relativePath": "prefab\\JoyStick.prefab"
   },
-  "619e5825-d4d3-4057-96c4-d47592d96f58": {
-    "asset": 1777375011420,
-    "meta": 1777375011898,
-    "relativePath": "resources\\sfx\\sfx_hurt.ogg"
+  "f6e0f61e-6d81-46ed-a947-95e0ed1ade94": {
+    "asset": 1778835810970,
+    "meta": 1778835810971,
+    "relativePath": "prefab\\New Node.prefab"
+  },
+  "8eb7e509-4f8a-4052-8104-f7bc3f659231": {
+    "asset": 1778835810975,
+    "meta": 1778835810977,
+    "relativePath": "prefab\\Setting.prefab"
+  },
+  "dc7df1dc-ce23-4957-bc91-9a2f3a8adc66": {
+    "asset": 1778835810982,
+    "meta": 1778835810983,
+    "relativePath": "prefab\\tank\\Enemy.prefab"
+  },
+  "3f74484c-3245-4998-936d-db3a2c0a15af": {
+    "asset": 1778835810987,
+    "meta": 1778835810989,
+    "relativePath": "prefab\\tank\\Player.prefab"
+  },
+  "6e4c589d-3289-4cfb-8303-eb6962daef19": {
+    "asset": 1778835811083,
+    "meta": 1778835811085,
+    "relativePath": "prefab\\Upgrade.prefab"
   },
   "e1abbc95-26b9-4831-aa0e-54706997c868": {
-    "asset": 1777375011420,
-    "meta": 1777375011902,
+    "asset": 1778835088924,
+    "meta": 1778835814138,
     "relativePath": "resources\\sfx\\bomb.mp3"
   },
+  "9e5ff7c4-3037-4fce-b446-56ad4ff18c05": {
+    "asset": 1778835088929,
+    "meta": 1778835814150,
+    "relativePath": "resources\\sfx\\chargeCannon.mp3"
+  },
+  "f36d749b-573e-4e8e-841e-8e150a30225a": {
+    "asset": 1778835088932,
+    "meta": 1778835814161,
+    "relativePath": "resources\\sfx\\chargeShoot.mp3"
+  },
+  "81619e9a-ed9c-48c8-b3bd-d46f0fe2fa77": {
+    "asset": 1778835088921,
+    "meta": 1778835814174,
+    "relativePath": "resources\\sfx\\bgm.wav"
+  },
   "b684c41c-f243-4d9d-bd64-f548bcbf08f8": {
-    "asset": 1777375011421,
-    "meta": 1777375198951,
+    "asset": 1778835088934,
+    "meta": 1778835814180,
     "relativePath": "resources\\sfx\\fashe.aac"
   },
   "fb1083d1-c0c6-493f-b799-a0158da5e62d": {
-    "asset": 1777375011422,
-    "meta": 1777375213248,
+    "asset": 1778835088875,
+    "meta": 1778835814187,
     "relativePath": "resources\\sfx\\Hitemey.aac"
   },
   "7768d748-bcfe-4014-a500-4026117df382": {
-    "asset": 1777375011424,
-    "meta": 1777375011927,
+    "asset": 1778835088940,
+    "meta": 1778835814193,
     "relativePath": "resources\\sfx\\move.mp3"
   },
-  "81619e9a-ed9c-48c8-b3bd-d46f0fe2fa77": {
-    "asset": 1777375170787,
-    "meta": 1777375174603,
-    "relativePath": "resources\\sfx\\bgm.wav"
-  },
-  "cd992ade-adff-4ae5-a96d-def4c7f31e60": {
-    "asset": 1777375795500,
-    "meta": 1777375844281,
-    "relativePath": "script\\base\\Utils.ts"
-  },
-  "679e8691-724f-4458-bfad-083b068c568c": {
-    "asset": 1777375798698,
-    "meta": 1777375844303,
-    "relativePath": "script\\Setting.ts"
-  },
-  "23be0847-22d5-4882-92d8-624da3315378": {
-    "asset": 1777376067763,
-    "meta": 1777376067801,
-    "relativePath": "texture\\tank_own_01_01.png"
-  },
-  "b1671593-82bc-4edd-894f-37c279903c4b": {
-    "asset": 1777376067763,
-    "meta": 1777376067803,
-    "relativePath": "texture\\tank_own_01_02.png"
-  },
-  "6a2c7f39-7c62-4541-9369-9a1c92404b15": {
-    "asset": 1777424504690,
-    "meta": 1777425545774,
-    "relativePath": "script\\base\\MusicManager.ts"
-  },
-  "9e5ff7c4-3037-4fce-b446-56ad4ff18c05": {
-    "asset": 1777431134172,
-    "meta": 1777431135061,
-    "relativePath": "resources\\sfx\\chargeCannon.mp3"
-  },
-  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
-    "asset": 1777431986086,
-    "meta": 1777431991147,
-    "relativePath": "script\\config\\Tank.ts"
-  },
-  "9eb8f898-f012-4150-bd35-1b087a918955": {
-    "asset": 1778815469830,
-    "meta": 1778815469831,
-    "relativePath": "prefab\\GameMain.prefab"
-  },
-  "f36d749b-573e-4e8e-841e-8e150a30225a": {
-    "asset": 1777452275024,
-    "meta": 1777452280826,
-    "relativePath": "resources\\sfx\\chargeShoot.mp3"
-  },
-  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
-    "asset": 1777454961109,
-    "meta": 1777455091644,
-    "relativePath": "script\\config\\Music.ts"
-  },
-  "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
-    "asset": 1777538639817,
-    "meta": 1777538812148,
-    "relativePath": "script\\TankE.ts"
-  },
   "e18071e7-d8e4-4aa1-a499-2d008f5decc8": {
-    "asset": 1777540816252,
-    "meta": 1777540847187,
+    "asset": 1778835088942,
+    "meta": 1778835814389,
     "relativePath": "resources\\shader\\ripple-distortion.effect"
   },
+  "2d2f792f-a40c-49bb-a189-ed176a246e49": {
+    "asset": 1778835088943,
+    "meta": 1778835814397,
+    "relativePath": "scene\\GameScene.fire"
+  },
+  "1e8b141b-5b9d-48bb-aac6-bbfe073b2e61": {
+    "asset": 1778835088944,
+    "meta": 1778835814401,
+    "relativePath": "scene\\StartScene.fire"
+  },
+  "6a2c7f39-7c62-4541-9369-9a1c92404b15": {
+    "asset": 1778835088958,
+    "meta": 1778835814429,
+    "relativePath": "script\\base\\MusicManager.ts"
+  },
+  "cd992ade-adff-4ae5-a96d-def4c7f31e60": {
+    "asset": 1778835088959,
+    "meta": 1778835814508,
+    "relativePath": "script\\base\\Utils.ts"
+  },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1778835088945,
+    "meta": 1778835814637,
+    "relativePath": "script\\BulletE.ts"
+  },
+  "619e5825-d4d3-4057-96c4-d47592d96f58": {
+    "asset": 1778835088941,
+    "meta": 1778835814642,
+    "relativePath": "resources\\sfx\\sfx_hurt.ogg"
+  },
+  "3b29bff1-28ed-4a5c-a0ac-08ee56136f8e": {
+    "asset": 1778835088960,
+    "meta": 1778835814649,
+    "relativePath": "script\\config\\Bullet.ts"
+  },
+  "a9d1b497-36a8-4cda-8aa1-74dd077f8ab3": {
+    "asset": 1778835088962,
+    "meta": 1778835814654,
+    "relativePath": "script\\config\\Energy.ts"
+  },
+  "97b73aa5-e6dc-46a8-a66e-ac8bbc667f19": {
+    "asset": 1778835088963,
+    "meta": 1778835814662,
+    "relativePath": "script\\config\\Music.ts"
+  },
+  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
+    "asset": 1778835088964,
+    "meta": 1778835814672,
+    "relativePath": "script\\config\\Tank.ts"
+  },
   "dc25955e-68f9-48e8-8a4e-0bf71f7f1192": {
-    "asset": 1777540847017,
-    "meta": 1777540847188,
+    "asset": 1778835088966,
+    "meta": 1778835814673,
     "relativePath": "script\\effect"
   },
   "bb6fc9c9-fd97-4e90-b469-1dc1740705fd": {
-    "asset": 1777543197699,
-    "meta": 1777544052314,
+    "asset": 1778835088966,
+    "meta": 1778835814685,
     "relativePath": "script\\effect\\RippleShockwave.ts"
   },
-  "d90792c1-f611-4e84-927b-6b81669153e3": {
-    "asset": 1777544069734,
-    "meta": 1777544069793,
-    "relativePath": "texture\\shoot1.png"
-  },
-  "6a9f5a9c-572f-4338-aac7-133ea2322b22": {
-    "asset": 1777544069734,
-    "meta": 1777544069795,
-    "relativePath": "texture\\shoot4.png"
-  },
-  "dc69e29b-ed5a-4cb3-93eb-43dc622b00f8": {
-    "asset": 1777544069734,
-    "meta": 1777544069821,
-    "relativePath": "texture\\shoot2.png"
-  },
-  "d2c9326a-b624-4d10-b6b9-901363d964c2": {
-    "asset": 1777544069734,
-    "meta": 1777544069824,
-    "relativePath": "texture\\shoot5.png"
-  },
-  "e51de72a-250f-4005-855b-002757ccaf6b": {
-    "asset": 1777544069738,
-    "meta": 1777544069848,
-    "relativePath": "texture\\shoot3.png"
-  },
-  "1b2700f9-8441-4e16-9fad-080032464c47": {
-    "asset": 1778139033666,
-    "meta": 1778139033693,
-    "relativePath": "texture\\skilloilBtn.png"
-  },
-  "9c808127-b265-4dd7-972f-83b5ba2b7774": {
-    "asset": 1778139313285,
-    "meta": 1778139313307,
-    "relativePath": "texture\\oilSpill_large.png"
-  },
   "a390b105-7508-4780-a6f6-fbd78451b51a": {
-    "asset": 1778139825116,
-    "meta": 1778140066048,
+    "asset": 1778835088946,
+    "meta": 1778835814740,
     "relativePath": "script\\Enemy.ts"
   },
-  "c06376b0-cddb-41b4-99c0-c83e2b286204": {
-    "asset": 1778148349135,
-    "meta": 1778148349161,
-    "relativePath": "texture\\crateWood.png"
+  "a6c0f4fb-f74d-4c7a-9f3f-8df0b45a9c6f": {
+    "asset": 1778835088946,
+    "meta": 1778835814768,
+    "relativePath": "script\\EnergyEgg.ts"
   },
-  "f5a69fd4-5c2b-4b8e-8f57-c25861505cbc": {
-    "asset": 1778148453618,
-    "meta": 1778148460174,
-    "relativePath": "texture\\fenli.png"
+  "06b91696-719b-4d17-a055-1cd51b512f6b": {
+    "asset": 1778835088948,
+    "meta": 1778835814780,
+    "relativePath": "script\\EnergyItem.ts"
   },
-  "b6d7dde2-cf35-4cb1-a508-2ecf5f0cf6c6": {
-    "asset": 1778150202119,
-    "meta": 1778150202149,
-    "relativePath": "texture\\treeGreen_large.png"
+  "338d292b-a0b2-48c1-bc72-756e6d01841b": {
+    "asset": 1778835088949,
+    "meta": 1778835814836,
+    "relativePath": "script\\Finish.ts"
   },
-  "4d457448-2a92-4ff2-baa7-ed89c808d7ed": {
-    "asset": 1778150312164,
-    "meta": 1778150312197,
-    "relativePath": "texture\\energyEgg.png"
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778835680257,
+    "meta": 1778835815684,
+    "relativePath": "script\\GameMap.ts"
   },
-  "9f2df35d-fe13-4780-a0d1-83be264c5b6e": {
-    "asset": 1778481129916,
-    "meta": 1778481130850,
-    "relativePath": "script\\network"
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778835088953,
+    "meta": 1778835815740,
+    "relativePath": "script\\JoyStick.ts"
   },
   "62d8d92b-08fa-42ce-8489-c0bfd6a7f1b3": {
     "asset": 1778490648697,
-    "meta": 1778492669345,
+    "meta": 1778835815743,
     "relativePath": "script\\multiplayer"
   },
-  "a9d1b497-36a8-4cda-8aa1-74dd077f8ab3": {
-    "asset": 1778730361905,
-    "meta": 1778731112962,
-    "relativePath": "script\\config\\Energy.ts"
-  },
-  "a6c0f4fb-f74d-4c7a-9f3f-8df0b45a9c6f": {
-    "asset": 1778748141723,
-    "meta": 1778748613616,
-    "relativePath": "script\\EnergyEgg.ts"
-  },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1778749822263,
-    "meta": 1778750336962,
-    "relativePath": "script\\BulletE.ts"
-  },
-  "338d292b-a0b2-48c1-bc72-756e6d01841b": {
-    "asset": 1778814850343,
-    "meta": 1778814897279,
-    "relativePath": "script\\Finish.ts"
-  },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778833615046,
-    "meta": 1778834358196,
-    "relativePath": "script\\GameMain.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778833640970,
-    "meta": 1778834358835,
-    "relativePath": "script\\GameMap.ts"
+  "9f2df35d-fe13-4780-a0d1-83be264c5b6e": {
+    "asset": 1778835088968,
+    "meta": 1778835815744,
+    "relativePath": "script\\network"
   },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778833607699,
-    "meta": 1778834358927,
+    "asset": 1778835088968,
+    "meta": 1778835815774,
     "relativePath": "script\\network\\NetworkManager.ts"
   },
   "f60d2c9a-5abd-4e9e-a544-4c2bd3a90006": {
-    "asset": 1778833377987,
-    "meta": 1778834358954,
+    "asset": 1778835088954,
+    "meta": 1778835815790,
     "relativePath": "script\\OilPickup.ts"
   },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1778834716321,
-    "meta": 1778834755457,
-    "relativePath": "script\\JoyStick.ts"
-  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778834723807,
-    "meta": 1778834755712,
+    "asset": 1778835088956,
+    "meta": 1778835815960,
     "relativePath": "script\\Player.ts"
+  },
+  "679e8691-724f-4458-bfad-083b068c568c": {
+    "asset": 1778835088957,
+    "meta": 1778835815974,
+    "relativePath": "script\\Setting.ts"
+  },
+  "6d462e4b-0c29-4877-befd-9cb83ec869a3": {
+    "asset": 1778835088957,
+    "meta": 1778835816023,
+    "relativePath": "script\\TankE.ts"
+  },
+  "c06376b0-cddb-41b4-99c0-c83e2b286204": {
+    "asset": 1778835088969,
+    "meta": 1778835816054,
+    "relativePath": "texture\\crateWood.png"
+  },
+  "4d457448-2a92-4ff2-baa7-ed89c808d7ed": {
+    "asset": 1778835088970,
+    "meta": 1778835816056,
+    "relativePath": "texture\\energyEgg.png"
+  },
+  "9c808127-b265-4dd7-972f-83b5ba2b7774": {
+    "asset": 1778835088973,
+    "meta": 1778835816083,
+    "relativePath": "texture\\oilSpill_large.png"
+  },
+  "f5a69fd4-5c2b-4b8e-8f57-c25861505cbc": {
+    "asset": 1778835088972,
+    "meta": 1778835816086,
+    "relativePath": "texture\\fenli.png"
+  },
+  "0344b5f3-0daf-44ae-86ba-94c09643ba1b": {
+    "asset": 1778835088975,
+    "meta": 1778835816110,
+    "relativePath": "texture\\rocker_02.png"
+  },
+  "777b006b-8af6-4723-8375-e6411962005f": {
+    "asset": 1778835088975,
+    "meta": 1778835816112,
+    "relativePath": "texture\\rocker_bg02.png"
+  },
+  "d90792c1-f611-4e84-927b-6b81669153e3": {
+    "asset": 1778835088979,
+    "meta": 1778835816146,
+    "relativePath": "texture\\shoot1.png"
+  },
+  "dc69e29b-ed5a-4cb3-93eb-43dc622b00f8": {
+    "asset": 1778835088983,
+    "meta": 1778835816150,
+    "relativePath": "texture\\shoot2.png"
+  },
+  "e51de72a-250f-4005-855b-002757ccaf6b": {
+    "asset": 1778835088987,
+    "meta": 1778835816183,
+    "relativePath": "texture\\shoot3.png"
+  },
+  "6a9f5a9c-572f-4338-aac7-133ea2322b22": {
+    "asset": 1778835088991,
+    "meta": 1778835816185,
+    "relativePath": "texture\\shoot4.png"
+  },
+  "5806deda-365d-4894-85af-1b8fa8c177d4": {
+    "asset": 1778835088995,
+    "meta": 1778835816211,
+    "relativePath": "texture\\skillBtn.png"
+  },
+  "d2c9326a-b624-4d10-b6b9-901363d964c2": {
+    "asset": 1778835088994,
+    "meta": 1778835816214,
+    "relativePath": "texture\\shoot5.png"
+  },
+  "1b2700f9-8441-4e16-9fad-080032464c47": {
+    "asset": 1778835088996,
+    "meta": 1778835816238,
+    "relativePath": "texture\\skilloilBtn.png"
+  },
+  "23be0847-22d5-4882-92d8-624da3315378": {
+    "asset": 1778835088997,
+    "meta": 1778835816239,
+    "relativePath": "texture\\tank_own_01_01.png"
+  },
+  "b6d7dde2-cf35-4cb1-a508-2ecf5f0cf6c6": {
+    "asset": 1778835089001,
+    "meta": 1778835816262,
+    "relativePath": "texture\\treeGreen_large.png"
+  },
+  "b1671593-82bc-4edd-894f-37c279903c4b": {
+    "asset": 1778835088999,
+    "meta": 1778835816266,
+    "relativePath": "texture\\tank_own_01_02.png"
+  },
+  "3702e84b-88f5-4424-a6e6-a2d897d9c848": {
+    "asset": 1778835089002,
+    "meta": 1778835816286,
+    "relativePath": "texture\\ui\\barrelBlack_side.png"
+  },
+  "6cf484e9-0877-40d3-88ac-435112f83938": {
+    "asset": 1778835089004,
+    "meta": 1778835816291,
+    "relativePath": "texture\\ui\\barrelGreen_side.png"
+  },
+  "ce150c3a-bc4d-4d1e-ba8f-bffdc7462430": {
+    "asset": 1778835089005,
+    "meta": 1778835816303,
+    "relativePath": "texture\\ui\\barrelRed_side.png"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778836539344,
+    "meta": 1778836563717,
+    "relativePath": "script\\GameMain.ts"
   }
 }

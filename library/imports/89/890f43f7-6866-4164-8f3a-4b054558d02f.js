@@ -38,6 +38,11 @@ var MULTIPLAYER_FIXED_BASE_HP = 20;
 var MULTIPLAYER_FIXED_BASE_ATK = 6;
 var MULTIPLAYER_FIXED_BASE_SPEED = 5;
 var MULTIPLAYER_FIXED_ATTACK_RADIUS = 400;
+var MULTIPLAYER_MINIMAP_WIDTH = 216;
+var MULTIPLAYER_MINIMAP_HEIGHT = 144;
+var MULTIPLAYER_MINIMAP_MARGIN_RIGHT = 18;
+var MULTIPLAYER_MINIMAP_MARGIN_TOP = 126;
+var MULTIPLAYER_MINIMAP_MARKER_UPDATE_INTERVAL = 0.016;
 var GameMain = /** @class */ (function (_super) {
     __extends(GameMain, _super);
     function GameMain() {
@@ -68,6 +73,9 @@ var GameMain = /** @class */ (function (_super) {
         _this._multiplayerJoyMoveHandler = null;
         _this._multiplayerJoyShootHandler = null;
         _this._multiplayerCameraFollowCallback = null;
+        _this._multiplayerMinimap = null;
+        _this._multiplayerMinimapUpdateCallback = null;
+        _this._multiplayerMinimapSafeZoneRenderKey = "";
         return _this;
     }
     GameMain.prototype.onLoad = function () {
@@ -945,6 +953,7 @@ var GameMain = /** @class */ (function (_super) {
     };
     GameMain.prototype._hideMultiplayerHud = function () {
         this._multiplayerHudState = null;
+        this._hideMultiplayerMinimap();
         if (this._multiplayerHud && cc.isValid(this._multiplayerHud)) {
             this._multiplayerHud.destroy();
         }
@@ -1042,6 +1051,210 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._multiplayerAnnouncement = null;
     };
+    GameMain.prototype._ensureMultiplayerMinimap = function () {
+        if (this._multiplayerMinimap && cc.isValid(this._multiplayerMinimap)) {
+            return this._multiplayerMinimap;
+        }
+        var root = new cc.Node("_multiplayerMinimap");
+        root.parent = this.node;
+        root.zIndex = 3005;
+        root.setPosition(this._getMultiplayerMinimapRootPosition());
+        root.setContentSize(MULTIPLAYER_MINIMAP_WIDTH, MULTIPLAYER_MINIMAP_HEIGHT);
+        var frame = root.addComponent(cc.Graphics);
+        frame.fillColor = cc.color(0, 0, 0, 120);
+        frame.roundRect(-MULTIPLAYER_MINIMAP_WIDTH / 2, -MULTIPLAYER_MINIMAP_HEIGHT / 2, MULTIPLAYER_MINIMAP_WIDTH, MULTIPLAYER_MINIMAP_HEIGHT, 10);
+        frame.fill();
+        frame.lineWidth = 2;
+        frame.strokeColor = cc.color(255, 255, 255, 90);
+        frame.roundRect(-MULTIPLAYER_MINIMAP_WIDTH / 2, -MULTIPLAYER_MINIMAP_HEIGHT / 2, MULTIPLAYER_MINIMAP_WIDTH, MULTIPLAYER_MINIMAP_HEIGHT, 10);
+        frame.stroke();
+        var title = new cc.Node("_title");
+        title.parent = root;
+        title.setPosition(0, MULTIPLAYER_MINIMAP_HEIGHT / 2 + 16);
+        var titleLabel = title.addComponent(cc.Label);
+        titleLabel.string = "战场总览";
+        titleLabel.fontSize = 20;
+        titleLabel.lineHeight = 22;
+        titleLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        title.color = cc.color(220, 240, 255, 255);
+        var viewport = new cc.Node("_viewport");
+        viewport.parent = root;
+        viewport.setContentSize(MULTIPLAYER_MINIMAP_WIDTH - 14, MULTIPLAYER_MINIMAP_HEIGHT - 14);
+        var bg = viewport.addComponent(cc.Graphics);
+        bg.fillColor = cc.color(22, 38, 28, 220);
+        bg.rect(-viewport.width / 2, -viewport.height / 2, viewport.width, viewport.height);
+        bg.fill();
+        var safeZoneLayer = new cc.Node("_safeZoneLayer");
+        safeZoneLayer.parent = viewport;
+        var safeZoneGraphics = safeZoneLayer.addComponent(cc.Graphics);
+        var playerMarker = new cc.Node("_playerMarker");
+        playerMarker.parent = viewport;
+        var playerMarkerGraphics = playerMarker.addComponent(cc.Graphics);
+        root["_viewport"] = viewport;
+        root["_safeZoneGraphics"] = safeZoneGraphics;
+        root["_playerMarker"] = playerMarker;
+        root["_playerMarkerGraphics"] = playerMarkerGraphics;
+        this._multiplayerMinimap = root;
+        this._multiplayerMinimapSafeZoneRenderKey = "";
+        this._refreshMultiplayerMinimapViewport();
+        this._refreshMultiplayerMinimapSafeZone(true);
+        this._refreshMultiplayerMinimapMarker();
+        return root;
+    };
+    GameMain.prototype._hideMultiplayerMinimap = function () {
+        if (this._multiplayerMinimapUpdateCallback) {
+            this.unschedule(this._multiplayerMinimapUpdateCallback);
+            this._multiplayerMinimapUpdateCallback = null;
+        }
+        if (this._multiplayerMinimap && cc.isValid(this._multiplayerMinimap)) {
+            this._multiplayerMinimap.destroy();
+        }
+        this._multiplayerMinimap = null;
+        this._multiplayerMinimapSafeZoneRenderKey = "";
+    };
+    GameMain.prototype._getMultiplayerMinimapRootPosition = function () {
+        var frameSize = yyp.gameFrameSize || cc.view.getVisibleSize() || cc.winSize;
+        var width = frameSize && frameSize.width > 0 ? frameSize.width : 1280;
+        var height = frameSize && frameSize.height > 0 ? frameSize.height : 720;
+        var x = width / 2 - MULTIPLAYER_MINIMAP_WIDTH / 2 - MULTIPLAYER_MINIMAP_MARGIN_RIGHT;
+        var y = height / 2 - MULTIPLAYER_MINIMAP_HEIGHT / 2 - MULTIPLAYER_MINIMAP_MARGIN_TOP;
+        return cc.v2(x, y);
+    };
+    GameMain.prototype._scheduleMultiplayerMinimapRefresh = function () {
+        this._hideMultiplayerMinimap();
+        this._ensureMultiplayerMinimap();
+        var self = this;
+        this._multiplayerMinimapUpdateCallback = function () {
+            if (!self._multiplayerActive) {
+                return;
+            }
+            if (self._multiplayerMinimap && cc.isValid(self._multiplayerMinimap)) {
+                self._multiplayerMinimap.setPosition(self._getMultiplayerMinimapRootPosition());
+            }
+            self._refreshMultiplayerMinimapViewport();
+            self._refreshMultiplayerMinimapMarker();
+        };
+        this.schedule(this._multiplayerMinimapUpdateCallback, MULTIPLAYER_MINIMAP_MARKER_UPDATE_INTERVAL, cc.macro.REPEAT_FOREVER);
+    };
+    GameMain.prototype._refreshMultiplayerMinimapViewport = function () {
+        var root = this._multiplayerMinimap;
+        if (!root || !cc.isValid(root) || !this._multiplayerActive) {
+            return;
+        }
+        if (root.parent !== this.node) {
+            root.parent = this.node;
+        }
+        root.setPosition(this._getMultiplayerMinimapRootPosition());
+    };
+    GameMain.prototype._getMultiplayerMinimapMapContext = function () {
+        var root = this._multiplayerMinimap;
+        if (!root || !cc.isValid(root) || !this._multiplayerActive) {
+            return null;
+        }
+        var viewport = root["_viewport"];
+        var safeZoneGraphics = root["_safeZoneGraphics"];
+        var playerMarker = root["_playerMarker"];
+        var playerMarkerGraphics = root["_playerMarkerGraphics"];
+        if (!viewport || !safeZoneGraphics || !playerMarker || !playerMarkerGraphics) {
+            return null;
+        }
+        var tiled = this._fire._tiled;
+        var mapScript = tiled && tiled.script ? tiled.script : null;
+        var mapBounds = mapScript && mapScript.getMapBounds ? mapScript.getMapBounds() : null;
+        if (!mapBounds) {
+            return null;
+        }
+        var halfWidth = Math.max(1, mapBounds.halfWidth || 1);
+        var halfHeight = Math.max(1, mapBounds.halfHeight || 1);
+        var mapPosToMinimap = function (pos) {
+            var x = ((pos.x + halfWidth) / (halfWidth * 2)) * viewport.width - viewport.width / 2;
+            var y = ((pos.y + halfHeight) / (halfHeight * 2)) * viewport.height - viewport.height / 2;
+            return cc.v2(Math.max(-viewport.width / 2, Math.min(viewport.width / 2, x)), Math.max(-viewport.height / 2, Math.min(viewport.height / 2, y)));
+        };
+        return {
+            root: root,
+            viewport: viewport,
+            safeZoneGraphics: safeZoneGraphics,
+            playerMarker: playerMarker,
+            playerMarkerGraphics: playerMarkerGraphics,
+            mapScript: mapScript,
+            mapBounds: mapBounds,
+            halfWidth: halfWidth,
+            halfHeight: halfHeight,
+            mapPosToMinimap: mapPosToMinimap,
+        };
+    };
+    GameMain.prototype._refreshMultiplayerMinimapMarker = function () {
+        var context = this._getMultiplayerMinimapMapContext();
+        if (!context) {
+            return;
+        }
+        var player = this._getLocalMultiplayerPlayer();
+        if (!player || !cc.isValid(player)) {
+            context.playerMarker.active = false;
+            return;
+        }
+        var playerPos = context.mapPosToMinimap(player.position);
+        var playerMarker = context.playerMarker;
+        var playerMarkerGraphics = context.playerMarkerGraphics;
+        playerMarker.active = true;
+        playerMarker.setPosition(playerPos);
+        playerMarkerGraphics.clear();
+        playerMarkerGraphics.fillColor = cc.color(255, 235, 110, 255);
+        playerMarkerGraphics.circle(0, 0, 5);
+        playerMarkerGraphics.fill();
+        playerMarkerGraphics.lineWidth = 2;
+        playerMarkerGraphics.strokeColor = cc.color(255, 255, 255, 220);
+        playerMarkerGraphics.circle(0, 0, 8);
+        playerMarkerGraphics.stroke();
+    };
+    GameMain.prototype._buildMultiplayerMinimapSafeZoneRenderKey = function (safeZone, context) {
+        if (!safeZone || !context) {
+            return "none";
+        }
+        return [
+            Math.round((safeZone.centerX || 0) * 10) / 10,
+            Math.round((safeZone.centerY || 0) * 10) / 10,
+            Math.round((safeZone.radius || 0) * 10) / 10,
+            !!safeZone.active,
+            !!safeZone.finished,
+            context.viewport.width,
+            context.viewport.height,
+            Math.round(context.halfWidth * 10) / 10,
+            Math.round(context.halfHeight * 10) / 10,
+        ].join("|");
+    };
+    GameMain.prototype._refreshMultiplayerMinimapSafeZone = function (force) {
+        if (force === void 0) { force = false; }
+        var context = this._getMultiplayerMinimapMapContext();
+        if (!context) {
+            return;
+        }
+        var safeZoneGraphics = context.safeZoneGraphics;
+        var safeZone = context.mapScript && context.mapScript.getMultiplayerSafeZoneState
+            ? context.mapScript.getMultiplayerSafeZoneState()
+            : null;
+        var renderKey = this._buildMultiplayerMinimapSafeZoneRenderKey(safeZone, context);
+        if (!force && renderKey === this._multiplayerMinimapSafeZoneRenderKey) {
+            return;
+        }
+        this._multiplayerMinimapSafeZoneRenderKey = renderKey;
+        safeZoneGraphics.clear();
+        if (!safeZone || !Number.isFinite(safeZone.radius) || safeZone.radius <= 0) {
+            return;
+        }
+        var center = context.mapPosToMinimap(cc.v2(safeZone.centerX || 0, safeZone.centerY || 0));
+        var radiusX = Math.max(2, safeZone.radius / (context.halfWidth * 2) * context.viewport.width);
+        var radiusY = Math.max(2, safeZone.radius / (context.halfHeight * 2) * context.viewport.height);
+        safeZoneGraphics.fillColor = cc.color(88, 170, 255, safeZone.active ? 22 : 10);
+        safeZoneGraphics.ellipse(center.x, center.y, radiusX, radiusY);
+        safeZoneGraphics.fill();
+        safeZoneGraphics.lineWidth = safeZone.finished ? 3 : 2;
+        safeZoneGraphics.strokeColor = safeZone.finished ? cc.color(255, 130, 130, 230) : cc.color(120, 220, 255, 230);
+        safeZoneGraphics.ellipse(center.x, center.y, radiusX, radiusY);
+        safeZoneGraphics.stroke();
+    };
     GameMain.prototype._consumeMultiplayerFrameMeta = function (command) {
         if (!command || !command.type) {
             return false;
@@ -1053,6 +1266,10 @@ var GameMain = /** @class */ (function (_super) {
         if (command.type === "announcement") {
             this._showMultiplayerAnnouncement(command.text || "", command.subText || "", command.style || "info", command.duration || 2.2);
             return true;
+        }
+        if (command.type === "safeZoneState") {
+            this._refreshMultiplayerMinimapSafeZone();
+            return false;
         }
         if (command.type === "matchResult") {
             return true;
@@ -1429,6 +1646,7 @@ var GameMain = /** @class */ (function (_super) {
         this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], safeZone || null, function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
+            self._scheduleMultiplayerMinimapRefresh();
             self._setupMultiplayerInputLoop();
         });
     };

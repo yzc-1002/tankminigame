@@ -15,6 +15,11 @@ const MULTIPLAYER_FIXED_BASE_HP = 20;
 const MULTIPLAYER_FIXED_BASE_ATK = 6;
 const MULTIPLAYER_FIXED_BASE_SPEED = 5;
 const MULTIPLAYER_FIXED_ATTACK_RADIUS = 400;
+const MULTIPLAYER_MINIMAP_WIDTH = 216;
+const MULTIPLAYER_MINIMAP_HEIGHT = 144;
+const MULTIPLAYER_MINIMAP_MARGIN_RIGHT = 18;
+const MULTIPLAYER_MINIMAP_MARGIN_TOP = 126;
+const MULTIPLAYER_MINIMAP_MARKER_UPDATE_INTERVAL = 0.016;
 
 @ccclass
 export default class GameMain extends BaseComponent {
@@ -54,6 +59,9 @@ export default class GameMain extends BaseComponent {
     _multiplayerJoyMoveHandler = null;
     _multiplayerJoyShootHandler = null;
     _multiplayerCameraFollowCallback = null;
+    _multiplayerMinimap = null;
+    _multiplayerMinimapUpdateCallback = null;
+    _multiplayerMinimapSafeZoneRenderKey = "";
 
     onLoad() {
         //初始化变量
@@ -1047,6 +1055,7 @@ export default class GameMain extends BaseComponent {
 
     _hideMultiplayerHud() {
         this._multiplayerHudState = null;
+        this._hideMultiplayerMinimap();
         if (this._multiplayerHud && cc.isValid(this._multiplayerHud)) {
             this._multiplayerHud.destroy();
         }
@@ -1154,6 +1163,229 @@ export default class GameMain extends BaseComponent {
         this._multiplayerAnnouncement = null;
     }
 
+    _ensureMultiplayerMinimap() {
+        if (this._multiplayerMinimap && cc.isValid(this._multiplayerMinimap)) {
+            return this._multiplayerMinimap;
+        }
+
+        let root = new cc.Node("_multiplayerMinimap");
+        root.parent = this.node;
+        root.zIndex = 3005;
+        root.setPosition(this._getMultiplayerMinimapRootPosition());
+        root.setContentSize(MULTIPLAYER_MINIMAP_WIDTH, MULTIPLAYER_MINIMAP_HEIGHT);
+
+        let frame = root.addComponent(cc.Graphics);
+        frame.fillColor = cc.color(0, 0, 0, 120);
+        frame.roundRect(-MULTIPLAYER_MINIMAP_WIDTH / 2, -MULTIPLAYER_MINIMAP_HEIGHT / 2, MULTIPLAYER_MINIMAP_WIDTH, MULTIPLAYER_MINIMAP_HEIGHT, 10);
+        frame.fill();
+        frame.lineWidth = 2;
+        frame.strokeColor = cc.color(255, 255, 255, 90);
+        frame.roundRect(-MULTIPLAYER_MINIMAP_WIDTH / 2, -MULTIPLAYER_MINIMAP_HEIGHT / 2, MULTIPLAYER_MINIMAP_WIDTH, MULTIPLAYER_MINIMAP_HEIGHT, 10);
+        frame.stroke();
+
+        let title = new cc.Node("_title");
+        title.parent = root;
+        title.setPosition(0, MULTIPLAYER_MINIMAP_HEIGHT / 2 + 16);
+        let titleLabel = title.addComponent(cc.Label);
+        titleLabel.string = "战场总览";
+        titleLabel.fontSize = 20;
+        titleLabel.lineHeight = 22;
+        titleLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        title.color = cc.color(220, 240, 255, 255);
+
+        let viewport = new cc.Node("_viewport");
+        viewport.parent = root;
+        viewport.setContentSize(MULTIPLAYER_MINIMAP_WIDTH - 14, MULTIPLAYER_MINIMAP_HEIGHT - 14);
+
+        let bg = viewport.addComponent(cc.Graphics);
+        bg.fillColor = cc.color(22, 38, 28, 220);
+        bg.rect(-viewport.width / 2, -viewport.height / 2, viewport.width, viewport.height);
+        bg.fill();
+
+        let safeZoneLayer = new cc.Node("_safeZoneLayer");
+        safeZoneLayer.parent = viewport;
+        let safeZoneGraphics = safeZoneLayer.addComponent(cc.Graphics);
+
+        let playerMarker = new cc.Node("_playerMarker");
+        playerMarker.parent = viewport;
+        let playerMarkerGraphics = playerMarker.addComponent(cc.Graphics);
+
+        root["_viewport"] = viewport;
+        root["_safeZoneGraphics"] = safeZoneGraphics;
+        root["_playerMarker"] = playerMarker;
+        root["_playerMarkerGraphics"] = playerMarkerGraphics;
+        this._multiplayerMinimap = root;
+        this._multiplayerMinimapSafeZoneRenderKey = "";
+        this._refreshMultiplayerMinimapViewport();
+        this._refreshMultiplayerMinimapSafeZone(true);
+        this._refreshMultiplayerMinimapMarker();
+        return root;
+    }
+
+    _hideMultiplayerMinimap() {
+        if (this._multiplayerMinimapUpdateCallback) {
+            this.unschedule(this._multiplayerMinimapUpdateCallback);
+            this._multiplayerMinimapUpdateCallback = null;
+        }
+        if (this._multiplayerMinimap && cc.isValid(this._multiplayerMinimap)) {
+            this._multiplayerMinimap.destroy();
+        }
+        this._multiplayerMinimap = null;
+        this._multiplayerMinimapSafeZoneRenderKey = "";
+    }
+
+    _getMultiplayerMinimapRootPosition() {
+        let frameSize = yyp.gameFrameSize || cc.view.getVisibleSize() || cc.winSize;
+        let width = frameSize && frameSize.width > 0 ? frameSize.width : 1280;
+        let height = frameSize && frameSize.height > 0 ? frameSize.height : 720;
+        let x = width / 2 - MULTIPLAYER_MINIMAP_WIDTH / 2 - MULTIPLAYER_MINIMAP_MARGIN_RIGHT;
+        let y = height / 2 - MULTIPLAYER_MINIMAP_HEIGHT / 2 - MULTIPLAYER_MINIMAP_MARGIN_TOP;
+        return cc.v2(x, y);
+    }
+
+    _scheduleMultiplayerMinimapRefresh() {
+        this._hideMultiplayerMinimap();
+        this._ensureMultiplayerMinimap();
+        let self = this;
+        this._multiplayerMinimapUpdateCallback = function () {
+            if (!self._multiplayerActive) {
+                return;
+            }
+            if (self._multiplayerMinimap && cc.isValid(self._multiplayerMinimap)) {
+                self._multiplayerMinimap.setPosition(self._getMultiplayerMinimapRootPosition());
+            }
+            self._refreshMultiplayerMinimapViewport();
+            self._refreshMultiplayerMinimapMarker();
+        };
+        this.schedule(this._multiplayerMinimapUpdateCallback, MULTIPLAYER_MINIMAP_MARKER_UPDATE_INTERVAL, cc.macro.REPEAT_FOREVER);
+    }
+
+    _refreshMultiplayerMinimapViewport() {
+        let root = this._multiplayerMinimap;
+        if (!root || !cc.isValid(root) || !this._multiplayerActive) {
+            return;
+        }
+        if (root.parent !== this.node) {
+            root.parent = this.node;
+        }
+        root.setPosition(this._getMultiplayerMinimapRootPosition());
+    }
+
+    _getMultiplayerMinimapMapContext() {
+        let root = this._multiplayerMinimap;
+        if (!root || !cc.isValid(root) || !this._multiplayerActive) {
+            return null;
+        }
+        let viewport = root["_viewport"];
+        let safeZoneGraphics = root["_safeZoneGraphics"];
+        let playerMarker = root["_playerMarker"];
+        let playerMarkerGraphics = root["_playerMarkerGraphics"];
+        if (!viewport || !safeZoneGraphics || !playerMarker || !playerMarkerGraphics) {
+            return null;
+        }
+        let tiled = this._fire._tiled;
+        let mapScript = tiled && tiled.script ? tiled.script : null;
+        let mapBounds = mapScript && mapScript.getMapBounds ? mapScript.getMapBounds() : null;
+        if (!mapBounds) {
+            return null;
+        }
+        let halfWidth = Math.max(1, mapBounds.halfWidth || 1);
+        let halfHeight = Math.max(1, mapBounds.halfHeight || 1);
+        let mapPosToMinimap = (pos) => {
+            let x = ((pos.x + halfWidth) / (halfWidth * 2)) * viewport.width - viewport.width / 2;
+            let y = ((pos.y + halfHeight) / (halfHeight * 2)) * viewport.height - viewport.height / 2;
+            return cc.v2(
+                Math.max(-viewport.width / 2, Math.min(viewport.width / 2, x)),
+                Math.max(-viewport.height / 2, Math.min(viewport.height / 2, y))
+            );
+        };
+        return {
+            root,
+            viewport,
+            safeZoneGraphics,
+            playerMarker,
+            playerMarkerGraphics,
+            mapScript,
+            mapBounds,
+            halfWidth,
+            halfHeight,
+            mapPosToMinimap,
+        };
+    }
+
+    _refreshMultiplayerMinimapMarker() {
+        let context = this._getMultiplayerMinimapMapContext();
+        if (!context) {
+            return;
+        }
+        let player = this._getLocalMultiplayerPlayer();
+        if (!player || !cc.isValid(player)) {
+            context.playerMarker.active = false;
+            return;
+        }
+        let playerPos = context.mapPosToMinimap(player.position);
+        let playerMarker = context.playerMarker;
+        let playerMarkerGraphics = context.playerMarkerGraphics;
+        playerMarker.active = true;
+        playerMarker.setPosition(playerPos);
+        playerMarkerGraphics.clear();
+        playerMarkerGraphics.fillColor = cc.color(255, 235, 110, 255);
+        playerMarkerGraphics.circle(0, 0, 5);
+        playerMarkerGraphics.fill();
+        playerMarkerGraphics.lineWidth = 2;
+        playerMarkerGraphics.strokeColor = cc.color(255, 255, 255, 220);
+        playerMarkerGraphics.circle(0, 0, 8);
+        playerMarkerGraphics.stroke();
+    }
+
+    _buildMultiplayerMinimapSafeZoneRenderKey(safeZone, context) {
+        if (!safeZone || !context) {
+            return "none";
+        }
+        return [
+            Math.round((safeZone.centerX || 0) * 10) / 10,
+            Math.round((safeZone.centerY || 0) * 10) / 10,
+            Math.round((safeZone.radius || 0) * 10) / 10,
+            !!safeZone.active,
+            !!safeZone.finished,
+            context.viewport.width,
+            context.viewport.height,
+            Math.round(context.halfWidth * 10) / 10,
+            Math.round(context.halfHeight * 10) / 10,
+        ].join("|");
+    }
+
+    _refreshMultiplayerMinimapSafeZone(force = false) {
+        let context = this._getMultiplayerMinimapMapContext();
+        if (!context) {
+            return;
+        }
+        let safeZoneGraphics = context.safeZoneGraphics;
+        let safeZone = context.mapScript && context.mapScript.getMultiplayerSafeZoneState
+            ? context.mapScript.getMultiplayerSafeZoneState()
+            : null;
+        let renderKey = this._buildMultiplayerMinimapSafeZoneRenderKey(safeZone, context);
+        if (!force && renderKey === this._multiplayerMinimapSafeZoneRenderKey) {
+            return;
+        }
+        this._multiplayerMinimapSafeZoneRenderKey = renderKey;
+        safeZoneGraphics.clear();
+        if (!safeZone || !Number.isFinite(safeZone.radius) || safeZone.radius <= 0) {
+            return;
+        }
+        let center = context.mapPosToMinimap(cc.v2(safeZone.centerX || 0, safeZone.centerY || 0));
+        let radiusX = Math.max(2, safeZone.radius / (context.halfWidth * 2) * context.viewport.width);
+        let radiusY = Math.max(2, safeZone.radius / (context.halfHeight * 2) * context.viewport.height);
+        safeZoneGraphics.fillColor = cc.color(88, 170, 255, safeZone.active ? 22 : 10);
+        safeZoneGraphics.ellipse(center.x, center.y, radiusX, radiusY);
+        safeZoneGraphics.fill();
+        safeZoneGraphics.lineWidth = safeZone.finished ? 3 : 2;
+        safeZoneGraphics.strokeColor = safeZone.finished ? cc.color(255, 130, 130, 230) : cc.color(120, 220, 255, 230);
+        safeZoneGraphics.ellipse(center.x, center.y, radiusX, radiusY);
+        safeZoneGraphics.stroke();
+    }
+
     _consumeMultiplayerFrameMeta(command) {
         if (!command || !command.type) {
             return false;
@@ -1165,6 +1397,10 @@ export default class GameMain extends BaseComponent {
         if (command.type === "announcement") {
             this._showMultiplayerAnnouncement(command.text || "", command.subText || "", command.style || "info", command.duration || 2.2);
             return true;
+        }
+        if (command.type === "safeZoneState") {
+            this._refreshMultiplayerMinimapSafeZone();
+            return false;
         }
         if (command.type === "matchResult") {
             return true;
@@ -1562,6 +1798,7 @@ export default class GameMain extends BaseComponent {
         this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], safeZone || null, function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
+            self._scheduleMultiplayerMinimapRefresh();
             self._setupMultiplayerInputLoop();
         });
     }
