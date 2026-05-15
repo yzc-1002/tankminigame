@@ -40,6 +40,7 @@ var PLAYER_EXP_STEP = 15;
 var CHARGE_CANNON_BULLET_TYPE = 99;
 var OIL_SHELL_BULLET_TYPE = 100;
 var OIL_SHELL_MAX_COUNT = 1;
+var BLACK_HOLE_SHELL_MAX_COUNT = 1;
 var OIL_THROW_PREVIEW_ARC_HEIGHT = 110;
 var OIL_THROW_AREA_RADIUS = 120;
 var LOW_HP_SCREEN_FLASH_IN = 0.2;
@@ -79,10 +80,12 @@ var Player = /** @class */ (function (_super) {
         _this._chargeCannonReady = false;
         _this._chargeEffectNode = null;
         _this._oilShellCount = 0;
+        _this._blackHoleShellCount = 0;
         _this._oilShellPreviewing = false;
         _this._oilShellPreviewTarget = null;
         _this._oilShellAimDir = cc.v2(1, 0);
         _this._oilShellAimRatio = 1;
+        _this._activeThrowSkillType = "";
         _this._bulletMutationType = "";
         _this._bulletMutationData = null;
         _this._bulletMutationEffectNode = null;
@@ -127,10 +130,12 @@ var Player = /** @class */ (function (_super) {
         this._chargeCannonCharging = false;
         this._chargeCannonReady = false;
         this._oilShellCount = 0;
+        this._blackHoleShellCount = 0;
         this._oilShellPreviewing = false;
         this._oilShellPreviewTarget = null;
         this._oilShellAimDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
         this._oilShellAimRatio = 1;
+        this._activeThrowSkillType = "";
         this._bulletMutationType = "";
         this._bulletMutationData = null;
         this._bulletMutationEffectNode = null;
@@ -300,7 +305,7 @@ var Player = /** @class */ (function (_super) {
         if (this._inGame == false) {
             return;
         }
-        if (this._oilShellCount <= 0) {
+        if (this._oilShellCount <= 0 && this._blackHoleShellCount <= 0) {
             this._refreshSkillButtonMode();
             return;
         }
@@ -349,6 +354,9 @@ var Player = /** @class */ (function (_super) {
             }
             else if (skillId == 4) {
                 this._gainOilShell();
+            }
+            else if (skillId == 5) {
+                this._gainBlackHoleShell();
             }
         }
     };
@@ -879,6 +887,33 @@ var Player = /** @class */ (function (_super) {
         label.verticalAlign = cc.Label.VerticalAlign.CENTER;
         badge.runAction(cc.sequence(cc.spawn(cc.fadeIn(0.12), cc.scaleTo(0.12, 1.02), cc.moveBy(0.12, 0, 12)), cc.delayTime(0.6), cc.spawn(cc.fadeOut(0.2), cc.moveBy(0.2, 0, 16)), cc.removeSelf()));
     };
+    Player.prototype._showBlackHolePickupFeedback = function () {
+        var badge = new cc.Node("_blackHolePickupReady");
+        badge.parent = this.node;
+        badge.setPosition(0, this._radius + 48);
+        badge.opacity = 0;
+        badge.scale = 0.7;
+        badge.zIndex = 320;
+        var graphics = badge.addComponent(cc.Graphics);
+        graphics.fillColor = cc.color(42, 24, 88, 235);
+        graphics.roundRect(-74, -18, 148, 36, 12);
+        graphics.fill();
+        graphics.lineWidth = 3;
+        graphics.strokeColor = cc.color(198, 138, 255, 235);
+        graphics.roundRect(-74, -18, 148, 36, 12);
+        graphics.stroke();
+        var labelNode = new cc.Node("_blackHolePickupReadyLabel");
+        labelNode.parent = badge;
+        labelNode.setContentSize(136, 28);
+        labelNode.color = cc.color(234, 214, 255, 255);
+        var label = labelNode.addComponent(cc.Label);
+        label.string = "黑洞弹就绪";
+        label.fontSize = 20;
+        label.lineHeight = 24;
+        label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        label.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        badge.runAction(cc.sequence(cc.spawn(cc.fadeIn(0.12), cc.scaleTo(0.12, 1.02), cc.moveBy(0.12, 0, 12)), cc.delayTime(0.6), cc.spawn(cc.fadeOut(0.2), cc.moveBy(0.2, 0, 16)), cc.removeSelf()));
+    };
     Player.prototype._playUpgradeSelectFeedback = function (choice) {
         var wave = new cc.Node("_upgradeWave");
         wave.parent = this.node;
@@ -1231,6 +1266,14 @@ var Player = /** @class */ (function (_super) {
         this._refreshSkillButtonMode();
         this._showOilPickupFeedback();
     };
+    Player.prototype._gainBlackHoleShell = function () {
+        if (this._chargeCannonCharging) {
+            this._resetChargeCannon();
+        }
+        this._blackHoleShellCount = Math.min(BLACK_HOLE_SHELL_MAX_COUNT, this._blackHoleShellCount + 1);
+        this._refreshSkillButtonMode();
+        this._showBlackHolePickupFeedback();
+    };
     Player.prototype._fireOilShell = function () {
         var wipeLen = this._getBarrelMuzzleDistance(8);
         BulletE_1.Bullet.createBulletEx(OIL_SHELL_BULLET_TYPE, this.node.position, this._barrelDir, wipeLen, this._config.AttackRadius * 1.8, 0, this._camp, this.node.parent, this._map, 10);
@@ -1243,9 +1286,10 @@ var Player = /** @class */ (function (_super) {
         MusicManager_1.MusicManager.playEffect("shoot");
     };
     Player.prototype._startOilShellPreview = function () {
-        if (this._oilShellCount <= 0 || !this._map) {
+        if ((this._oilShellCount <= 0 && this._blackHoleShellCount <= 0) || !this._map) {
             return;
         }
+        this._activeThrowSkillType = this._oilShellCount > 0 ? "oil" : "blackHole";
         this._oilShellPreviewing = true;
         var defaultDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
         this._oilShellAimDir = defaultDir;
@@ -1255,16 +1299,18 @@ var Player = /** @class */ (function (_super) {
     Player.prototype._cancelOilShellPreview = function () {
         this._oilShellPreviewing = false;
         this._oilShellPreviewTarget = null;
+        this._activeThrowSkillType = "";
         if (this._map && this._map.hideOilShellPreview) {
             this._map.hideOilShellPreview();
         }
     };
     Player.prototype._commitOilShellThrow = function () {
-        if (!this._oilShellPreviewing || this._oilShellCount <= 0) {
+        if (!this._oilShellPreviewing) {
             this._cancelOilShellPreview();
             return;
         }
         var target = this._oilShellPreviewTarget || this._getOilShellThrowTarget();
+        var activeThrowSkillType = this._activeThrowSkillType || (this._blackHoleShellCount > 0 && this._oilShellCount <= 0 ? "blackHole" : "oil");
         var aimDir = cc.v2(this._oilShellAimDir || this._barrelDir || cc.v2(1, 0));
         if (aimDir.magSqr() > 0) {
             aimDir = aimDir.normalize();
@@ -1278,14 +1324,20 @@ var Player = /** @class */ (function (_super) {
             return;
         }
         if (this._multiplayerMode && !this._multiplayerRemote) {
-            yyp.eventCenter.emit("multiplayer-throw-tar", {
+            var throwEventName = activeThrowSkillType == "blackHole" ? "multiplayer-throw-black-hole" : "multiplayer-throw-tar";
+            yyp.eventCenter.emit(throwEventName, {
                 dirX: Number(aimDir.x.toFixed(4)),
                 dirY: Number(aimDir.y.toFixed(4)),
                 ratio: Number(aimRatio.toFixed(4)),
             });
             return;
         }
-        this._throwOilShellAt(target);
+        if (activeThrowSkillType == "blackHole") {
+            this._throwBlackHoleShellAt(target);
+        }
+        else {
+            this._throwOilShellAt(target);
+        }
     };
     Player.prototype._getOilShellThrowTarget = function () {
         var attackRadius = this._config && this._config.AttackRadius != null ? this._config.AttackRadius : 420;
@@ -1320,6 +1372,30 @@ var Player = /** @class */ (function (_super) {
             });
         }
     };
+    Player.prototype._throwBlackHoleShellAt = function (target) {
+        var _this = this;
+        if (!target || this._blackHoleShellCount <= 0) {
+            return;
+        }
+        this._blackHoleShellCount = Math.max(0, this._blackHoleShellCount - 1);
+        this._refreshSkillButtonMode();
+        if (this._map && this._map.playOilShellThrow) {
+            this._map.playOilShellThrow(this.node.position, target, {
+                areaRadius: OIL_THROW_AREA_RADIUS,
+                arcHeight: OIL_THROW_PREVIEW_ARC_HEIGHT,
+                onLand: function () {
+                    if (_this._map && _this._map.spawnBlackHoleZone) {
+                        _this._map.spawnBlackHoleZone(target);
+                    }
+                }
+            });
+        }
+        this._playShootGlow(OIL_SHELL_BULLET_TYPE, { effectColor: cc.color(130, 92, 180, 220) });
+        if (this._map && this._map.playLightScreenShake) {
+            this._map.playLightScreenShake();
+        }
+        MusicManager_1.MusicManager.playEffect("shoot");
+    };
     Player.prototype._throwOilShellAt = function (target) {
         var _this = this;
         if (!target || this._oilShellCount <= 0) {
@@ -1351,7 +1427,14 @@ var Player = /** @class */ (function (_super) {
         if (this._multiplayerMode && this._multiplayerRemote) {
             return;
         }
-        yyp.eventCenter.emit("skill-button-mode", { mode: this._oilShellCount > 0 ? "oil" : "charge" });
+        var mode = "charge";
+        if (this._oilShellCount > 0) {
+            mode = "oil";
+        }
+        else if (this._blackHoleShellCount > 0) {
+            mode = "blackHole";
+        }
+        yyp.eventCenter.emit("skill-button-mode", { mode: mode });
     };
     Player.prototype._getChargeConfig = function (key, defaultValue) {
         var fullKey = "Charge" + key;
@@ -1572,6 +1655,13 @@ var Player = /** @class */ (function (_super) {
             var nextTarAmmoCount = Math.max(0, state.tarAmmoCount);
             if (nextTarAmmoCount != this._oilShellCount) {
                 this._oilShellCount = nextTarAmmoCount;
+                this._refreshSkillButtonMode();
+            }
+        }
+        if (state.blackHoleAmmoCount != null) {
+            var nextBlackHoleAmmoCount = Math.max(0, state.blackHoleAmmoCount);
+            if (nextBlackHoleAmmoCount != this._blackHoleShellCount) {
+                this._blackHoleShellCount = nextBlackHoleAmmoCount;
                 this._refreshSkillButtonMode();
             }
         }

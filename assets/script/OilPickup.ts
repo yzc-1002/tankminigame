@@ -9,29 +9,32 @@ export class OilPickup extends BaseComponent {
     _lifeTime = 12;
     _floatBaseY = 0;
     _floatTime = 0;
+    _pickupType = "oil";
 
     onLoad() {
         this._buildView();
     }
 
     _buildView() {
+        this.node.removeAllChildren();
         this.node.setContentSize(92, 92);
+        let config = this._getPickupConfig();
 
         let outer = new cc.Node("_oilPickupOuter");
         outer.parent = this.node;
         let outerGraphics = outer.addComponent(cc.Graphics);
-        outerGraphics.fillColor = cc.color(60, 42, 28, 235);
+        outerGraphics.fillColor = config.outerColor;
         outerGraphics.circle(0, 0, 44);
         outerGraphics.fill();
         outerGraphics.lineWidth = 4;
-        outerGraphics.strokeColor = cc.color(255, 208, 122, 220);
+        outerGraphics.strokeColor = config.ringColor;
         outerGraphics.circle(0, 0, 40);
         outerGraphics.stroke();
 
         let core = new cc.Node("_oilPickupCore");
         core.parent = this.node;
         let coreGraphics = core.addComponent(cc.Graphics);
-        coreGraphics.fillColor = cc.color(30, 20, 16, 245);
+        coreGraphics.fillColor = config.coreColor;
         coreGraphics.circle(0, 0, 28);
         coreGraphics.fill();
 
@@ -39,9 +42,9 @@ export class OilPickup extends BaseComponent {
         labelNode.parent = this.node;
         labelNode.setContentSize(84, 30);
         labelNode.setPosition(0, 0);
-        labelNode.color = cc.color(255, 227, 164, 255);
+        labelNode.color = config.labelColor;
         let label = labelNode.addComponent(cc.Label);
-        label.string = "焦油";
+        label.string = config.title;
         label.fontSize = 20;
         label.lineHeight = 24;
         label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
@@ -51,15 +54,40 @@ export class OilPickup extends BaseComponent {
         tipNode.parent = this.node;
         tipNode.setContentSize(120, 24);
         tipNode.setPosition(0, -56);
-        tipNode.color = cc.color(220, 220, 220, 210);
+        tipNode.color = config.tipColor;
         let tip = tipNode.addComponent(cc.Label);
-        tip.string = "拾取焦油弹";
+        tip.string = config.tip;
         tip.fontSize = 16;
         tip.lineHeight = 20;
         tip.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
         tip.verticalAlign = cc.Label.VerticalAlign.CENTER;
 
         this._floatBaseY = this.node.y;
+    }
+
+    _getPickupConfig() {
+        if (this._pickupType == "blackHole") {
+            return {
+                title: "黑洞",
+                tip: "拾取黑洞弹",
+                outerColor: cc.color(28, 18, 58, 235),
+                ringColor: cc.color(188, 126, 255, 220),
+                coreColor: cc.color(6, 6, 14, 245),
+                labelColor: cc.color(225, 204, 255, 255),
+                tipColor: cc.color(214, 198, 245, 210),
+                skillId: 5,
+            };
+        }
+        return {
+            title: "焦油",
+            tip: "拾取焦油弹",
+            outerColor: cc.color(60, 42, 28, 235),
+            ringColor: cc.color(255, 208, 122, 220),
+            coreColor: cc.color(30, 20, 16, 245),
+            labelColor: cc.color(255, 227, 164, 255),
+            tipColor: cc.color(220, 220, 220, 210),
+            skillId: 4,
+        };
     }
 
     update(dt) {
@@ -81,11 +109,23 @@ export class OilPickup extends BaseComponent {
     }
 
     emitSkill() {
-        yyp.eventCenter.emit("trigger-skill", {skillId: 4});
+        let config = this._getPickupConfig();
+        yyp.eventCenter.emit("trigger-skill", {skillId: config.skillId});
     }
 
     getSkillBoundingBox() {
         return Utils.getWorldBoundingBox(this.node, 0.85);
+    }
+
+    getPickupType() {
+        return this._pickupType;
+    }
+
+    setPickupType(type = "oil") {
+        this._pickupType = type == "blackHole" ? "blackHole" : "oil";
+        if (this.node && cc.isValid(this.node)) {
+            this._buildView();
+        }
     }
 
     setInGame(lifeTime = 12) {

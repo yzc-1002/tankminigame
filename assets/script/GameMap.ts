@@ -21,6 +21,11 @@ const OIL_SPILL_RADIUS = 120;
 const OIL_SPILL_SLOW_FACTOR = 0.52;
 const TAR_SPILL_RADIUS = 120;
 const TAR_PICKUP_SINGLEPLAYER_INTERVAL = 6;
+const BLACK_HOLE_PICKUP_SINGLEPLAYER_INTERVAL = 9;
+const BLACK_HOLE_ZONE_DURATION = 8;
+const BLACK_HOLE_ZONE_RADIUS = 100;
+const BLACK_HOLE_ZONE_DESTROY_RADIUS = 14;
+const BLACK_HOLE_ZONE_GRAVITY = 160;
 const OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
 const COVER_TEST_FRAME_UUID = "f27215a4-32b0-4a3c-b87d-69a3dc03e37a";
 const ENERGY_EGG_FRAME_UUID = "5c9b12c3-9fd1-4472-b633-d31d7ce29bf2";
@@ -102,6 +107,7 @@ export class GameMap extends BaseComponent {
     _energys            = [];       //地图上的能量
     _energyCdTime       = 0;        //能量生成间隔时间
     _tarPickupCdTime    = 0;        //单机焦油拾取物生成间隔
+    _blackHolePickupCdTime = 0;     //单机黑洞拾取物生成间隔
 
     _pause          = false;    //是否处于暂停状态
     _gaming         = false;    //是否处于游戏中 
@@ -133,9 +139,12 @@ export class GameMap extends BaseComponent {
     _multiplayerSpecialEventMap = {};
     _multiplayerTarPickupMap = {};
     _multiplayerTarSpillMap = {};
+    _multiplayerBlackHolePickupMap = {};
+    _multiplayerBlackHoleZoneMap = {};
     _multiplayerSafeZone = null;
     _multiplayerSafeZoneNode = null;
     _pendingTarThrowMap = {};
+    _pendingBlackHoleThrowMap = {};
     _localPlayerId = 0;       //本地玩家ID
     _multiplayerSpawnSlots = []; //多人出生槽位
     _levelId        = 1;        //当前关卡id
@@ -1608,6 +1617,25 @@ export class GameMap extends BaseComponent {
                 child.destroy();
             }
         }
+    }
+
+    spawnBlackHoleZone(pos, options: any = {}) {
+        let center = this.clampMapInnerPosition(cc.v2(pos), BLACK_HOLE_ZONE_RADIUS + 20);
+        this._clearBlackHoleTestNodes();
+        let radius = options.radius == null ? BLACK_HOLE_ZONE_RADIUS : options.radius;
+        let destroyRadius = options.destroyRadius == null ? BLACK_HOLE_ZONE_DESTROY_RADIUS : options.destroyRadius;
+        let node = this._createBlackHoleAreaNode(center, radius, destroyRadius, cc.color(80, 30, 160, 200));
+        this._blackHoleAreaData = {
+            node: node,
+            center: center,
+            radius: radius,
+            destroyRadius: destroyRadius,
+            gravityStrength: options.gravityStrength == null ? BLACK_HOLE_ZONE_GRAVITY : options.gravityStrength,
+            duration: options.duration == null ? BLACK_HOLE_ZONE_DURATION : options.duration,
+            remainTime: options.duration == null ? BLACK_HOLE_ZONE_DURATION : options.duration,
+            eventId: options.eventId || "",
+        };
+        return node;
     }
 
     _createBlackHoleAreaNode(pos, radius, destroyRadius, color) {
@@ -3091,9 +3119,28 @@ export class GameMap extends BaseComponent {
         pickup.addComponent(OilPickup);
         pickup.position = cc.v3(pos || this._getOilTestPickupPos());
         pickup.zIndex = this.judgezIndex(pickup.y);
+        pickup.script.setPickupType("oil");
         pickup.script.setInGame(18);
         if (pickupId != null) {
             pickup["__tarPickupId"] = pickupId;
+        }
+        this._skills.push(pickup);
+        return pickup;
+    }
+
+    spawnBlackHolePickupAt(pos, pickupId = null) {
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+        let pickup = new cc.Node("OilPickup");
+        pickup.parent = this._fire._tmLayerObstacle;
+        pickup.addComponent(OilPickup);
+        pickup.position = cc.v3(pos || this._getOilTestPickupPos());
+        pickup.zIndex = this.judgezIndex(pickup.y);
+        pickup.script.setPickupType("blackHole");
+        pickup.script.setInGame(18);
+        if (pickupId != null) {
+            pickup["__blackHolePickupId"] = pickupId;
         }
         this._skills.push(pickup);
         return pickup;
@@ -3686,6 +3733,7 @@ export class GameMap extends BaseComponent {
 
         this._updateKillBroadcastEntries();
         this._updateOilSpills(dt);
+        this._updateBlackHoleArea(dt);
         this._updateEnergyEggTest();
         if (this._killStreakRemain > 0) {
             this._killStreakRemain -= dt;
@@ -3713,6 +3761,7 @@ export class GameMap extends BaseComponent {
             if (this.isTestMode() == false) {
                 this._updateEnergy(dt);
                 this._updateSinglePlayerTarPickup(dt);
+                this._updateSinglePlayerBlackHolePickup(dt);
             }
 
             if (this._player && cc.isValid(this._player)) {
@@ -3757,6 +3806,18 @@ export class GameMap extends BaseComponent {
             }
             spill.node.opacity = Math.max(0, opacity);
             spill.node.zIndex = this.judgezIndex(spill.node.y) - 2;
+        }
+    }
+
+    _updateBlackHoleArea(dt) {
+        if (!this._blackHoleAreaData || !this._blackHoleAreaData.node || !cc.isValid(this._blackHoleAreaData.node)) {
+            return;
+        }
+        if (this._blackHoleAreaData.duration != null) {
+            this._blackHoleAreaData.remainTime -= dt;
+            if (this._blackHoleAreaData.remainTime <= 0) {
+                this._clearBlackHoleTestNodes();
+            }
         }
     }
 
@@ -4534,6 +4595,12 @@ export class GameMap extends BaseComponent {
                         });
                         return;
                     }
+                    if (this._multiplayerMode && skill["__blackHolePickupId"] != null) {
+                        yyp.eventCenter.emit("multiplayer-black-hole-pickup", {
+                            pickupId: skill["__blackHolePickupId"],
+                        });
+                        return;
+                    }
                     skill.script.emitSkill();
                     this._skills.splice(i,1);
                     skill.destroy();
@@ -4621,6 +4688,29 @@ export class GameMap extends BaseComponent {
         }
         this._tarPickupCdTime = 0;
         this.spawnTarPickupAt(this._getOilTestPickupPos());
+    }
+
+    _updateSinglePlayerBlackHolePickup(dt) {
+        if (this._multiplayerMode || !this._gaming || !this._player || !cc.isValid(this._player)) {
+            return;
+        }
+        for (let i = this._skills.length - 1; i >= 0; i--) {
+            let skill = this._skills[i];
+            if (!cc.isValid(skill)) {
+                this._skills.splice(i, 1);
+                continue;
+            }
+            if (skill.name == "OilPickup" && skill.script && skill.script.getPickupType && skill.script.getPickupType() == "blackHole") {
+                return;
+            }
+        }
+
+        this._blackHolePickupCdTime += dt;
+        if (this._blackHolePickupCdTime < BLACK_HOLE_PICKUP_SINGLEPLAYER_INTERVAL) {
+            return;
+        }
+        this._blackHolePickupCdTime = 0;
+        this.spawnBlackHolePickupAt(this._getOilTestPickupPos());
     }
 
     //计算zIndex
@@ -5732,7 +5822,7 @@ export class GameMap extends BaseComponent {
         return player;
     }
 
-    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, safeZone, onReady) {
+    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, safeZone, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
@@ -5741,15 +5831,20 @@ export class GameMap extends BaseComponent {
         this._multiplayerSpecialEventMap = {};
         this._multiplayerTarPickupMap = {};
         this._multiplayerTarSpillMap = {};
+        this._multiplayerBlackHolePickupMap = {};
+        this._multiplayerBlackHoleZoneMap = {};
         this._multiplayerSafeZone = null;
         this._multiplayerSafeZoneNode = null;
         this._pendingTarThrowMap = {};
+        this._pendingBlackHoleThrowMap = {};
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
         let playerStates = Array.isArray(players) ? players : [];
         let initialSpecialEvents = Array.isArray(specialEvents) ? specialEvents : [];
         let initialTarPickups = Array.isArray(tarPickups) ? tarPickups : [];
         let initialTarSpills = Array.isArray(tarSpills) ? tarSpills : [];
+        let initialBlackHolePickups = Array.isArray(blackHolePickups) ? blackHolePickups : [];
+        let initialBlackHoleZones = Array.isArray(blackHoleZones) ? blackHoleZones : [];
 
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
@@ -5792,6 +5887,12 @@ export class GameMap extends BaseComponent {
                 }
                 for (let i = 0; i < initialTarSpills.length; i++) {
                     self._spawnMultiplayerTarSpill(initialTarSpills[i]);
+                }
+                for (let i = 0; i < initialBlackHolePickups.length; i++) {
+                    self._spawnMultiplayerBlackHolePickup(initialBlackHolePickups[i]);
+                }
+                for (let i = 0; i < initialBlackHoleZones.length; i++) {
+                    self._spawnMultiplayerBlackHoleZone(initialBlackHoleZones[i]);
                 }
                 self._applyMultiplayerSafeZoneState(safeZone || null);
                 self._gaming = true;
@@ -5876,6 +5977,21 @@ export class GameMap extends BaseComponent {
             else if (command.type === "tarSpillRemove") {
                 this._removeMultiplayerTarSpill(command.spillId);
             }
+            else if (command.type === "blackHolePickupSpawn") {
+                this._spawnMultiplayerBlackHolePickup(command.pickup);
+            }
+            else if (command.type === "blackHolePickupRemove") {
+                this._removeMultiplayerBlackHolePickup(command.pickupId);
+            }
+            else if (command.type === "blackHoleThrow") {
+                this._playMultiplayerBlackHoleThrow(command);
+            }
+            else if (command.type === "blackHoleZoneSpawn") {
+                this._spawnMultiplayerBlackHoleZone(command.zone);
+            }
+            else if (command.type === "blackHoleZoneRemove") {
+                this._removeMultiplayerBlackHoleZone(command.zoneId);
+            }
             else if (command.type === "safeZoneState") {
                 this._applyMultiplayerSafeZoneState(command.safeZone);
             }
@@ -5941,6 +6057,39 @@ export class GameMap extends BaseComponent {
         }
     }
 
+    _spawnMultiplayerBlackHolePickup(pickupData) {
+        if (!this._multiplayerMode || !pickupData || pickupData.id == null) {
+            return;
+        }
+        if (this._multiplayerBlackHolePickupMap[pickupData.id] && cc.isValid(this._multiplayerBlackHolePickupMap[pickupData.id])) {
+            return;
+        }
+        let pickup = this.spawnBlackHolePickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id);
+        if (pickup) {
+            this._multiplayerBlackHolePickupMap[pickupData.id] = pickup;
+        }
+    }
+
+    _removeMultiplayerBlackHolePickup(pickupId) {
+        if (pickupId == null) {
+            return;
+        }
+        let pickup = this._multiplayerBlackHolePickupMap[pickupId];
+        delete this._multiplayerBlackHolePickupMap[pickupId];
+        if (!pickup) {
+            return;
+        }
+        for (let i = this._skills.length - 1; i >= 0; i--) {
+            if (this._skills[i] === pickup) {
+                this._skills.splice(i, 1);
+                break;
+            }
+        }
+        if (cc.isValid(pickup)) {
+            pickup.destroy();
+        }
+    }
+
     _removeMultiplayerTarSpill(spillId) {
         if (spillId == null) {
             return;
@@ -5982,6 +6131,60 @@ export class GameMap extends BaseComponent {
                 }
                 else{
                     delete self._pendingTarThrowMap[command.spillId];
+                }
+            }
+        });
+    }
+
+    _spawnMultiplayerBlackHoleZone(zoneData) {
+        if (!this._multiplayerMode || !zoneData || zoneData.id == null) {
+            return;
+        }
+        let pendingThrow = this._pendingBlackHoleThrowMap[zoneData.id];
+        if (pendingThrow) {
+            pendingThrow.zoneData = zoneData;
+            return;
+        }
+        if (this._multiplayerBlackHoleZoneMap[zoneData.id]) {
+            return;
+        }
+        let node = this.spawnBlackHoleZone(cc.v2(zoneData.x || 0, zoneData.y || 0), zoneData);
+        if (node) {
+            this._multiplayerBlackHoleZoneMap[zoneData.id] = node;
+        }
+    }
+
+    _removeMultiplayerBlackHoleZone(zoneId) {
+        if (zoneId == null) {
+            return;
+        }
+        delete this._multiplayerBlackHoleZoneMap[zoneId];
+        this._clearBlackHoleTestNodes();
+    }
+
+    _playMultiplayerBlackHoleThrow(command) {
+        if (!command || !command.from || !command.to) {
+            return;
+        }
+        if (command.zoneId != null) {
+            this._pendingBlackHoleThrowMap[command.zoneId] = this._pendingBlackHoleThrowMap[command.zoneId] || {};
+        }
+        let self = this;
+        this.playOilShellThrow(cc.v2(command.from), cc.v2(command.to), {
+            areaRadius: BLACK_HOLE_ZONE_RADIUS,
+            arcHeight: 110,
+            onLand: function () {
+                if (command.zoneId == null) {
+                    return;
+                }
+                let pendingThrow = self._pendingBlackHoleThrowMap[command.zoneId];
+                if (pendingThrow && pendingThrow.zoneData) {
+                    let zoneData = pendingThrow.zoneData;
+                    delete self._pendingBlackHoleThrowMap[command.zoneId];
+                    self._spawnMultiplayerBlackHoleZone(zoneData);
+                }
+                else{
+                    delete self._pendingBlackHoleThrowMap[command.zoneId];
                 }
             }
         });

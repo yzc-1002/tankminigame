@@ -2054,11 +2054,6 @@
     "meta": 1778140066048,
     "relativePath": "script\\Enemy.ts"
   },
-  "f60d2c9a-5abd-4e9e-a544-4c2bd3a90006": {
-    "asset": 1778139626414,
-    "meta": 1778140066684,
-    "relativePath": "script\\OilPickup.ts"
-  },
   "c06376b0-cddb-41b4-99c0-c83e2b286204": {
     "asset": 1778148349135,
     "meta": 1778148349161,
@@ -2109,29 +2104,34 @@
     "meta": 1778814897279,
     "relativePath": "script\\Finish.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778815806275,
-    "meta": 1778815935407,
-    "relativePath": "script\\GameMap.ts"
-  },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778831885251,
-    "meta": 1778831989607,
+    "asset": 1778833615046,
+    "meta": 1778834358196,
     "relativePath": "script\\GameMain.ts"
   },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1778831839019,
-    "meta": 1778831989702,
-    "relativePath": "script\\JoyStick.ts"
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778833640970,
+    "meta": 1778834358835,
+    "relativePath": "script\\GameMap.ts"
   },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778831889578,
-    "meta": 1778831989736,
+    "asset": 1778833607699,
+    "meta": 1778834358927,
     "relativePath": "script\\network\\NetworkManager.ts"
   },
+  "f60d2c9a-5abd-4e9e-a544-4c2bd3a90006": {
+    "asset": 1778833377987,
+    "meta": 1778834358954,
+    "relativePath": "script\\OilPickup.ts"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778834716321,
+    "meta": 1778834755457,
+    "relativePath": "script\\JoyStick.ts"
+  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778831905453,
-    "meta": 1778831989957,
+    "asset": 1778834723807,
+    "meta": 1778834755712,
     "relativePath": "script\\Player.ts"
   }
 }
