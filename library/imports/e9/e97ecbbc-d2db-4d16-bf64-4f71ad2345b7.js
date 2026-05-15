@@ -281,6 +281,9 @@ var Player = /** @class */ (function (_super) {
         return (this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
     };
     Player.prototype._doChargeCannonPress = function (event) {
+        if (this._multiplayerMode && this._multiplayerRemote) {
+            return;
+        }
         if (this._inGame == false || this._chargeCannonCdTime > 0 || this._chargeCannonCharging) {
             return;
         }
@@ -292,6 +295,9 @@ var Player = /** @class */ (function (_super) {
         MusicManager_1.MusicManager.playEffect("chargeCannon");
     };
     Player.prototype._doChargeCannonRelease = function (event) {
+        if (this._multiplayerMode && this._multiplayerRemote) {
+            return;
+        }
         if (this._inGame == false || this._chargeCannonCharging == false) {
             return;
         }

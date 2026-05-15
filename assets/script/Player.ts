@@ -266,6 +266,9 @@ export class Player extends Tank {
     }
 
     _doChargeCannonPress(event) {
+        if (this._multiplayerMode && this._multiplayerRemote) {
+            return;
+        }
         if (this._inGame == false || this._chargeCannonCdTime > 0 || this._chargeCannonCharging) {
             return;
         }
@@ -279,6 +282,9 @@ export class Player extends Tank {
     }
 
     _doChargeCannonRelease(event) {
+        if (this._multiplayerMode && this._multiplayerRemote) {
+            return;
+        }
         if (this._inGame == false || this._chargeCannonCharging == false) {
             return;
         }

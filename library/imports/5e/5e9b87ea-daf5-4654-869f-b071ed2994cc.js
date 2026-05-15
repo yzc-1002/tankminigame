@@ -82,13 +82,35 @@ var BaseComponent = /** @class */ (function (_super) {
 exports.BaseComponent = BaseComponent;
 // node.script可以获取第一个自定义脚本
 cc.js.get(cc.Node.prototype, 'script', function () {
-    var LinkPrefabScript = this.getComponent(LinkPrefab_1.LinkPrefab);
+    var LinkPrefabScript = null;
+    if (LinkPrefab_1.LinkPrefab) {
+        LinkPrefabScript = this.getComponent(LinkPrefab_1.LinkPrefab);
+    }
+    else if (this._components) {
+        LinkPrefabScript = this._components.find(function (component) {
+            return component && component.__classname__ == "LinkPrefab";
+        }) || null;
+    }
     if (LinkPrefabScript) {
         if (LinkPrefabScript._prefabNode) {
             return LinkPrefabScript._prefabNode.script;
         }
     }
-    return this.getComponent(BaseComponent);
+    if (BaseComponent) {
+        var baseComponent = this.getComponent(BaseComponent);
+        if (baseComponent) {
+            return baseComponent;
+        }
+    }
+    if (this._components) {
+        for (var i = 0; i < this._components.length; i++) {
+            var component = this._components[i];
+            if (component && component.__classname__ && component.__classname__.indexOf("cc.") != 0) {
+                return component;
+            }
+        }
+    }
+    return null;
 }, true, true);
 
 cc._RF.pop();

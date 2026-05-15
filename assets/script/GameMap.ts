@@ -2788,7 +2788,16 @@ export class GameMap extends BaseComponent {
         energy.position = cc.v3(this.tileToGamePos(tile));
         energy.zIndex = this.judgezIndex(energy.y);
 
-        let energyScript = energy.getComponent(EnergyItem) || energy.addComponent(EnergyItem);
+        let energyScript = null;
+        if (EnergyItem) {
+            energyScript = energy.getComponent(EnergyItem) || energy.addComponent(EnergyItem);
+        }
+        let energyNode : any = energy;
+        if (!energyScript && energyNode._components) {
+            energyScript = energyNode._components.find((component) => {
+                return component && component.__classname__ == "EnergyItem";
+            }) || null;
+        }
         let value = this._getEnergyConfig("Value", 10);
         let lifeTime = this._getEnergyConfig("LifeTime", 12);
         energyScript.init(value, lifeTime);
@@ -2802,7 +2811,16 @@ export class GameMap extends BaseComponent {
         energy.position = cc.v3(pos);
         energy.zIndex = this.judgezIndex(energy.y);
 
-        let energyScript = energy.getComponent(EnergyItem) || energy.addComponent(EnergyItem);
+        let energyScript = null;
+        if (EnergyItem) {
+            energyScript = energy.getComponent(EnergyItem) || energy.addComponent(EnergyItem);
+        }
+        let energyNode : any = energy;
+        if (!energyScript && energyNode._components) {
+            energyScript = energyNode._components.find((component) => {
+                return component && component.__classname__ == "EnergyItem";
+            }) || null;
+        }
         energyScript.init(this._getEnergyConfig("Value", 10), this._getEnergyConfig("LifeTime", 12));
         this._energys.push(energy);
         return energy;
@@ -2819,7 +2837,16 @@ export class GameMap extends BaseComponent {
         energy.zIndex = this.judgezIndex(energy.y);
         energy["__energyId"] = energyData.id;
 
-        let energyScript = energy.getComponent(EnergyItem) || energy.addComponent(EnergyItem);
+        let energyScript = null;
+        if (EnergyItem) {
+            energyScript = energy.getComponent(EnergyItem) || energy.addComponent(EnergyItem);
+        }
+        let energyNode : any = energy;
+        if (!energyScript && energyNode._components) {
+            energyScript = energyNode._components.find((component) => {
+                return component && component.__classname__ == "EnergyItem";
+            }) || null;
+        }
         energyScript.init(energyData.value == null ? this._getEnergyConfig("Value", 10) : energyData.value, 999999);
         this._energys.push(energy);
         this._multiplayerEnergyMap[energyData.id] = energy;
@@ -4644,13 +4671,26 @@ export class GameMap extends BaseComponent {
         for (let i = 0; i < this._energys.length; i++) {
             let energy = this._energys[i];
             if (cc.isValid(energy)) {
-                let energyScript = energy.getComponent(EnergyItem);
+                let energyScript = null;
+                if (EnergyItem) {
+                    energyScript = energy.getComponent(EnergyItem);
+                }
+                let energyNode : any = energy;
+                if (!energyScript && energyNode._components) {
+                    energyScript = energyNode._components.find((component) => {
+                        return component && component.__classname__ == "EnergyItem";
+                    }) || null;
+                }
                 if (!energyScript) {
                     this._energys.splice(i, 1);
                     energy.destroy();
                     return;
                 }
-                let playerRect = this._player.script.getPlayerBoundingBox();
+                let playerScript = this._player && cc.isValid(this._player) ? this._player.script : null;
+                if (!playerScript) {
+                    return;
+                }
+                let playerRect = playerScript.getPlayerBoundingBox();
                 let energyRect = energyScript.getEnergyBoundingBox();
                 if (cc.Intersection.rectRect(playerRect, energyRect)) {
                     if (this._multiplayerMode) {
@@ -4660,7 +4700,7 @@ export class GameMap extends BaseComponent {
                         });
                     }
                     else{
-                        this._player.script.addEnergy(energyScript.getValue());
+                        playerScript.addEnergy(energyScript.getValue());
                         this._energys.splice(i, 1);
                         energy.destroy();
                     }

@@ -834,11 +834,6 @@
     "meta": 1776683592608,
     "relativePath": "script\\base"
   },
-  "5e9b87ea-daf5-4654-869f-b071ed2994cc": {
-    "asset": 1595857008000,
-    "meta": 1776683592630,
-    "relativePath": "script\\base\\BaseComponent.ts"
-  },
   "447fce45-c84e-466e-8145-b6797410bd5c": {
     "asset": 1595857008000,
     "meta": 1776683592659,
@@ -2119,19 +2114,24 @@
     "meta": 1778837840320,
     "relativePath": "script\\GameMain.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778837605194,
-    "meta": 1778837840940,
-    "relativePath": "script\\GameMap.ts"
-  },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
     "asset": 1778837446992,
     "meta": 1778837840965,
     "relativePath": "script\\network\\NetworkManager.ts"
   },
+  "5e9b87ea-daf5-4654-869f-b071ed2994cc": {
+    "asset": 1778838468472,
+    "meta": 1778838557209,
+    "relativePath": "script\\base\\BaseComponent.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778838876651,
+    "meta": 1778838923440,
+    "relativePath": "script\\GameMap.ts"
+  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778837545219,
-    "meta": 1778837841141,
+    "asset": 1778839192917,
+    "meta": 1778839244685,
     "relativePath": "script\\Player.ts"
   }
 }

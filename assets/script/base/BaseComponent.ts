@@ -58,11 +58,33 @@ export class BaseComponent extends cc.Component {
 
 // node.script可以获取第一个自定义脚本
 cc.js.get(cc.Node.prototype, 'script', function () {
-    let LinkPrefabScript = this.getComponent(LinkPrefab);
+    let LinkPrefabScript = null;
+    if (LinkPrefab) {
+        LinkPrefabScript = this.getComponent(LinkPrefab);
+    }
+    else if (this._components) {
+        LinkPrefabScript = this._components.find((component) => {
+            return component && component.__classname__ == "LinkPrefab";
+        }) || null;
+    }
     if (LinkPrefabScript) {
         if (LinkPrefabScript._prefabNode) {
             return LinkPrefabScript._prefabNode.script;
         }
     }
-    return this.getComponent(BaseComponent);
+    if (BaseComponent) {
+        let baseComponent = this.getComponent(BaseComponent);
+        if (baseComponent) {
+            return baseComponent;
+        }
+    }
+    if (this._components) {
+        for (let i = 0; i < this._components.length; i++) {
+            let component = this._components[i];
+            if (component && component.__classname__ && component.__classname__.indexOf("cc.") != 0) {
+                return component;
+            }
+        }
+    }
+    return null;
 },true,true);

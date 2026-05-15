@@ -2324,7 +2324,16 @@ var GameMap = /** @class */ (function (_super) {
         energy.parent = this._fire._tmLayerObstacle;
         energy.position = cc.v3(this.tileToGamePos(tile));
         energy.zIndex = this.judgezIndex(energy.y);
-        var energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        var energyScript = null;
+        if (EnergyItem_1.EnergyItem) {
+            energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        }
+        var energyNode = energy;
+        if (!energyScript && energyNode._components) {
+            energyScript = energyNode._components.find(function (component) {
+                return component && component.__classname__ == "EnergyItem";
+            }) || null;
+        }
         var value = this._getEnergyConfig("Value", 10);
         var lifeTime = this._getEnergyConfig("LifeTime", 12);
         energyScript.init(value, lifeTime);
@@ -2335,7 +2344,16 @@ var GameMap = /** @class */ (function (_super) {
         energy.parent = this._fire._tmLayerObstacle;
         energy.position = cc.v3(pos);
         energy.zIndex = this.judgezIndex(energy.y);
-        var energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        var energyScript = null;
+        if (EnergyItem_1.EnergyItem) {
+            energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        }
+        var energyNode = energy;
+        if (!energyScript && energyNode._components) {
+            energyScript = energyNode._components.find(function (component) {
+                return component && component.__classname__ == "EnergyItem";
+            }) || null;
+        }
         energyScript.init(this._getEnergyConfig("Value", 10), this._getEnergyConfig("LifeTime", 12));
         this._energys.push(energy);
         return energy;
@@ -2350,7 +2368,16 @@ var GameMap = /** @class */ (function (_super) {
         energy.position = cc.v3(pos);
         energy.zIndex = this.judgezIndex(energy.y);
         energy["__energyId"] = energyData.id;
-        var energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        var energyScript = null;
+        if (EnergyItem_1.EnergyItem) {
+            energyScript = energy.getComponent(EnergyItem_1.EnergyItem) || energy.addComponent(EnergyItem_1.EnergyItem);
+        }
+        var energyNode = energy;
+        if (!energyScript && energyNode._components) {
+            energyScript = energyNode._components.find(function (component) {
+                return component && component.__classname__ == "EnergyItem";
+            }) || null;
+        }
         energyScript.init(energyData.value == null ? this._getEnergyConfig("Value", 10) : energyData.value, 999999);
         this._energys.push(energy);
         this._multiplayerEnergyMap[energyData.id] = energy;
@@ -3954,13 +3981,26 @@ var GameMap = /** @class */ (function (_super) {
         for (var i = 0; i < this._energys.length; i++) {
             var energy = this._energys[i];
             if (cc.isValid(energy)) {
-                var energyScript = energy.getComponent(EnergyItem_1.EnergyItem);
+                var energyScript = null;
+                if (EnergyItem_1.EnergyItem) {
+                    energyScript = energy.getComponent(EnergyItem_1.EnergyItem);
+                }
+                var energyNode = energy;
+                if (!energyScript && energyNode._components) {
+                    energyScript = energyNode._components.find(function (component) {
+                        return component && component.__classname__ == "EnergyItem";
+                    }) || null;
+                }
                 if (!energyScript) {
                     this._energys.splice(i, 1);
                     energy.destroy();
                     return;
                 }
-                var playerRect = this._player.script.getPlayerBoundingBox();
+                var playerScript = this._player && cc.isValid(this._player) ? this._player.script : null;
+                if (!playerScript) {
+                    return;
+                }
+                var playerRect = playerScript.getPlayerBoundingBox();
                 var energyRect = energyScript.getEnergyBoundingBox();
                 if (cc.Intersection.rectRect(playerRect, energyRect)) {
                     if (this._multiplayerMode) {
@@ -3970,7 +4010,7 @@ var GameMap = /** @class */ (function (_super) {
                         });
                     }
                     else {
-                        this._player.script.addEnergy(energyScript.getValue());
+                        playerScript.addEnergy(energyScript.getValue());
                         this._energys.splice(i, 1);
                         energy.destroy();
                     }
