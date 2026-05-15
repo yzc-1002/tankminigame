@@ -1944,11 +1944,6 @@
     "meta": 1778835814662,
     "relativePath": "script\\config\\Music.ts"
   },
-  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
-    "asset": 1778835088964,
-    "meta": 1778835814672,
-    "relativePath": "script\\config\\Tank.ts"
-  },
   "dc25955e-68f9-48e8-8a4e-0bf71f7f1192": {
     "asset": 1778835088966,
     "meta": 1778835814673,
@@ -2104,11 +2099,6 @@
     "meta": 1778835816303,
     "relativePath": "texture\\ui\\barrelRed_side.png"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778837461434,
-    "meta": 1778837840320,
-    "relativePath": "script\\GameMain.ts"
-  },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
     "asset": 1778837446992,
     "meta": 1778837840965,
@@ -2119,19 +2109,29 @@
     "meta": 1778838557209,
     "relativePath": "script\\base\\BaseComponent.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778838876651,
-    "meta": 1778838923440,
-    "relativePath": "script\\GameMap.ts"
-  },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778839192917,
-    "meta": 1778839244685,
-    "relativePath": "script\\Player.ts"
-  },
   "57473783-53bb-4668-9e13-3d2242e0eae2": {
     "asset": 1778839483883,
     "meta": 1778839574175,
     "relativePath": "script\\BulletE.ts"
+  },
+  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
+    "asset": 1778841985034,
+    "meta": 1778841986828,
+    "relativePath": "script\\config\\Tank.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778842854921,
+    "meta": 1778842921941,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778842849772,
+    "meta": 1778842922629,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778842841185,
+    "meta": 1778842922800,
+    "relativePath": "script\\Player.ts"
   }
 }

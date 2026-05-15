@@ -23,10 +23,15 @@ const ENERGY_EGG_BURST_COUNT = 12;
 const ENERGY_EGG_BURST_SCATTER_RADIUS = 136;
 const PLAYER_DEFAULT_RADIUS = 38;
 const PLAYER_DIR_FALLBACK = { x: 1, y: 0 };
+const PLAYER_SHOOT_INTERVAL = 0.35;
+const PLAYER_FREE_BULLET_MAX = 3;
+const PLAYER_FREE_BULLET_RECOVER_DELAY = 0.8;
+const PLAYER_FREE_BULLET_RECOVER_INTERVAL = 0.6;
+const PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 const MULTIPLAYER_DEFAULT_TANK_TYPE = 1;
 const MULTIPLAYER_FIXED_PLAYER_LEVEL = 1;
-const MULTIPLAYER_FIXED_BASE_HP = 20;
-const MULTIPLAYER_FIXED_BASE_ATK = 6;
+const MULTIPLAYER_FIXED_BASE_HP = 100;
+const MULTIPLAYER_FIXED_BASE_ATK = 10;
 const MULTIPLAYER_FIXED_BASE_SPEED = 5;
 const MULTIPLAYER_FIXED_ATTACK_RADIUS = 400;
 const PLAYER_EXP_BASE = 30;
@@ -244,6 +249,10 @@ function createPlayerState(setup = {}) {
     energyNeedExp: PLAYER_EXP_BASE,
     tarAmmoCount: 0,
     blackHoleAmmoCount: 0,
+    freeBulletCount: PLAYER_FREE_BULLET_MAX,
+    stopFireTime: 0,
+    freeBulletRecoverTime: 0,
+    shotCooldownRemaining: 0,
   };
 }
 
@@ -264,6 +273,10 @@ function applyPlayerSetup(player, setup = {}) {
   player.energyNeedExp = state.energyNeedExp;
   player.tarAmmoCount = state.tarAmmoCount;
   player.blackHoleAmmoCount = state.blackHoleAmmoCount;
+  player.freeBulletCount = state.freeBulletCount;
+  player.stopFireTime = state.stopFireTime;
+  player.freeBulletRecoverTime = state.freeBulletRecoverTime;
+  player.shotCooldownRemaining = state.shotCooldownRemaining;
 }
 
 function resetPlayerRuntimeState(player) {
@@ -284,6 +297,10 @@ function resetPlayerRuntimeState(player) {
   player.energyNeedExp = state.energyNeedExp;
   player.tarAmmoCount = state.tarAmmoCount;
   player.blackHoleAmmoCount = state.blackHoleAmmoCount;
+  player.freeBulletCount = state.freeBulletCount;
+  player.stopFireTime = state.stopFireTime;
+  player.freeBulletRecoverTime = state.freeBulletRecoverTime;
+  player.shotCooldownRemaining = state.shotCooldownRemaining;
 }
 
 function sanitizeSpawnPoints(points) {
@@ -1638,10 +1655,98 @@ function buildPlayerStateCommand(player) {
     energyNeedExp: player.energyNeedExp,
     tarAmmoCount: player.tarAmmoCount || 0,
     blackHoleAmmoCount: player.blackHoleAmmoCount || 0,
+    freeBulletCount: clamp(Math.round(player.freeBulletCount || 0), 0, PLAYER_FREE_BULLET_MAX),
+    stopFireTime: Math.max(0, player.stopFireTime || 0),
+    freeBulletRecoverTime: Math.max(0, player.freeBulletRecoverTime || 0),
+    shotCooldownRemaining: Math.max(0, player.shotCooldownRemaining || 0),
     inBush: !!player.inBush,
     bushId: player.bushId == null ? null : player.bushId,
     dead: !!player.dead,
     disconnected: !!player.disconnected,
+  };
+}
+
+function tickPlayerFireState(player) {
+  if (!player) {
+    return;
+  }
+  player.shotCooldownRemaining = Math.max(0, (player.shotCooldownRemaining || 0) - TICK_INTERVAL / 1000);
+  if ((player.freeBulletCount || 0) >= PLAYER_FREE_BULLET_MAX) {
+    player.stopFireTime = 0;
+    player.freeBulletRecoverTime = 0;
+    player.freeBulletCount = PLAYER_FREE_BULLET_MAX;
+    return;
+  }
+  player.stopFireTime = Math.max(0, (player.stopFireTime || 0) + TICK_INTERVAL / 1000);
+  if (player.stopFireTime < PLAYER_FREE_BULLET_RECOVER_DELAY) {
+    player.freeBulletRecoverTime = 0;
+    return;
+  }
+  player.freeBulletRecoverTime = Math.max(0, (player.freeBulletRecoverTime || 0) + TICK_INTERVAL / 1000);
+  while (player.freeBulletRecoverTime >= PLAYER_FREE_BULLET_RECOVER_INTERVAL
+    && player.freeBulletCount < PLAYER_FREE_BULLET_MAX) {
+    player.freeBulletRecoverTime -= PLAYER_FREE_BULLET_RECOVER_INTERVAL;
+    player.freeBulletCount += 1;
+  }
+  if (player.freeBulletCount >= PLAYER_FREE_BULLET_MAX) {
+    player.freeBulletCount = PLAYER_FREE_BULLET_MAX;
+    player.freeBulletRecoverTime = 0;
+  }
+}
+
+function buildPlayerFireStateCommand(player, paidShot = false) {
+  return {
+    type: 'playerFireState',
+    playerId: player.playerId,
+    hp: player.hp,
+    maxHp: player.maxHp,
+    freeBulletCount: clamp(Math.round(player.freeBulletCount || 0), 0, PLAYER_FREE_BULLET_MAX),
+    stopFireTime: Math.max(0, player.stopFireTime || 0),
+    freeBulletRecoverTime: Math.max(0, player.freeBulletRecoverTime || 0),
+    shotCooldownRemaining: Math.max(0, player.shotCooldownRemaining || 0),
+    paidShot: !!paidShot,
+  };
+}
+
+function canPlayerAffordPaidBullet(player) {
+  return !!player && Number(player.hp) > PLAYER_PAID_SHOT_HP_COST;
+}
+
+function tryFireByPlayer(player, fireInput, frameCommands) {
+  if (!player || player.dead || player.disconnected || !fireInput || !fireInput.id) {
+    return null;
+  }
+  if ((player.shotCooldownRemaining || 0) > 0) {
+    return null;
+  }
+  if ((player.freeBulletCount || 0) <= 0 && !canPlayerAffordPaidBullet(player)) {
+    return null;
+  }
+
+  let paidShot = false;
+  if ((player.freeBulletCount || 0) > 0) {
+    player.freeBulletCount -= 1;
+  } else {
+    paidShot = true;
+    player.hp -= PLAYER_PAID_SHOT_HP_COST;
+    if (player.hp < 0) {
+      player.hp = 0;
+    }
+  }
+  player.stopFireTime = 0;
+  player.freeBulletRecoverTime = 0;
+  player.shotCooldownRemaining = PLAYER_SHOOT_INTERVAL;
+
+  room.bullets[fireInput.id] = {
+    id: fireInput.id,
+    playerId: player.playerId,
+    damage: player.atk == null ? 5 : player.atk,
+  };
+
+  appendFrameCommand(frameCommands, buildPlayerFireStateCommand(player, paidShot));
+  return {
+    id: fireInput.id,
+    type: fireInput.type,
   };
 }
 
@@ -2111,11 +2216,13 @@ function tick() {
       return;
     }
 
+    tickPlayerFireState(p);
     inputs.up = !!(p.lastInputs && p.lastInputs.up);
     inputs.down = !!(p.lastInputs && p.lastInputs.down);
     inputs.left = !!(p.lastInputs && p.lastInputs.left);
     inputs.right = !!(p.lastInputs && p.lastInputs.right);
     inputs.aim = p.lastInputs && p.lastInputs.aim ? p.lastInputs.aim : null;
+    let pendingFire = null;
 
     for (let i = 0; i < p.pendingInputs.length; i++) {
       const entry = p.pendingInputs[i];
@@ -2133,12 +2240,7 @@ function tick() {
         inputs.aim = aim;
       }
       if (src.fire && src.fire.id) {
-        inputs.fire = src.fire;
-        room.bullets[src.fire.id] = {
-          id: src.fire.id,
-          playerId: p.playerId,
-          damage: p.atk == null ? 5 : p.atk,
-        };
+        pendingFire = src.fire;
       }
 
       if (src.hit) {
@@ -2199,6 +2301,11 @@ function tick() {
         delete room.bullets[src.hit.id];
         appendFrameCommand(eventCommands, hitCommand);
       }
+    }
+
+    const acceptedFire = tryFireByPlayer(p, pendingFire, eventCommands);
+    if (acceptedFire) {
+      inputs.fire = acceptedFire;
     }
 
     if (inputs.throwTar) {
@@ -2400,6 +2507,10 @@ function startGame() {
         energyNeedExp: player.energyNeedExp,
         tarAmmoCount: player.tarAmmoCount || 0,
         blackHoleAmmoCount: player.blackHoleAmmoCount || 0,
+        freeBulletCount: clamp(Math.round(player.freeBulletCount || 0), 0, PLAYER_FREE_BULLET_MAX),
+        stopFireTime: Math.max(0, player.stopFireTime || 0),
+        freeBulletRecoverTime: Math.max(0, player.freeBulletRecoverTime || 0),
+        shotCooldownRemaining: Math.max(0, player.shotCooldownRemaining || 0),
         dead: !!player.dead,
       })),
     }));

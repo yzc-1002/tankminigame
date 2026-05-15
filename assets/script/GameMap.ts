@@ -6007,6 +6007,9 @@ export class GameMap extends BaseComponent {
                     player.script.syncMultiplayerState(command);
                 }
             }
+            else if (command.type === "playerFireState") {
+                this._applyMultiplayerPlayerFireState(command);
+            }
             else if (command.type === "playerHit") {
                 this.applyMultiplayerHit(command);
             }
@@ -6560,6 +6563,17 @@ export class GameMap extends BaseComponent {
             return;
         }
         targetPlayer.script.applyMultiplayerHit(command.damage || 0, command.hp);
+    }
+
+    _applyMultiplayerPlayerFireState(command) {
+        if (!this._multiplayerMode || !command || command.playerId == null) {
+            return;
+        }
+        let targetPlayer = this._multiplayerPlayers[command.playerId];
+        if (!targetPlayer || !cc.isValid(targetPlayer) || !targetPlayer.script || !targetPlayer.script.applyMultiplayerFireState) {
+            return;
+        }
+        targetPlayer.script.applyMultiplayerFireState(command);
     }
 
     _applyMultiplayerSafeZoneState(safeZone) {

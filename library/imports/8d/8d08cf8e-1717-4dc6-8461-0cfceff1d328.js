@@ -5147,6 +5147,9 @@ var GameMap = /** @class */ (function (_super) {
                     player.script.syncMultiplayerState(command);
                 }
             }
+            else if (command.type === "playerFireState") {
+                this._applyMultiplayerPlayerFireState(command);
+            }
             else if (command.type === "playerHit") {
                 this.applyMultiplayerHit(command);
             }
@@ -5666,6 +5669,16 @@ var GameMap = /** @class */ (function (_super) {
             return;
         }
         targetPlayer.script.applyMultiplayerHit(command.damage || 0, command.hp);
+    };
+    GameMap.prototype._applyMultiplayerPlayerFireState = function (command) {
+        if (!this._multiplayerMode || !command || command.playerId == null) {
+            return;
+        }
+        var targetPlayer = this._multiplayerPlayers[command.playerId];
+        if (!targetPlayer || !cc.isValid(targetPlayer) || !targetPlayer.script || !targetPlayer.script.applyMultiplayerFireState) {
+            return;
+        }
+        targetPlayer.script.applyMultiplayerFireState(command);
     };
     GameMap.prototype._applyMultiplayerSafeZoneState = function (safeZone) {
         if (!this._multiplayerMode) {

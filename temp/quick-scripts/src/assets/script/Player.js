@@ -1143,6 +1143,18 @@ var Player = /** @class */ (function (_super) {
             MusicManager_1.MusicManager.playEffect("shoot");
         }
     };
+    Player.prototype.canAffordMultiplayerFire = function () {
+        if (!this._multiplayerMode || this._multiplayerRemote) {
+            return true;
+        }
+        if (this._bulletCodeTime < PLAYER_SHOOT_INTERVAL) {
+            return false;
+        }
+        if (this._freeBulletCount > 0) {
+            return true;
+        }
+        return !this._canNotAffordPaidBullet();
+    };
     Player.prototype._playShootFeedback = function (bulletType, mutationData) {
         this._playBarrelRecoil();
         this._playMuzzleFlash(bulletType, mutationData);
@@ -1582,6 +1594,39 @@ var Player = /** @class */ (function (_super) {
             this.doDeath();
         }
     };
+    Player.prototype.applyMultiplayerFireState = function (command) {
+        if (!this._multiplayerMode || !command) {
+            return;
+        }
+        if (command.maxHp != null && command.maxHp > 0) {
+            this._maxHp = command.maxHp;
+        }
+        if (command.hp != null) {
+            var nextHp = Math.max(0, command.hp);
+            if (this._maxHp > 0 && nextHp > this._maxHp) {
+                nextHp = this._maxHp;
+            }
+            this._hp = nextHp;
+        }
+        if (command.freeBulletCount != null) {
+            this._freeBulletCount = Math.max(0, Math.min(PLAYER_FREE_BULLET_MAX, command.freeBulletCount));
+        }
+        if (command.stopFireTime != null) {
+            this._stopFireTime = Math.max(0, command.stopFireTime);
+        }
+        if (command.freeBulletRecoverTime != null) {
+            this._freeBulletRecoverTime = Math.max(0, command.freeBulletRecoverTime);
+        }
+        if (command.shotCooldownRemaining != null) {
+            var nextCooldown = Math.max(0, command.shotCooldownRemaining);
+            this._bulletCodeTime = Math.max(0, PLAYER_SHOOT_INTERVAL - nextCooldown);
+        }
+        this.refreshHp();
+        this._refreshFreeBulletBar();
+        if (this._hp == 0) {
+            this.doDeath();
+        }
+    };
     //玩家受击不飘伤害数字, 用区别于敌人的蓝色闪光表现
     Player.prototype.beHit = function (damage) {
         damage = damage - this._def;
@@ -1700,6 +1745,19 @@ var Player = /** @class */ (function (_super) {
                 this._refreshSkillButtonMode();
             }
         }
+        if (state.freeBulletCount != null) {
+            this._freeBulletCount = Math.max(0, Math.min(PLAYER_FREE_BULLET_MAX, state.freeBulletCount));
+        }
+        if (state.stopFireTime != null) {
+            this._stopFireTime = Math.max(0, state.stopFireTime);
+        }
+        if (state.freeBulletRecoverTime != null) {
+            this._freeBulletRecoverTime = Math.max(0, state.freeBulletRecoverTime);
+        }
+        if (state.shotCooldownRemaining != null) {
+            var nextCooldown = Math.max(0, state.shotCooldownRemaining);
+            this._bulletCodeTime = Math.max(0, PLAYER_SHOOT_INTERVAL - nextCooldown);
+        }
         if (state.energyLevel != null && state.energyLevel > 0) {
             this._energyLevel = state.energyLevel;
         }
@@ -1722,6 +1780,7 @@ var Player = /** @class */ (function (_super) {
         var didTakeDamage = this._hp < prevHp;
         this.refreshHp();
         this._refreshEnergyUI();
+        this._refreshFreeBulletBar();
         if (didTakeDamage) {
             this._showPlayerHitEffect();
             if (!this._multiplayerRemote) {

@@ -11,8 +11,8 @@ import {RewardAd} from "./ad/RewardAd";
 const {ccclass, property} = cc._decorator;
 const MULTIPLAYER_DEFAULT_TANK_TYPE = 1;
 const MULTIPLAYER_FIXED_PLAYER_LEVEL = 1;
-const MULTIPLAYER_FIXED_BASE_HP = 20;
-const MULTIPLAYER_FIXED_BASE_ATK = 6;
+const MULTIPLAYER_FIXED_BASE_HP = 100;
+const MULTIPLAYER_FIXED_BASE_ATK = 10;
 const MULTIPLAYER_FIXED_BASE_SPEED = 5;
 const MULTIPLAYER_FIXED_ATTACK_RADIUS = 400;
 const MULTIPLAYER_MINIMAP_WIDTH = 216;
@@ -1754,7 +1754,7 @@ export default class GameMain extends BaseComponent {
         this._hideMultiplayerHud();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
-        this._showMultiplayerStatus("正在连接服务器 ws://localhost:2567 ...");
+        this._showMultiplayerStatus("正在连接服务器 ws://172.16.50.45:2567 ...");
 
         this._netManager = new NetworkManager();
         this._netManager.onCountdown = (seconds) => {
@@ -1784,7 +1784,7 @@ export default class GameMain extends BaseComponent {
             this._hideMultiplayerAnnouncement();
             this._hideMultiplayerHud();
         };
-        this._netManager.connect("ws://localhost:2567");
+        this._netManager.connect("ws://172.16.50.45:2567");
     }
 
     _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = [], blackHolePickups = [], blackHoleZones = [], bushes = [], safeZone = null) {
@@ -1862,6 +1862,13 @@ export default class GameMain extends BaseComponent {
                 };
             }
             if (event.fire === true) {
+                let player = self._getLocalMultiplayerPlayer();
+                if (player && player.script && player.script.canAffordMultiplayerFire && !player.script.canAffordMultiplayerFire()) {
+                    if (player.script._freeBulletCount <= 0 && player.script._showLowHpShootTip) {
+                        player.script._showLowHpShootTip();
+                    }
+                    return;
+                }
                 inputs.fire = self._buildMultiplayerFireCommand();
             }
         };

@@ -34,8 +34,8 @@ var RewardAd_1 = require("./ad/RewardAd");
 var _a = cc._decorator, ccclass = _a.ccclass, property = _a.property;
 var MULTIPLAYER_DEFAULT_TANK_TYPE = 1;
 var MULTIPLAYER_FIXED_PLAYER_LEVEL = 1;
-var MULTIPLAYER_FIXED_BASE_HP = 20;
-var MULTIPLAYER_FIXED_BASE_ATK = 6;
+var MULTIPLAYER_FIXED_BASE_HP = 100;
+var MULTIPLAYER_FIXED_BASE_ATK = 10;
 var MULTIPLAYER_FIXED_BASE_SPEED = 5;
 var MULTIPLAYER_FIXED_ATTACK_RADIUS = 400;
 var MULTIPLAYER_MINIMAP_WIDTH = 216;
@@ -1598,7 +1598,7 @@ var GameMain = /** @class */ (function (_super) {
         this._hideMultiplayerHud();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
-        this._showMultiplayerStatus("正在连接服务器 ws://localhost:2567 ...");
+        this._showMultiplayerStatus("正在连接服务器 ws://172.16.50.45:2567 ...");
         this._netManager = new NetworkManager_1.NetworkManager();
         this._netManager.onCountdown = function (seconds) {
             _this._showMultiplayerStatus("游戏倒计时 " + seconds + " 秒");
@@ -1627,7 +1627,7 @@ var GameMain = /** @class */ (function (_super) {
             _this._hideMultiplayerAnnouncement();
             _this._hideMultiplayerHud();
         };
-        this._netManager.connect("ws://localhost:2567");
+        this._netManager.connect("ws://172.16.50.45:2567");
     };
     GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone) {
         if (players === void 0) { players = []; }
@@ -1710,6 +1710,13 @@ var GameMain = /** @class */ (function (_super) {
                 };
             }
             if (event.fire === true) {
+                var player = self._getLocalMultiplayerPlayer();
+                if (player && player.script && player.script.canAffordMultiplayerFire && !player.script.canAffordMultiplayerFire()) {
+                    if (player.script._freeBulletCount <= 0 && player.script._showLowHpShootTip) {
+                        player.script._showLowHpShootTip();
+                    }
+                    return;
+                }
                 inputs.fire = self._buildMultiplayerFireCommand();
             }
         };
