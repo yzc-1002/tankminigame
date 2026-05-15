@@ -10,6 +10,7 @@ export class JoyStick extends BaseComponent {
     _shootDir = cc.v2(1, 0);        //射击摇杆方向
     _moveTouchPos = cc.v2(0, 0);    //移动摇杆初始位置
     _shootTouchPos = cc.v2(0, 0);   //射击摇杆初始位置
+    _skillTouchPos = cc.v2(0, 0);   //焦油按钮拖拽初始位置
     _free = true;                   //自由移动摇杆位置
     _moveTouchId = null;
     _shootTouchId = null;
@@ -20,12 +21,15 @@ export class JoyStick extends BaseComponent {
     _coverButtonVisible = false;
     _coverButtonMode = "attach";
     _skillMode = "charge";
+    _oilAimDir = cc.v2(1, 0);
     _chargeProgressValue = 0;
     _chargeProgressColor = cc.color(255, 90, 55, 255);
 
     onLoad () {
         this._moveTouchPos = this._fire._sprBg.position.clone();
         this._shootTouchPos = this._fire._sprBg02.position.clone();
+        let oilBtn = this._fire._skilloilBtn || this._fire._skillBtn;
+        this._skillTouchPos = oilBtn ? oilBtn.position.clone() : cc.v2(0, 0);
         this._initSkillButton();
         this._setSkillButtonMode("charge");
         this._initSacrificeButton();
@@ -65,6 +69,7 @@ export class JoyStick extends BaseComponent {
             this._skillTouchId = touchId;
             if (this._skillMode == "oil") {
                 yyp.eventCenter.emit("oil-shell-trigger", { pressed: true });
+                this._updateOilSkillDrag(pos, true);
             }
             else{
                 this._refreshChargeProgress(0);
@@ -113,6 +118,9 @@ export class JoyStick extends BaseComponent {
         else if (touchId == this._shootTouchId) {
             this._updateShootStick(pos);
         }
+        else if (touchId == this._skillTouchId && this._skillMode == "oil") {
+            this._updateOilSkillDrag(pos, false);
+        }
     }
 
     _onTouchEnd(event) {
@@ -129,6 +137,7 @@ export class JoyStick extends BaseComponent {
         }
         else if (touchId == this._skillTouchId) {
             this._skillTouchId = null;
+            this._resetSkillButtonPosition();
             if (this._skillMode == "oil") {
                 yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, release: true });
             }
@@ -167,6 +176,7 @@ export class JoyStick extends BaseComponent {
         this._coverTouchId = null;
         this._resetMoveStick();
         this._resetShootStick();
+        this._resetSkillButtonPosition();
         this._refreshChargeProgress(this._chargeProgressValue, this._chargeProgressColor);
         this._setSacrificeButtonPressed(false);
         this._setCoverButtonPressed(false);
@@ -251,6 +261,41 @@ export class JoyStick extends BaseComponent {
         this._fire._sprJoystick02.setPosition(this._shootTouchPos);
     }
 
+    _resetSkillButtonPosition() {
+        let skillBtn = this._getCurrentSkillButton();
+        if (!skillBtn) {
+            return;
+        }
+        skillBtn.setPosition(this._skillTouchPos);
+    }
+
+    _updateOilSkillDrag(pos, isStart) {
+        let skillBtn = this._getCurrentSkillButton();
+        if (!skillBtn) {
+            return;
+        }
+        if (isStart) {
+            this._skillTouchPos = skillBtn.position.clone();
+        }
+        let delta = pos.sub(this._skillTouchPos);
+        let len = delta.mag();
+        if (len > 0.001) {
+            this._oilAimDir = delta.normalize();
+        }
+        let maxLen = Math.max(skillBtn.width * 0.95, 56);
+        let ratio = maxLen > 0 ? len / maxLen : 0;
+        if (ratio > 1) {
+            ratio = 1;
+            delta = this._oilAimDir.mul(maxLen);
+        }
+        skillBtn.setPosition(this._skillTouchPos.add(delta));
+        yyp.eventCenter.emit("oil-shell-trigger", {
+            aiming: true,
+            dir: cc.v2(this._oilAimDir),
+            ratio: ratio,
+        });
+    }
+
     _limitStickRange(bgNode, joystickNode, touchPos, dir) {
         // 限定摇杆在范围内移动
         let len = joystickNode.position.sub(touchPos).mag();   // 返回向量的长度
@@ -298,12 +343,17 @@ export class JoyStick extends BaseComponent {
         this._skillMode = nextMode;
         if (prevMode != this._skillMode) {
             this._skillTouchId = null;
+            this._resetSkillButtonPosition();
         }
         if (this._fire._skillBtn) {
             this._fire._skillBtn.active = this._skillMode == "charge";
         }
         if (this._fire._skilloilBtn) {
             this._fire._skilloilBtn.active = this._skillMode == "oil";
+        }
+        let skillBtn = this._getCurrentSkillButton();
+        if (skillBtn) {
+            this._skillTouchPos = skillBtn.position.clone();
         }
         if (this._fire._chargeProgressBg) {
             this._fire._chargeProgressBg.active = this._skillMode == "charge";

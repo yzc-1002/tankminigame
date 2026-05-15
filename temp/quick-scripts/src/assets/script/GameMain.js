@@ -1244,8 +1244,9 @@ var GameMain = /** @class */ (function (_super) {
         }
         var inputs = this._ensureMultiplayerInputs();
         inputs.throwTar = {
-            x: event.x,
-            y: event.y,
+            dirX: event.dirX,
+            dirY: event.dirY,
+            ratio: event.ratio,
         };
         this._multiplayerTarThrowRepeat = 4;
         this._flushMultiplayerInputsNow();

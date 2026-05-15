@@ -886,12 +886,21 @@ function sanitizeThrowTarPayload(payload) {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
-  const x = Number(payload.x);
-  const y = Number(payload.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+  const dirX = Number(payload.dirX);
+  const dirY = Number(payload.dirY);
+  const ratio = Number(payload.ratio);
+  if (!Number.isFinite(dirX) || !Number.isFinite(dirY)) {
     return null;
   }
-  return { x, y };
+  const len = Math.sqrt(dirX * dirX + dirY * dirY);
+  if (len <= 0.0001) {
+    return null;
+  }
+  return {
+    dirX: dirX / len,
+    dirY: dirY / len,
+    ratio: Number.isFinite(ratio) ? clamp(ratio, 0, 1) : 1,
+  };
 }
 
 function createTarSpill(point) {
@@ -956,16 +965,12 @@ function tryThrowTarByPlayer(player, throwTar, frameCommands) {
   const attackRadius = Number.isFinite(player.baseAttackRadius) && player.baseAttackRadius > 0
     ? player.baseAttackRadius
     : 420;
-  const dir = {
-    x: throwTar.x - playerPos.x,
-    y: throwTar.y - playerPos.y,
-  };
-  const len = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
   const runtimeDir = getPlayerRuntimeDir(player);
-  const normalized = len > 0.001
-    ? { x: dir.x / len, y: dir.y / len }
+  const normalized = Number.isFinite(throwTar.dirX) && Number.isFinite(throwTar.dirY)
+    ? { x: throwTar.dirX, y: throwTar.dirY }
     : runtimeDir;
-  const throwDistance = Math.min(attackRadius, Math.max(30, len > 0.001 ? len : attackRadius));
+  const ratio = Number.isFinite(throwTar.ratio) ? clamp(throwTar.ratio, 0, 1) : 1;
+  const throwDistance = Math.max(30, attackRadius * ratio);
   const target = clampPointToBounds({
     x: playerPos.x + normalized.x * throwDistance,
     y: playerPos.y + normalized.y * throwDistance,

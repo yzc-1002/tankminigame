@@ -81,6 +81,8 @@ var Player = /** @class */ (function (_super) {
         _this._oilShellCount = 0;
         _this._oilShellPreviewing = false;
         _this._oilShellPreviewTarget = null;
+        _this._oilShellAimDir = cc.v2(1, 0);
+        _this._oilShellAimRatio = 1;
         _this._bulletMutationType = "";
         _this._bulletMutationData = null;
         _this._bulletMutationEffectNode = null;
@@ -127,6 +129,8 @@ var Player = /** @class */ (function (_super) {
         this._oilShellCount = 0;
         this._oilShellPreviewing = false;
         this._oilShellPreviewTarget = null;
+        this._oilShellAimDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
+        this._oilShellAimRatio = 1;
         this._bulletMutationType = "";
         this._bulletMutationData = null;
         this._bulletMutationEffectNode = null;
@@ -203,6 +207,8 @@ var Player = /** @class */ (function (_super) {
             return;
         if (this._inGame == false)
             return;
+        if (this._oilShellPreviewing)
+            return;
         if (event.dir && event.dir.magSqr() > 0) {
             this._shootInputDir = event.dir;
             this._barrelDir = event.dir;
@@ -223,6 +229,15 @@ var Player = /** @class */ (function (_super) {
     //网络帧输入(多人模式)
     Player.prototype.setFrameInput = function (inputs) {
         this._frameInput = inputs;
+        if (inputs && inputs.throwTar) {
+            this._oilShellAimRatio = Number.isFinite(inputs.throwTar.ratio) ? Math.max(0, Math.min(1, inputs.throwTar.ratio)) : this._oilShellAimRatio;
+            if (Number.isFinite(inputs.throwTar.dirX) && Number.isFinite(inputs.throwTar.dirY)) {
+                var tarDir = cc.v2(inputs.throwTar.dirX, inputs.throwTar.dirY);
+                if (tarDir.magSqr() > 0.0001) {
+                    this._oilShellAimDir = tarDir.normalize();
+                }
+            }
+        }
         var dir = cc.v2(0, 0);
         if (inputs.up)
             dir.y += 1;
@@ -290,10 +305,15 @@ var Player = /** @class */ (function (_super) {
             return;
         }
         var pressed = !!(event && event.pressed === true);
+        var aiming = !!(event && event.aiming === true);
         var release = !!(event && event.release === true);
         var cancelled = !!(event && event.cancelled === true);
         if (pressed) {
             this._startOilShellPreview();
+            return;
+        }
+        if (aiming) {
+            this._updateOilShellAim(event);
             return;
         }
         if (release) {
@@ -586,6 +606,9 @@ var Player = /** @class */ (function (_super) {
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
             this._refreshPosition(dt);
+            if (this._oilShellPreviewing) {
+                this._refreshOilShellPreview();
+            }
             this._refreshMoveEffect();
             this._refreshBarrelDir();
             this._refreshAngle(dt, false);
@@ -1224,13 +1247,10 @@ var Player = /** @class */ (function (_super) {
             return;
         }
         this._oilShellPreviewing = true;
-        this._oilShellPreviewTarget = this._getOilShellThrowTarget();
-        if (this._map.showOilShellPreview) {
-            this._map.showOilShellPreview(this.node.position, this._oilShellPreviewTarget, {
-                radius: OIL_THROW_PREVIEW_ARC_HEIGHT,
-                areaRadius: OIL_THROW_AREA_RADIUS,
-            });
-        }
+        var defaultDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
+        this._oilShellAimDir = defaultDir;
+        this._oilShellAimRatio = 1;
+        this._refreshOilShellPreview();
     };
     Player.prototype._cancelOilShellPreview = function () {
         this._oilShellPreviewing = false;
@@ -1245,14 +1265,23 @@ var Player = /** @class */ (function (_super) {
             return;
         }
         var target = this._oilShellPreviewTarget || this._getOilShellThrowTarget();
+        var aimDir = cc.v2(this._oilShellAimDir || this._barrelDir || cc.v2(1, 0));
+        if (aimDir.magSqr() > 0) {
+            aimDir = aimDir.normalize();
+        }
+        else {
+            aimDir = cc.v2(1, 0);
+        }
+        var aimRatio = Math.max(0, Math.min(1, this._oilShellAimRatio == null ? 1 : this._oilShellAimRatio));
         this._cancelOilShellPreview();
         if (!target) {
             return;
         }
         if (this._multiplayerMode && !this._multiplayerRemote) {
             yyp.eventCenter.emit("multiplayer-throw-tar", {
-                x: Math.round(target.x),
-                y: Math.round(target.y),
+                dirX: Number(aimDir.x.toFixed(4)),
+                dirY: Number(aimDir.y.toFixed(4)),
+                ratio: Number(aimRatio.toFixed(4)),
             });
             return;
         }
@@ -1260,11 +1289,36 @@ var Player = /** @class */ (function (_super) {
     };
     Player.prototype._getOilShellThrowTarget = function () {
         var attackRadius = this._config && this._config.AttackRadius != null ? this._config.AttackRadius : 420;
-        var dir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
-        var target = cc.v2(this.node.position).add(dir.mul(attackRadius));
+        var dir = this._oilShellAimDir && this._oilShellAimDir.magSqr() > 0 ? cc.v2(this._oilShellAimDir).normalize() : cc.v2(1, 0);
+        var ratio = Math.max(0, Math.min(1, this._oilShellAimRatio == null ? 1 : this._oilShellAimRatio));
+        var target = cc.v2(this.node.position).add(dir.mul(attackRadius * ratio));
         return this._map && this._map.clampMapInnerPosition
             ? this._map.clampMapInnerPosition(target, OIL_THROW_AREA_RADIUS * 0.55)
             : target;
+    };
+    Player.prototype._updateOilShellAim = function (event) {
+        if (!this._oilShellPreviewing) {
+            return;
+        }
+        if (event && event.dir && event.dir.magSqr && event.dir.magSqr() > 0.0001) {
+            this._oilShellAimDir = cc.v2(event.dir).normalize();
+        }
+        if (event && Number.isFinite(event.ratio)) {
+            this._oilShellAimRatio = Math.max(0, Math.min(1, Number(event.ratio)));
+        }
+        this._refreshOilShellPreview();
+    };
+    Player.prototype._refreshOilShellPreview = function () {
+        if (!this._oilShellPreviewing || !this._map) {
+            return;
+        }
+        this._oilShellPreviewTarget = this._getOilShellThrowTarget();
+        if (this._map.showOilShellPreview && this._oilShellPreviewTarget) {
+            this._map.showOilShellPreview(this.node.position, this._oilShellPreviewTarget, {
+                radius: OIL_THROW_PREVIEW_ARC_HEIGHT,
+                areaRadius: OIL_THROW_AREA_RADIUS,
+            });
+        }
     };
     Player.prototype._throwOilShellAt = function (target) {
         var _this = this;

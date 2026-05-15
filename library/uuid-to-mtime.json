@@ -2104,16 +2104,6 @@
     "meta": 1778750336962,
     "relativePath": "script\\BulletE.ts"
   },
-  "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778812605315,
-    "meta": 1778812777339,
-    "relativePath": "script\\network\\NetworkManager.ts"
-  },
-  "bc87592d-3055-4635-bb55-a57728de0328": {
-    "asset": 1778814049712,
-    "meta": 1778814120422,
-    "relativePath": "script\\JoyStick.ts"
-  },
   "338d292b-a0b2-48c1-bc72-756e6d01841b": {
     "asset": 1778814850343,
     "meta": 1778814897279,
@@ -2124,14 +2114,24 @@
     "meta": 1778815935407,
     "relativePath": "script\\GameMap.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778815800553,
-    "meta": 1778815935642,
-    "relativePath": "script\\Player.ts"
-  },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778817098143,
-    "meta": 1778817105369,
+    "asset": 1778831885251,
+    "meta": 1778831989607,
     "relativePath": "script\\GameMain.ts"
+  },
+  "bc87592d-3055-4635-bb55-a57728de0328": {
+    "asset": 1778831839019,
+    "meta": 1778831989702,
+    "relativePath": "script\\JoyStick.ts"
+  },
+  "08aed74e-b757-43ff-80e7-95f39a105a22": {
+    "asset": 1778831889578,
+    "meta": 1778831989736,
+    "relativePath": "script\\network\\NetworkManager.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1778831905453,
+    "meta": 1778831989957,
+    "relativePath": "script\\Player.ts"
   }
 }

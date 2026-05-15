@@ -129,7 +129,11 @@ export class NetworkManager {
             bulletEvents: Array.isArray(source.bulletEvents) ? source.bulletEvents : [],
             pickupEnergyId: source.pickupEnergyId == null ? null : source.pickupEnergyId,
             pickupTarId: source.pickupTarId == null ? null : source.pickupTarId,
-            throwTar: source.throwTar ? source.throwTar : false,
+            throwTar: source.throwTar && Number.isFinite(source.throwTar.dirX) && Number.isFinite(source.throwTar.dirY) ? {
+                dirX: source.throwTar.dirX,
+                dirY: source.throwTar.dirY,
+                ratio: Number.isFinite(source.throwTar.ratio) ? source.throwTar.ratio : 1,
+            } : false,
             playerSnapshot: snapshot ? {
                 x: snapshot.x,
                 y: snapshot.y,
