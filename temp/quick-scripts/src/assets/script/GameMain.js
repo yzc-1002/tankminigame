@@ -1087,6 +1087,7 @@ var GameMain = /** @class */ (function (_super) {
             down: false,
             left: false,
             right: false,
+            aim: null,
             fire: false,
             hit: false,
             pickupEnergyId: null,
@@ -1103,6 +1104,9 @@ var GameMain = /** @class */ (function (_super) {
         }
         if (this._multiplayerInputs.pickupTarId === undefined) {
             this._multiplayerInputs.pickupTarId = null;
+        }
+        if (this._multiplayerInputs.aim === undefined) {
+            this._multiplayerInputs.aim = null;
         }
         if (this._multiplayerInputs.throwTar === undefined) {
             this._multiplayerInputs.throwTar = false;
@@ -1141,11 +1145,19 @@ var GameMain = /** @class */ (function (_super) {
             : [];
         var pickupEnergyId = source.pickupEnergyId == null ? null : source.pickupEnergyId;
         var pickupTarId = source.pickupTarId == null ? null : source.pickupTarId;
+        var aim = null;
+        if (source.aim && Number.isFinite(source.aim.x) && Number.isFinite(source.aim.y)) {
+            aim = {
+                x: Number(source.aim.x.toFixed(4)),
+                y: Number(source.aim.y.toFixed(4)),
+            };
+        }
         return {
             up: !!source.up,
             down: !!source.down,
             left: !!source.left,
             right: !!source.right,
+            aim: aim,
             fire: source.fire ? source.fire : false,
             hit: hit || false,
             bulletEvents: bulletEvents,
@@ -1411,8 +1423,16 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerJoyShootHandler = function (event) {
             if (!self._multiplayerActive || self._multiplayerLocalDead)
                 return;
+            var inputs = self._ensureMultiplayerInputs();
+            if (event.dir && event.dir.magSqr() > 0) {
+                var aimDir = cc.v2(event.dir).normalize();
+                inputs.aim = {
+                    x: aimDir.x,
+                    y: aimDir.y,
+                };
+            }
             if (event.fire === true) {
-                self._multiplayerInputs.fire = self._buildMultiplayerFireCommand();
+                inputs.fire = self._buildMultiplayerFireCommand();
             }
         };
         yyp.eventCenter.on("joy-stick-shoot", this._multiplayerJoyShootHandler);

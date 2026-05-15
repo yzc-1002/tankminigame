@@ -326,6 +326,25 @@ function sanitizePlayerSnapshot(snapshot) {
   };
 }
 
+function sanitizeAimInput(aim) {
+  if (!aim || typeof aim !== 'object') {
+    return null;
+  }
+  const x = Number(aim.x);
+  const y = Number(aim.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  const len = Math.sqrt(x * x + y * y);
+  if (len <= 0.001) {
+    return null;
+  }
+  return {
+    x: x / len,
+    y: y / len,
+  };
+}
+
 function createMatchFlowState() {
   return {
     openingAnnounced: false,
@@ -1703,6 +1722,7 @@ function tick() {
       down: false,
       left: false,
       right: false,
+      aim: null,
       fire: false,
       hit: false,
       throwTar: false,
@@ -1715,6 +1735,7 @@ function tick() {
         down: false,
         left: false,
         right: false,
+        aim: null,
       };
       appendFrameCommand(playerInputCommands, {
         type: 'playerInput',
@@ -1729,6 +1750,7 @@ function tick() {
     inputs.down = !!(p.lastInputs && p.lastInputs.down);
     inputs.left = !!(p.lastInputs && p.lastInputs.left);
     inputs.right = !!(p.lastInputs && p.lastInputs.right);
+    inputs.aim = p.lastInputs && p.lastInputs.aim ? p.lastInputs.aim : null;
 
     for (let i = 0; i < p.pendingInputs.length; i++) {
       const entry = p.pendingInputs[i];
@@ -1741,6 +1763,10 @@ function tick() {
       inputs.down = !!src.down;
       inputs.left = !!src.left;
       inputs.right = !!src.right;
+      const aim = sanitizeAimInput(src.aim);
+      if (aim) {
+        inputs.aim = aim;
+      }
       if (src.fire && src.fire.id) {
         inputs.fire = src.fire;
         room.bullets[src.fire.id] = {
@@ -1814,6 +1840,7 @@ function tick() {
       down: inputs.down,
       left: inputs.left,
       right: inputs.right,
+      aim: inputs.aim,
     };
     p.pendingInputs.length = 0;
     appendFrameCommand(playerInputCommands, {
@@ -1945,7 +1972,7 @@ function startGame() {
 
   room.players.forEach((p, index) => {
     p.pendingInputs = [];
-    p.lastInputs = { up: false, down: false, left: false, right: false };
+    p.lastInputs = { up: false, down: false, left: false, right: false, aim: null };
     p.disconnected = false;
     p.dead = false;
     p.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
@@ -2017,7 +2044,7 @@ wss.on('connection', (ws) => {
   console.log(`[Server] New connection (current state: ${room.state})`);
 
   ws.pendingInputs = [];
-  ws.lastInputs = { up: false, down: false, left: false, right: false };
+  ws.lastInputs = { up: false, down: false, left: false, right: false, aim: null };
   ws.disconnected = false;
   ws.dead = false;
   ws.playerId = -1;

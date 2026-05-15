@@ -224,10 +224,16 @@ var Player = /** @class */ (function (_super) {
         if (dir.magSqr() > 0) {
             this._moveInputDir = dir.normalize();
             this._moveInputRatio = 1;
-            this._barrelDir = this._moveInputDir;
         }
         else {
             this._moveInputRatio = 0;
+        }
+        if (inputs.aim && Number.isFinite(inputs.aim.x) && Number.isFinite(inputs.aim.y)) {
+            var aimDir = cc.v2(inputs.aim.x, inputs.aim.y);
+            if (aimDir.magSqr() > 0.0001) {
+                this._shootInputDir = aimDir.normalize();
+                this._barrelDir = this._shootInputDir;
+            }
         }
         // console.log("setFrameInput---inputs",inputs)
         if (inputs.fire) {

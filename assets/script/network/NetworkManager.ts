@@ -120,6 +120,10 @@ export class NetworkManager {
             down: !!source.down,
             left: !!source.left,
             right: !!source.right,
+            aim: source.aim && Number.isFinite(source.aim.x) && Number.isFinite(source.aim.y) ? {
+                x: source.aim.x,
+                y: source.aim.y,
+            } : null,
             fire: source.fire ? source.fire : false,
             hit: source.hit ? source.hit : false,
             bulletEvents: Array.isArray(source.bulletEvents) ? source.bulletEvents : [],
