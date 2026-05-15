@@ -49,11 +49,12 @@ var Finish = /** @class */ (function (_super) {
             self._fire._toggle.active = true;
         })));
     };
-    Finish.prototype.setResult = function (levelId, result) {
+    Finish.prototype.setResult = function (levelId, result, isMultiplayer) {
+        if (isMultiplayer === void 0) { isMultiplayer = false; }
         this._levelId = levelId;
         this._result = result;
         //关卡
-        this._fire._lbLevel.$Label.string = levelId;
+        this._fire._lbLevel.$Label.string = isMultiplayer ? ("多人对战") : levelId;
         //金币
         var levelConfig = yyp.config.Level[0];
         var coinCount = levelConfig.CoinCount * levelId * 1.5;
@@ -69,10 +70,16 @@ var Finish = /** @class */ (function (_super) {
         if (this._result == true) {
             Analytics_1.Analytics.getInstance().eventEx('win_game', { "level": this._levelId });
             MusicManager_1.MusicManager.playEffect("win");
+            if (isMultiplayer && this._fire._lbRewardsTIps && this._fire._lbRewardsTIps.$Label) {
+                this._fire._lbRewardsTIps.$Label.string = "本局胜利，已完成多人结算";
+            }
         }
         else {
             Analytics_1.Analytics.getInstance().eventEx('failed_game', { "level": this._levelId });
             MusicManager_1.MusicManager.playEffect("failed");
+            if (isMultiplayer && this._fire._lbRewardsTIps && this._fire._lbRewardsTIps.$Label) {
+                this._fire._lbRewardsTIps.$Label.string = "本局失利，等待下一局再战";
+            }
         }
         var ani = this.node.getComponent(cc.Animation);
         ani.play("Finish");

@@ -41,12 +41,12 @@ export default class Finish extends BaseComponent {
         ));
     }
 
-    setResult(levelId,result){
+    setResult(levelId,result,isMultiplayer = false){
         this._levelId = levelId
         this._result = result;
 
         //关卡
-        this._fire._lbLevel.$Label.string = levelId;
+        this._fire._lbLevel.$Label.string = isMultiplayer ? ("多人对战") : levelId;
         
         //金币
         let levelConfig = yyp.config.Level[0];
@@ -66,10 +66,16 @@ export default class Finish extends BaseComponent {
         if (this._result == true) {
             Analytics.getInstance().eventEx('win_game',{"level":this._levelId});
             MusicManager.playEffect("win");
+            if (isMultiplayer && this._fire._lbRewardsTIps && this._fire._lbRewardsTIps.$Label) {
+                this._fire._lbRewardsTIps.$Label.string = "本局胜利，已完成多人结算";
+            }
         }
         else{
             Analytics.getInstance().eventEx('failed_game',{"level":this._levelId});
             MusicManager.playEffect("failed");
+            if (isMultiplayer && this._fire._lbRewardsTIps && this._fire._lbRewardsTIps.$Label) {
+                this._fire._lbRewardsTIps.$Label.string = "本局失利，等待下一局再战";
+            }
         }
         let ani = this.node.getComponent(cc.Animation);
         ani.play("Finish");

@@ -48,6 +48,9 @@ var GameMain = /** @class */ (function (_super) {
         _this._upgradeChoiceMode = "upgrade";
         _this._netManager = null; //网络管理器(多人)
         _this._multiplayerStatus = null; //连接状态标签
+        _this._multiplayerHud = null; //多人最简HUD
+        _this._multiplayerAnnouncement = null; //多人播报
+        _this._multiplayerHudState = null;
         _this._multiplayerActive = false; //多人游戏进行中
         _this._multiplayerLocalDead = false;
         _this._multiplayerInputLoopTag = 7601;
@@ -162,7 +165,7 @@ var GameMain = /** @class */ (function (_super) {
             var finish = cc.instantiate(this.finishPrefab);
             finish.zIndex = 1000;
             Utils_1.Utils.addtoCurrentScene(finish);
-            finish.script.setResult(this._levelId, true);
+            finish.script.setResult(this._levelId, true, false);
         }
     };
     // 玩家死亡
@@ -200,7 +203,7 @@ var GameMain = /** @class */ (function (_super) {
             var finish = cc.instantiate(this.finishPrefab);
             finish.zIndex = 1000;
             Utils_1.Utils.addtoCurrentScene(finish);
-            finish.script.setResult(this._levelId, false);
+            finish.script.setResult(this._levelId, false, false);
         }
     };
     GameMain.prototype._gamePause = function () {
@@ -223,6 +226,8 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerActive = false;
         this._multiplayerLocalDead = false;
         this._teardownMultiplayerInputLoop();
+        this._hideMultiplayerAnnouncement();
+        this._hideMultiplayerHud();
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
         yyp.eventCenter.emit("sacrifice-button-visible", { visible: false });
@@ -892,6 +897,159 @@ var GameMain = /** @class */ (function (_super) {
         }
         this._multiplayerStatus = null;
     };
+    GameMain.prototype._ensureMultiplayerHud = function () {
+        if (this._multiplayerHud && cc.isValid(this._multiplayerHud)) {
+            return this._multiplayerHud;
+        }
+        var root = new cc.Node("_multiplayerHud");
+        root.parent = this.node;
+        root.zIndex = 2990;
+        root.setPosition(0, yyp.safeTopBottom - 78);
+        root.setContentSize(640, 72);
+        var bg = root.addComponent(cc.Graphics);
+        bg.fillColor = cc.color(0, 0, 0, 110);
+        bg.roundRect(-320, -32, 640, 64, 12);
+        bg.fill();
+        var title = new cc.Node("_title");
+        title.parent = root;
+        title.setPosition(0, 12);
+        var titleLabel = title.addComponent(cc.Label);
+        titleLabel.fontSize = 30;
+        titleLabel.lineHeight = 34;
+        titleLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        titleLabel.string = "";
+        var sub = new cc.Node("_sub");
+        sub.parent = root;
+        sub.setPosition(0, -18);
+        var subLabel = sub.addComponent(cc.Label);
+        subLabel.fontSize = 22;
+        subLabel.lineHeight = 26;
+        subLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        subLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        subLabel.string = "";
+        root["_titleLabel"] = titleLabel;
+        root["_subLabel"] = subLabel;
+        this._multiplayerHud = root;
+        return root;
+    };
+    GameMain.prototype._hideMultiplayerHud = function () {
+        this._multiplayerHudState = null;
+        if (this._multiplayerHud && cc.isValid(this._multiplayerHud)) {
+            this._multiplayerHud.destroy();
+        }
+        this._multiplayerHud = null;
+    };
+    GameMain.prototype._applyMultiplayerHudState = function (hud) {
+        if (!hud) {
+            this._hideMultiplayerHud();
+            return;
+        }
+        this._multiplayerHudState = hud;
+        var root = this._ensureMultiplayerHud();
+        root.active = true;
+        var titleLabel = root["_titleLabel"];
+        var subLabel = root["_subLabel"];
+        var aliveCount = hud.aliveCount == null ? 0 : hud.aliveCount;
+        var totalPlayers = hud.totalPlayers == null ? 0 : hud.totalPlayers;
+        var phaseText = hud.phaseText || "战斗中";
+        if (titleLabel) {
+            titleLabel.string = phaseText + "  |  剩余 " + aliveCount + "/" + totalPlayers;
+        }
+        if (subLabel) {
+            subLabel.string = hud.secondaryText || "";
+        }
+    };
+    GameMain.prototype._showMultiplayerAnnouncement = function (text, subText, style, duration) {
+        var _this = this;
+        if (subText === void 0) { subText = ""; }
+        if (style === void 0) { style = "info"; }
+        if (duration === void 0) { duration = 2.2; }
+        if (!text) {
+            return;
+        }
+        if (this._multiplayerAnnouncement && cc.isValid(this._multiplayerAnnouncement)) {
+            this._multiplayerAnnouncement.stopAllActions();
+            this._multiplayerAnnouncement.destroy();
+            this._multiplayerAnnouncement = null;
+        }
+        var root = new cc.Node("_multiplayerAnnouncement");
+        root.parent = this.node;
+        root.zIndex = 3100;
+        root.setPosition(0, 110);
+        root.opacity = 0;
+        var bg = root.addComponent(cc.Graphics);
+        var styleColor = cc.color(46, 122, 255, 170);
+        if (style === "warning") {
+            styleColor = cc.color(255, 152, 48, 180);
+        }
+        else if (style === "danger") {
+            styleColor = cc.color(255, 74, 74, 185);
+        }
+        else if (style === "event") {
+            styleColor = cc.color(110, 85, 255, 180);
+        }
+        else if (style === "notice") {
+            styleColor = cc.color(52, 190, 120, 175);
+        }
+        bg.fillColor = styleColor;
+        bg.roundRect(-280, -50, 560, subText ? 100 : 68, 14);
+        bg.fill();
+        var title = new cc.Node("_title");
+        title.parent = root;
+        title.setPosition(0, subText ? 16 : 0);
+        var titleLabel = title.addComponent(cc.Label);
+        titleLabel.string = text;
+        titleLabel.fontSize = 34;
+        titleLabel.lineHeight = 38;
+        titleLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        if (subText) {
+            var sub = new cc.Node("_sub");
+            sub.parent = root;
+            sub.setPosition(0, -20);
+            var subLabel = sub.addComponent(cc.Label);
+            subLabel.string = subText;
+            subLabel.fontSize = 22;
+            subLabel.lineHeight = 26;
+            subLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+            subLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        }
+        root.runAction(cc.sequence(cc.fadeIn(0.12), cc.delayTime(Math.max(0.8, duration || 2.2)), cc.fadeOut(0.2), cc.callFunc(function () {
+            if (_this._multiplayerAnnouncement === root) {
+                _this._multiplayerAnnouncement = null;
+            }
+            if (cc.isValid(root)) {
+                root.destroy();
+            }
+        })));
+        this._multiplayerAnnouncement = root;
+    };
+    GameMain.prototype._hideMultiplayerAnnouncement = function () {
+        if (this._multiplayerAnnouncement && cc.isValid(this._multiplayerAnnouncement)) {
+            this._multiplayerAnnouncement.stopAllActions();
+            this._multiplayerAnnouncement.destroy();
+        }
+        this._multiplayerAnnouncement = null;
+    };
+    GameMain.prototype._consumeMultiplayerFrameMeta = function (command) {
+        if (!command || !command.type) {
+            return false;
+        }
+        if (command.type === "hudState") {
+            this._applyMultiplayerHudState(command.hud || null);
+            return true;
+        }
+        if (command.type === "announcement") {
+            this._showMultiplayerAnnouncement(command.text || "", command.subText || "", command.style || "info", command.duration || 2.2);
+            return true;
+        }
+        if (command.type === "matchResult") {
+            this._showMultiplayerAnnouncement("本局结算", command.text || "", "danger", command.duration || 3);
+            return true;
+        }
+        return false;
+    };
     GameMain.prototype._onMultiplayerHitReport = function (event) {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !event || !event.id) {
             return;
@@ -1049,6 +1207,7 @@ var GameMain = /** @class */ (function (_super) {
         if (event.isLocal) {
             this._multiplayerLocalDead = true;
             this._showMultiplayerStatus("你已被淘汰，等待本局结算...");
+            this._showMultiplayerAnnouncement("你已被淘汰", "等待其余玩家决出胜负", "warning", 2.2);
         }
     };
     GameMain.prototype._onMultiplayerEnergyPickup = function (event) {
@@ -1114,7 +1273,7 @@ var GameMain = /** @class */ (function (_super) {
         var finish = cc.instantiate(this.finishPrefab);
         finish.zIndex = 1000;
         Utils_1.Utils.addtoCurrentScene(finish);
-        finish.script.setResult(this._levelId, isWin);
+        finish.script.setResult(this._levelId, isWin, true);
         if (winnerPlayerId >= 0) {
             this._showMultiplayerStatus(isWin ? "你获胜了" : ("玩家 " + (winnerPlayerId + 1) + " 获胜"));
         }
@@ -1137,6 +1296,7 @@ var GameMain = /** @class */ (function (_super) {
             this._netManager.disconnect();
             this._netManager = null;
         }
+        this._hideMultiplayerHud();
         this._showMultiplayerFinish(isWin, winnerPlayerId);
     };
     GameMain.prototype._startMultiplayerGame = function () {
@@ -1152,6 +1312,8 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
         this._teardownMultiplayerInputLoop();
+        this._hideMultiplayerAnnouncement();
+        this._hideMultiplayerHud();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
         this._showMultiplayerStatus("正在连接服务器 ws://localhost:2567 ...");
@@ -1180,6 +1342,8 @@ var GameMain = /** @class */ (function (_super) {
             _this._showMultiplayerStatus("连接断开");
             _this._multiplayerActive = false;
             _this._teardownMultiplayerInputLoop();
+            _this._hideMultiplayerAnnouncement();
+            _this._hideMultiplayerHud();
         };
         this._netManager.connect("ws://localhost:2567");
     };
@@ -1190,6 +1354,8 @@ var GameMain = /** @class */ (function (_super) {
         if (tarSpills === void 0) { tarSpills = []; }
         if (safeZone === void 0) { safeZone = null; }
         this._hideMultiplayerStatus();
+        this._hideMultiplayerAnnouncement();
+        this._hideMultiplayerHud();
         this._multiplayerActive = true;
         this._multiplayerLocalDead = false;
         this._multiplayerHitQueue = [];
@@ -1254,6 +1420,10 @@ var GameMain = /** @class */ (function (_super) {
         this._netManager.onFrame = function (frameData) {
             if (!self._multiplayerActive)
                 return;
+            var commands = frameData && Array.isArray(frameData.commands) ? frameData.commands : [];
+            for (var i = 0; i < commands.length; i++) {
+                self._consumeMultiplayerFrameMeta(commands[i]);
+            }
             if (self._fire._tiled && self._fire._tiled.script && self._fire._tiled.script.simulateFrame) {
                 self._fire._tiled.script.simulateFrame(frameData);
             }

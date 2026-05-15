@@ -5813,6 +5813,9 @@ export class GameMap extends BaseComponent {
             if (!command || !command.type) {
                 continue;
             }
+            if (command.type === "hudState" || command.type === "announcement" || command.type === "matchResult") {
+                continue;
+            }
             if (command.type === "playerInput") {
                 let player = this._multiplayerPlayers[command.playerId];
                 if (player && cc.isValid(player) && player.script && player.script.setFrameInput) {

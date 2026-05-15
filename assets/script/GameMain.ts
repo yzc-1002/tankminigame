@@ -34,6 +34,9 @@ export default class GameMain extends BaseComponent {
     _upgradeChoiceMode = "upgrade";
     _netManager = null;         //网络管理器(多人)
     _multiplayerStatus = null;  //连接状态标签
+    _multiplayerHud = null;     //多人最简HUD
+    _multiplayerAnnouncement = null; //多人播报
+    _multiplayerHudState = null;
     _multiplayerActive = false; //多人游戏进行中
     _multiplayerLocalDead = false;
     _multiplayerInputLoopTag = 7601;
@@ -162,7 +165,7 @@ export default class GameMain extends BaseComponent {
             let finish = cc.instantiate(this.finishPrefab);
             finish.zIndex = 1000;
             Utils.addtoCurrentScene(finish);
-            finish.script.setResult(this._levelId,true);
+            finish.script.setResult(this._levelId,true,false);
         }
     }
 
@@ -206,7 +209,7 @@ export default class GameMain extends BaseComponent {
             let finish = cc.instantiate(this.finishPrefab);
             finish.zIndex = 1000;
             Utils.addtoCurrentScene(finish);
-            finish.script.setResult(this._levelId,false);
+            finish.script.setResult(this._levelId,false,false);
         }
     }
     
@@ -233,6 +236,8 @@ export default class GameMain extends BaseComponent {
         this._multiplayerActive = false;
         this._multiplayerLocalDead = false;
         this._teardownMultiplayerInputLoop();
+        this._hideMultiplayerAnnouncement();
+        this._hideMultiplayerHud();
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
         yyp.eventCenter.emit("sacrifice-button-visible",{visible:false});
@@ -989,6 +994,175 @@ export default class GameMain extends BaseComponent {
         this._multiplayerStatus = null;
     }
 
+    _ensureMultiplayerHud() {
+        if (this._multiplayerHud && cc.isValid(this._multiplayerHud)) {
+            return this._multiplayerHud;
+        }
+        let root = new cc.Node("_multiplayerHud");
+        root.parent = this.node;
+        root.zIndex = 2990;
+        root.setPosition(0, yyp.safeTopBottom - 78);
+        root.setContentSize(640, 72);
+
+        let bg = root.addComponent(cc.Graphics);
+        bg.fillColor = cc.color(0, 0, 0, 110);
+        bg.roundRect(-320, -32, 640, 64, 12);
+        bg.fill();
+
+        let title = new cc.Node("_title");
+        title.parent = root;
+        title.setPosition(0, 12);
+        let titleLabel = title.addComponent(cc.Label);
+        titleLabel.fontSize = 30;
+        titleLabel.lineHeight = 34;
+        titleLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        titleLabel.string = "";
+
+        let sub = new cc.Node("_sub");
+        sub.parent = root;
+        sub.setPosition(0, -18);
+        let subLabel = sub.addComponent(cc.Label);
+        subLabel.fontSize = 22;
+        subLabel.lineHeight = 26;
+        subLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        subLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        subLabel.string = "";
+
+        root["_titleLabel"] = titleLabel;
+        root["_subLabel"] = subLabel;
+        this._multiplayerHud = root;
+        return root;
+    }
+
+    _hideMultiplayerHud() {
+        this._multiplayerHudState = null;
+        if (this._multiplayerHud && cc.isValid(this._multiplayerHud)) {
+            this._multiplayerHud.destroy();
+        }
+        this._multiplayerHud = null;
+    }
+
+    _applyMultiplayerHudState(hud) {
+        if (!hud) {
+            this._hideMultiplayerHud();
+            return;
+        }
+        this._multiplayerHudState = hud;
+        let root = this._ensureMultiplayerHud();
+        root.active = true;
+        let titleLabel = root["_titleLabel"];
+        let subLabel = root["_subLabel"];
+        let aliveCount = hud.aliveCount == null ? 0 : hud.aliveCount;
+        let totalPlayers = hud.totalPlayers == null ? 0 : hud.totalPlayers;
+        let phaseText = hud.phaseText || "战斗中";
+        if (titleLabel) {
+            titleLabel.string = phaseText + "  |  剩余 " + aliveCount + "/" + totalPlayers;
+        }
+        if (subLabel) {
+            subLabel.string = hud.secondaryText || "";
+        }
+    }
+
+    _showMultiplayerAnnouncement(text, subText = "", style = "info", duration = 2.2) {
+        if (!text) {
+            return;
+        }
+        if (this._multiplayerAnnouncement && cc.isValid(this._multiplayerAnnouncement)) {
+            this._multiplayerAnnouncement.stopAllActions();
+            this._multiplayerAnnouncement.destroy();
+            this._multiplayerAnnouncement = null;
+        }
+
+        let root = new cc.Node("_multiplayerAnnouncement");
+        root.parent = this.node;
+        root.zIndex = 3100;
+        root.setPosition(0, 110);
+        root.opacity = 0;
+
+        let bg = root.addComponent(cc.Graphics);
+        let styleColor = cc.color(46, 122, 255, 170);
+        if (style === "warning") {
+            styleColor = cc.color(255, 152, 48, 180);
+        }
+        else if (style === "danger") {
+            styleColor = cc.color(255, 74, 74, 185);
+        }
+        else if (style === "event") {
+            styleColor = cc.color(110, 85, 255, 180);
+        }
+        else if (style === "notice") {
+            styleColor = cc.color(52, 190, 120, 175);
+        }
+        bg.fillColor = styleColor;
+        bg.roundRect(-280, -50, 560, subText ? 100 : 68, 14);
+        bg.fill();
+
+        let title = new cc.Node("_title");
+        title.parent = root;
+        title.setPosition(0, subText ? 16 : 0);
+        let titleLabel = title.addComponent(cc.Label);
+        titleLabel.string = text;
+        titleLabel.fontSize = 34;
+        titleLabel.lineHeight = 38;
+        titleLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+        titleLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+
+        if (subText) {
+            let sub = new cc.Node("_sub");
+            sub.parent = root;
+            sub.setPosition(0, -20);
+            let subLabel = sub.addComponent(cc.Label);
+            subLabel.string = subText;
+            subLabel.fontSize = 22;
+            subLabel.lineHeight = 26;
+            subLabel.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+            subLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+        }
+
+        root.runAction(cc.sequence(
+            cc.fadeIn(0.12),
+            cc.delayTime(Math.max(0.8, duration || 2.2)),
+            cc.fadeOut(0.2),
+            cc.callFunc(() => {
+                if (this._multiplayerAnnouncement === root) {
+                    this._multiplayerAnnouncement = null;
+                }
+                if (cc.isValid(root)) {
+                    root.destroy();
+                }
+            })
+        ));
+        this._multiplayerAnnouncement = root;
+    }
+
+    _hideMultiplayerAnnouncement() {
+        if (this._multiplayerAnnouncement && cc.isValid(this._multiplayerAnnouncement)) {
+            this._multiplayerAnnouncement.stopAllActions();
+            this._multiplayerAnnouncement.destroy();
+        }
+        this._multiplayerAnnouncement = null;
+    }
+
+    _consumeMultiplayerFrameMeta(command) {
+        if (!command || !command.type) {
+            return false;
+        }
+        if (command.type === "hudState") {
+            this._applyMultiplayerHudState(command.hud || null);
+            return true;
+        }
+        if (command.type === "announcement") {
+            this._showMultiplayerAnnouncement(command.text || "", command.subText || "", command.style || "info", command.duration || 2.2);
+            return true;
+        }
+        if (command.type === "matchResult") {
+            this._showMultiplayerAnnouncement("本局结算", command.text || "", "danger", command.duration || 3);
+            return true;
+        }
+        return false;
+    }
+
     _onMultiplayerHitReport(event) {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !event || !event.id) {
             return;
@@ -1158,6 +1332,7 @@ export default class GameMain extends BaseComponent {
         if (event.isLocal) {
             this._multiplayerLocalDead = true;
             this._showMultiplayerStatus("你已被淘汰，等待本局结算...");
+            this._showMultiplayerAnnouncement("你已被淘汰", "等待其余玩家决出胜负", "warning", 2.2);
         }
     }
 
@@ -1230,7 +1405,7 @@ export default class GameMain extends BaseComponent {
         let finish = cc.instantiate(this.finishPrefab);
         finish.zIndex = 1000;
         Utils.addtoCurrentScene(finish);
-        finish.script.setResult(this._levelId, isWin);
+        finish.script.setResult(this._levelId, isWin, true);
 
         if (winnerPlayerId >= 0) {
             this._showMultiplayerStatus(isWin ? "你获胜了" : ("玩家 " + (winnerPlayerId + 1) + " 获胜"));
@@ -1256,6 +1431,7 @@ export default class GameMain extends BaseComponent {
             this._netManager.disconnect();
             this._netManager = null;
         }
+        this._hideMultiplayerHud();
         this._showMultiplayerFinish(isWin, winnerPlayerId);
     }
 
@@ -1271,6 +1447,8 @@ export default class GameMain extends BaseComponent {
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
         this._teardownMultiplayerInputLoop();
+        this._hideMultiplayerAnnouncement();
+        this._hideMultiplayerHud();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
         this._showMultiplayerStatus("正在连接服务器 ws://localhost:2567 ...");
@@ -1300,12 +1478,16 @@ export default class GameMain extends BaseComponent {
             this._showMultiplayerStatus("连接断开");
             this._multiplayerActive = false;
             this._teardownMultiplayerInputLoop();
+            this._hideMultiplayerAnnouncement();
+            this._hideMultiplayerHud();
         };
         this._netManager.connect("ws://localhost:2567");
     }
 
     _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = [], safeZone = null) {
         this._hideMultiplayerStatus();
+        this._hideMultiplayerAnnouncement();
+        this._hideMultiplayerHud();
         this._multiplayerActive = true;
         this._multiplayerLocalDead = false;
         this._multiplayerHitQueue = [];
@@ -1372,6 +1554,10 @@ export default class GameMain extends BaseComponent {
         // Frame sync: listen for frame data from server
         this._netManager.onFrame = function (frameData) {
             if (!self._multiplayerActive) return;
+            let commands = frameData && Array.isArray(frameData.commands) ? frameData.commands : [];
+            for (let i = 0; i < commands.length; i++) {
+                self._consumeMultiplayerFrameMeta(commands[i]);
+            }
             if (self._fire._tiled && self._fire._tiled.script && self._fire._tiled.script.simulateFrame) {
                 self._fire._tiled.script.simulateFrame(frameData);
             }

@@ -58,6 +58,8 @@ const SAFE_ZONE_FINAL_RADIUS_RATIO = 0.42;
 const SAFE_ZONE_MIN_RADIUS = 140;
 const SAFE_ZONE_DAMAGE_INTERVAL = 1;
 const SAFE_ZONE_DAMAGE_PER_TICK = 4;
+const SAFE_ZONE_WARNING_SECONDS = 10;
+const FINAL_STAGE_ALIVE_THRESHOLD = 2;
 
 const ROOM_STATE = {
   WAITING: 'waiting',
@@ -101,6 +103,7 @@ const room = {
   tarSpills: [],
   nextTarSpillId: 1,
   safeZone: null,
+  matchFlow: null,
 };
 
 function isSocketOpen(ws) {
@@ -323,6 +326,16 @@ function sanitizePlayerSnapshot(snapshot) {
   };
 }
 
+function createMatchFlowState() {
+  return {
+    openingAnnounced: false,
+    energyEggAnnounced: false,
+    safeZoneWarningAnnounced: false,
+    safeZoneStartedAnnounced: false,
+    finalCircleAnnounced: false,
+  };
+}
+
 function distanceSqr(a, b) {
   const dx = (a.x || 0) - (b.x || 0);
   const dy = (a.y || 0) - (b.y || 0);
@@ -428,6 +441,166 @@ function buildSafeZoneStateCommand() {
       waitRemaining,
       shrinkRemaining,
     },
+  };
+}
+
+function appendAnnouncement(frameCommands, payload) {
+  if (!payload || !payload.text) {
+    return;
+  }
+  appendFrameCommand(frameCommands, {
+    type: 'announcement',
+    id: payload.id || '',
+    text: payload.text,
+    subText: payload.subText || '',
+    style: payload.style || 'info',
+    duration: Number.isFinite(payload.duration) ? payload.duration : 2.2,
+  });
+}
+
+function buildHudStateCommand() {
+  if (!room.safeZone) {
+    room.safeZone = createSafeZoneState();
+  }
+  if (!room.matchFlow) {
+    room.matchFlow = createMatchFlowState();
+  }
+  const aliveCount = getAlivePlayers().length;
+  const totalPlayers = room.players.filter((player) => player && !player.disconnected).length;
+  const safeZone = room.safeZone;
+  const energyEggWaitRemaining = room.energyEggMidgameSpawned < room.energyEggMidgamePlan
+    ? Math.max(0, ENERGY_EGG_MIDGAME_SECONDS - Math.max(0, room.elapsedSeconds))
+    : 0;
+  let phaseKey = 'opening';
+  let phaseText = '开局发育';
+  let secondaryText = '';
+
+  if (aliveCount <= 1) {
+    phaseKey = 'settlement';
+    phaseText = '本局结束';
+  } else if (safeZone.finished) {
+    phaseKey = 'final';
+    phaseText = '决赛圈';
+    secondaryText = '安全区已收缩至最终范围';
+  } else if (safeZone.shrinking) {
+    phaseKey = 'shrink';
+    phaseText = '缩圈中';
+    secondaryText = `安全区收缩 ${Math.max(0, Math.ceil(safeZone.shrinkDuration - Math.max(0, room.elapsedSeconds - safeZone.startDelay)))}s`;
+  } else if (safeZone.active) {
+    phaseKey = 'safe';
+    phaseText = '安全区锁定';
+  } else {
+    secondaryText = energyEggWaitRemaining > 0
+      ? `能量蛋刷新 ${Math.max(0, Math.ceil(energyEggWaitRemaining))}s`
+      : `缩圈倒计时 ${Math.max(0, Math.ceil(safeZone.startDelay - Math.max(0, room.elapsedSeconds)))}s`;
+  }
+
+  if (!secondaryText && !safeZone.active) {
+    secondaryText = `缩圈倒计时 ${Math.max(0, Math.ceil(safeZone.startDelay - Math.max(0, room.elapsedSeconds)))}s`;
+  }
+  if (!secondaryText && safeZone.shrinking) {
+    secondaryText = `安全区收缩 ${Math.max(0, Math.ceil(safeZone.shrinkDuration - Math.max(0, room.elapsedSeconds - safeZone.startDelay)))}s`;
+  }
+
+  return {
+    type: 'hudState',
+    hud: {
+      elapsedSeconds: room.elapsedSeconds,
+      aliveCount,
+      totalPlayers,
+      phaseKey,
+      phaseText,
+      secondaryText,
+      energyEggWaitRemaining,
+      safeZone: {
+        active: !!safeZone.active,
+        shrinking: !!safeZone.shrinking,
+        finished: !!safeZone.finished,
+        waitRemaining: Math.max(0, safeZone.startDelay - Math.max(0, room.elapsedSeconds)),
+        shrinkRemaining: safeZone.finished
+          ? 0
+          : Math.max(0, safeZone.shrinkDuration - Math.max(0, room.elapsedSeconds - safeZone.startDelay)),
+        radius: safeZone.radius,
+        targetRadius: safeZone.targetRadius,
+      },
+    },
+  };
+}
+
+function updateMatchAnnouncements(frameCommands) {
+  if (!room.matchFlow) {
+    room.matchFlow = createMatchFlowState();
+  }
+  if (!room.safeZone) {
+    room.safeZone = createSafeZoneState();
+  }
+  const flow = room.matchFlow;
+  const safeZone = room.safeZone;
+  const aliveCount = getAlivePlayers().length;
+
+  if (!flow.openingAnnounced) {
+    flow.openingAnnounced = true;
+    appendAnnouncement(frameCommands, {
+      id: 'opening',
+      text: '战斗开始',
+      subText: '收集能量，准备进入缩圈',
+      style: 'notice',
+      duration: 2.2,
+    });
+  }
+
+  if (!flow.energyEggAnnounced && room.energyEggMidgameSpawned > 0) {
+    flow.energyEggAnnounced = true;
+    appendAnnouncement(frameCommands, {
+      id: 'energyEgg',
+      text: '能量蛋已刷新',
+      subText: '推动争夺，成熟后会爆出大量能量',
+      style: 'event',
+      duration: 2.6,
+    });
+  }
+
+  const waitRemaining = Math.max(0, safeZone.startDelay - Math.max(0, room.elapsedSeconds));
+  if (!flow.safeZoneWarningAnnounced && !safeZone.active && waitRemaining > 0 && waitRemaining <= SAFE_ZONE_WARNING_SECONDS) {
+    flow.safeZoneWarningAnnounced = true;
+    appendAnnouncement(frameCommands, {
+      id: 'safeZoneWarning',
+      text: '缩圈预警',
+      subText: '请尽快向地图中心靠拢',
+      style: 'warning',
+      duration: 2.3,
+    });
+  }
+
+  if (!flow.safeZoneStartedAnnounced && safeZone.shrinking) {
+    flow.safeZoneStartedAnnounced = true;
+    appendAnnouncement(frameCommands, {
+      id: 'safeZoneStart',
+      text: '开始缩圈',
+      subText: '圈外会持续掉血',
+      style: 'warning',
+      duration: 2.4,
+    });
+  }
+
+  if (!flow.finalCircleAnnounced && (safeZone.finished || (safeZone.active && aliveCount <= FINAL_STAGE_ALIVE_THRESHOLD))) {
+    flow.finalCircleAnnounced = true;
+    appendAnnouncement(frameCommands, {
+      id: 'finalCircle',
+      text: '决赛圈',
+      subText: aliveCount > 0 ? `剩余 ${aliveCount} 名玩家，准备决胜` : '所有玩家已出局',
+      style: 'danger',
+      duration: 2.8,
+    });
+  }
+}
+
+function buildMatchResultCommand(winnerPlayerId) {
+  return {
+    type: 'matchResult',
+    winnerPlayerId,
+    text: winnerPlayerId >= 0 ? `玩家 ${winnerPlayerId + 1} 获胜` : '本局平局',
+    duration: 3,
   };
 }
 
@@ -1655,27 +1828,34 @@ function tick() {
   updateSpecialEvents(frameCommands);
   updateTarPickupSpawns(frameCommands);
   updateTarSpills(frameCommands);
+  updateMatchAnnouncements(frameCommands);
+  appendFrameCommand(frameCommands, buildHudStateCommand());
+  const winnerPlayerId = getMatchWinnerPlayerId();
+  if (winnerPlayerId !== null) {
+    appendFrameCommand(eventCommands, buildMatchResultCommand(winnerPlayerId));
+  }
 
   broadcast({
     type: 'frame',
     frame,
     commands: frameCommands.concat(playerInputCommands, eventCommands, stateCommands),
   });
-  evaluateMatchEnd();
+  if (winnerPlayerId !== null) {
+    endMatch(winnerPlayerId);
+  }
 }
 
-function evaluateMatchEnd() {
+function getMatchWinnerPlayerId() {
   if (room.state !== ROOM_STATE.RUNNING) {
-    return;
+    return null;
   }
 
   const alivePlayers = getAlivePlayers();
   if (alivePlayers.length > 1) {
-    return;
+    return null;
   }
 
-  const winnerPlayerId = alivePlayers.length === 1 ? alivePlayers[0].playerId : -1;
-  endMatch(winnerPlayerId);
+  return alivePlayers.length === 1 ? alivePlayers[0].playerId : -1;
 }
 
 function endMatch(winnerPlayerId) {
@@ -1760,6 +1940,7 @@ function startGame() {
   room.tarSpills = [];
   room.nextTarSpillId = 1;
   room.safeZone = createSafeZoneState(room.mapBounds);
+  room.matchFlow = createMatchFlowState();
   initMatchEnergyEggPlan();
 
   room.players.forEach((p, index) => {
@@ -1980,6 +2161,7 @@ function resetRoom() {
   room.tarSpills = [];
   room.nextTarSpillId = 1;
   room.safeZone = createSafeZoneState(room.mapBounds);
+  room.matchFlow = createMatchFlowState();
   console.log('[Room] Reset');
 }
 
