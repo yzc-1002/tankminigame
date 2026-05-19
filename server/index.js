@@ -74,13 +74,13 @@ const BLACK_HOLE_ZONE_DURATION = 8;
 const BLACK_HOLE_ZONE_RADIUS = 100;
 const BLACK_HOLE_ZONE_DESTROY_RADIUS = 14;
 const BLACK_HOLE_ZONE_GRAVITY = 160;
-const SAFE_ZONE_START_DELAY = 60;
-const SAFE_ZONE_SHRINK_DURATION = 45;
 const SAFE_ZONE_START_PADDING = 80;
-const SAFE_ZONE_FINAL_RADIUS_RATIO = 0.42;
+const SAFE_ZONE_FIXED_RADIUS_RATIO = 0.86;
 const SAFE_ZONE_MIN_RADIUS = 140;
 const SAFE_ZONE_DAMAGE_INTERVAL = 1;
 const SAFE_ZONE_DAMAGE_PER_TICK = 4;
+const SAFE_ZONE_POISON_START_SECONDS = 270;
+const SAFE_ZONE_POISON_DAMAGE_PERCENT = 0.05;
 const SAFE_ZONE_WARNING_SECONDS = 10;
 const FINAL_STAGE_ALIVE_THRESHOLD = 2;
 const MULTIPLAYER_BUSH_COUNT = 10;
@@ -435,8 +435,8 @@ function createMatchFlowState() {
   return {
     openingAnnounced: false,
     energyEggAnnounced: false,
-    safeZoneWarningAnnounced: false,
-    safeZoneStartedAnnounced: false,
+    poisonWarningAnnounced: false,
+    poisonStartedAnnounced: false,
     finalCircleAnnounced: false,
   };
 }
@@ -499,22 +499,27 @@ function createSafeZoneState(bounds = room.mapBounds) {
   );
   const targetRadius = Math.max(
     SAFE_ZONE_MIN_RADIUS,
-    Math.floor(startRadius * SAFE_ZONE_FINAL_RADIUS_RATIO)
+    Math.floor(startRadius * SAFE_ZONE_FIXED_RADIUS_RATIO)
   );
   return {
     centerX: 0,
     centerY: 0,
     startRadius,
     targetRadius: Math.min(startRadius, targetRadius),
-    radius: startRadius,
-    startDelay: SAFE_ZONE_START_DELAY,
-    shrinkDuration: SAFE_ZONE_SHRINK_DURATION,
+    radius: Math.min(startRadius, targetRadius),
+    startDelay: 0,
+    shrinkDuration: 0,
     damageInterval: SAFE_ZONE_DAMAGE_INTERVAL,
     damagePerTick: SAFE_ZONE_DAMAGE_PER_TICK,
-    active: false,
+    damagePercent: 0,
+    damageMode: 'outsideFlat',
+    poisonStartTime: SAFE_ZONE_POISON_START_SECONDS,
+    poisonActive: false,
+    active: true,
     shrinking: false,
     finished: false,
-    progress: 0,
+    progress: 1,
+    phase: 'safe',
   };
 }
 
@@ -523,10 +528,8 @@ function buildSafeZoneStateCommand() {
     room.safeZone = createSafeZoneState();
   }
   const safeZone = room.safeZone;
-  const waitRemaining = Math.max(0, safeZone.startDelay - Math.max(0, room.elapsedSeconds));
-  const shrinkRemaining = safeZone.finished
-    ? 0
-    : Math.max(0, safeZone.shrinkDuration - Math.max(0, room.elapsedSeconds - safeZone.startDelay));
+  const elapsed = Math.max(0, room.elapsedSeconds);
+  const poisonRemaining = Math.max(0, (safeZone.poisonStartTime || 0) - elapsed);
   return {
     type: 'safeZoneState',
     safeZone: {
@@ -539,12 +542,18 @@ function buildSafeZoneStateCommand() {
       shrinkDuration: safeZone.shrinkDuration,
       damageInterval: safeZone.damageInterval,
       damagePerTick: safeZone.damagePerTick,
+      damagePercent: safeZone.damagePercent || 0,
+      damageMode: safeZone.damageMode || 'outsideFlat',
+      poisonStartTime: safeZone.poisonStartTime || 0,
+      poisonRemaining,
+      poisonActive: !!safeZone.poisonActive,
       active: !!safeZone.active,
       shrinking: !!safeZone.shrinking,
       finished: !!safeZone.finished,
       progress: safeZone.progress,
-      waitRemaining,
-      shrinkRemaining,
+      waitRemaining: 0,
+      shrinkRemaining: 0,
+      phase: safeZone.phase || 'safe',
     },
   };
 }
@@ -576,6 +585,7 @@ function buildHudStateCommand() {
   const energyEggWaitRemaining = room.energyEggMidgameSpawned < room.energyEggMidgamePlan
     ? Math.max(0, ENERGY_EGG_MIDGAME_SECONDS - Math.max(0, room.elapsedSeconds))
     : 0;
+  const poisonRemaining = Math.max(0, (safeZone.poisonStartTime || 0) - Math.max(0, room.elapsedSeconds));
   let phaseKey = 'opening';
   let phaseText = '开局发育';
   let secondaryText = '';
@@ -583,28 +593,22 @@ function buildHudStateCommand() {
   if (aliveCount <= 1) {
     phaseKey = 'settlement';
     phaseText = '本局结束';
-  } else if (safeZone.finished) {
-    phaseKey = 'final';
-    phaseText = '决赛圈';
-    secondaryText = '安全区已收缩至最终范围';
-  } else if (safeZone.shrinking) {
-    phaseKey = 'shrink';
-    phaseText = '缩圈中';
-    secondaryText = `安全区收缩 ${Math.max(0, Math.ceil(safeZone.shrinkDuration - Math.max(0, room.elapsedSeconds - safeZone.startDelay)))}s`;
+  } else if (safeZone.poisonActive) {
+    phaseKey = 'poison';
+    phaseText = '毒区爆发';
+    secondaryText = `全图掉血 ${Math.max(1, Math.round((safeZone.damagePercent || 0) * 100))}%/s`;
   } else if (safeZone.active) {
     phaseKey = 'safe';
-    phaseText = '安全区锁定';
+    phaseText = aliveCount <= FINAL_STAGE_ALIVE_THRESHOLD ? '中心决战' : '中心安全区';
+    secondaryText = `毒区爆发 ${Math.max(0, Math.ceil(poisonRemaining))}s`;
   } else {
     secondaryText = energyEggWaitRemaining > 0
       ? `能量蛋刷新 ${Math.max(0, Math.ceil(energyEggWaitRemaining))}s`
-      : `缩圈倒计时 ${Math.max(0, Math.ceil(safeZone.startDelay - Math.max(0, room.elapsedSeconds)))}s`;
+      : `毒区爆发 ${Math.max(0, Math.ceil(poisonRemaining))}s`;
   }
 
-  if (!secondaryText && !safeZone.active) {
-    secondaryText = `缩圈倒计时 ${Math.max(0, Math.ceil(safeZone.startDelay - Math.max(0, room.elapsedSeconds)))}s`;
-  }
-  if (!secondaryText && safeZone.shrinking) {
-    secondaryText = `安全区收缩 ${Math.max(0, Math.ceil(safeZone.shrinkDuration - Math.max(0, room.elapsedSeconds - safeZone.startDelay)))}s`;
+  if (!secondaryText && !safeZone.poisonActive) {
+    secondaryText = `毒区爆发 ${Math.max(0, Math.ceil(poisonRemaining))}s`;
   }
 
   return {
@@ -621,10 +625,10 @@ function buildHudStateCommand() {
         active: !!safeZone.active,
         shrinking: !!safeZone.shrinking,
         finished: !!safeZone.finished,
-        waitRemaining: Math.max(0, safeZone.startDelay - Math.max(0, room.elapsedSeconds)),
-        shrinkRemaining: safeZone.finished
-          ? 0
-          : Math.max(0, safeZone.shrinkDuration - Math.max(0, room.elapsedSeconds - safeZone.startDelay)),
+        poisonActive: !!safeZone.poisonActive,
+        waitRemaining: 0,
+        shrinkRemaining: 0,
+        poisonRemaining,
         radius: safeZone.radius,
         targetRadius: safeZone.targetRadius,
       },
@@ -648,7 +652,7 @@ function updateMatchAnnouncements(frameCommands) {
     appendAnnouncement(frameCommands, {
       id: 'opening',
       text: '战斗开始',
-      subText: '收集能量，准备进入缩圈',
+      subText: '中心安全区已锁定，尽快向地图中央集结',
       style: 'notice',
       duration: 2.2,
     });
@@ -665,34 +669,34 @@ function updateMatchAnnouncements(frameCommands) {
     });
   }
 
-  const waitRemaining = Math.max(0, safeZone.startDelay - Math.max(0, room.elapsedSeconds));
-  if (!flow.safeZoneWarningAnnounced && !safeZone.active && waitRemaining > 0 && waitRemaining <= SAFE_ZONE_WARNING_SECONDS) {
-    flow.safeZoneWarningAnnounced = true;
+  const poisonRemaining = Math.max(0, (safeZone.poisonStartTime || 0) - Math.max(0, room.elapsedSeconds));
+  if (!flow.poisonWarningAnnounced && !safeZone.poisonActive && poisonRemaining > 0 && poisonRemaining <= SAFE_ZONE_WARNING_SECONDS) {
+    flow.poisonWarningAnnounced = true;
     appendAnnouncement(frameCommands, {
-      id: 'safeZoneWarning',
-      text: '缩圈预警',
-      subText: '请尽快向地图中心靠拢',
+      id: 'poisonWarning',
+      text: '毒区预警',
+      subText: `${Math.max(0, Math.ceil(poisonRemaining))} 秒后安全区消失`,
       style: 'warning',
       duration: 2.3,
     });
   }
 
-  if (!flow.safeZoneStartedAnnounced && safeZone.shrinking) {
-    flow.safeZoneStartedAnnounced = true;
+  if (!flow.poisonStartedAnnounced && safeZone.poisonActive) {
+    flow.poisonStartedAnnounced = true;
     appendAnnouncement(frameCommands, {
-      id: 'safeZoneStart',
-      text: '开始缩圈',
-      subText: '圈外会持续掉血',
+      id: 'poisonStart',
+      text: '毒区爆发',
+      subText: `所有玩家每秒损失 ${Math.max(1, Math.round((safeZone.damagePercent || 0) * 100))}% 最大生命`,
       style: 'warning',
       duration: 2.4,
     });
   }
 
-  if (!flow.finalCircleAnnounced && (safeZone.finished || (safeZone.active && aliveCount <= FINAL_STAGE_ALIVE_THRESHOLD))) {
+  if (!flow.finalCircleAnnounced && !safeZone.poisonActive && safeZone.active && aliveCount <= FINAL_STAGE_ALIVE_THRESHOLD) {
     flow.finalCircleAnnounced = true;
     appendAnnouncement(frameCommands, {
       id: 'finalCircle',
-      text: '决赛圈',
+      text: '决胜阶段',
       subText: aliveCount > 0 ? `剩余 ${aliveCount} 名玩家，准备决胜` : '所有玩家已出局',
       style: 'danger',
       duration: 2.8,
@@ -715,26 +719,36 @@ function updateSafeZoneState(frameCommands) {
   }
   const safeZone = room.safeZone;
   const elapsed = Math.max(0, room.elapsedSeconds);
-  const shrinkElapsed = elapsed - safeZone.startDelay;
-  if (shrinkElapsed <= 0) {
+  const wasPoisonActive = !!safeZone.poisonActive;
+  if (elapsed >= (safeZone.poisonStartTime || 0)) {
+    safeZone.poisonActive = true;
     safeZone.active = false;
     safeZone.shrinking = false;
     safeZone.finished = false;
-    safeZone.progress = 0;
-    safeZone.radius = safeZone.startRadius;
-  } else if (shrinkElapsed >= safeZone.shrinkDuration) {
+    safeZone.progress = 1;
+    safeZone.radius = 0;
+    safeZone.damagePerTick = 0;
+    safeZone.damagePercent = SAFE_ZONE_POISON_DAMAGE_PERCENT;
+    safeZone.damageMode = 'globalPercentMaxHp';
+    safeZone.phase = 'poison';
+  } else {
+    safeZone.poisonActive = false;
     safeZone.active = true;
     safeZone.shrinking = false;
-    safeZone.finished = true;
+    safeZone.finished = false;
     safeZone.progress = 1;
     safeZone.radius = safeZone.targetRadius;
-  } else {
-    const progress = clamp(shrinkElapsed / safeZone.shrinkDuration, 0, 1);
-    safeZone.active = true;
-    safeZone.shrinking = true;
-    safeZone.finished = false;
-    safeZone.progress = progress;
-    safeZone.radius = safeZone.startRadius - (safeZone.startRadius - safeZone.targetRadius) * progress;
+    safeZone.damagePerTick = SAFE_ZONE_DAMAGE_PER_TICK;
+    safeZone.damagePercent = 0;
+    safeZone.damageMode = 'outsideFlat';
+    safeZone.phase = 'safe';
+  }
+  if (!wasPoisonActive && safeZone.poisonActive) {
+    room.players.forEach((player) => {
+      if (player) {
+        player.safeZoneDamageCd = safeZone.damageInterval || SAFE_ZONE_DAMAGE_INTERVAL;
+      }
+    });
   }
   appendFrameCommand(frameCommands, buildSafeZoneStateCommand());
 }
@@ -828,20 +842,25 @@ function buildInitialBushes() {
 }
 
 function applySafeZoneDamageToPlayer(player, frameCommands) {
-  if (!player || player.dead || player.disconnected || !room.safeZone || !room.safeZone.active) {
+  if (!player || player.dead || player.disconnected || !room.safeZone) {
     if (player) {
       player.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
     }
     return;
   }
   const safeZone = room.safeZone;
-  const pos = getPlayerRuntimePosition(player);
-  const playerRadius = getPlayerRuntimeRadius(player);
-  const dx = pos.x - safeZone.centerX;
-  const dy = pos.y - safeZone.centerY;
-  const allowedRadius = Math.max(0, safeZone.radius - playerRadius * 0.35);
-  const outside = dx * dx + dy * dy > allowedRadius * allowedRadius;
-  if (!outside) {
+  let shouldDamage = false;
+  if (safeZone.poisonActive) {
+    shouldDamage = true;
+  } else if (safeZone.active && safeZone.radius > 0) {
+    const pos = getPlayerRuntimePosition(player);
+    const playerRadius = getPlayerRuntimeRadius(player);
+    const dx = pos.x - safeZone.centerX;
+    const dy = pos.y - safeZone.centerY;
+    const allowedRadius = Math.max(0, safeZone.radius - playerRadius * 0.35);
+    shouldDamage = dx * dx + dy * dy > allowedRadius * allowedRadius;
+  }
+  if (!shouldDamage) {
     player.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
     return;
   }
@@ -852,15 +871,26 @@ function applySafeZoneDamageToPlayer(player, frameCommands) {
   player.safeZoneDamageCd -= TICK_INTERVAL / 1000;
   while (player.safeZoneDamageCd <= 0 && !player.dead) {
     player.safeZoneDamageCd += SAFE_ZONE_DAMAGE_INTERVAL;
-    player.hp -= safeZone.damagePerTick;
+    let damage = safeZone.damagePerTick;
+    if (safeZone.poisonActive) {
+      const maxHp = Number.isFinite(player.maxHp) && player.maxHp > 0
+        ? player.maxHp
+        : MULTIPLAYER_FIXED_BASE_HP;
+      damage = Math.max(1, Math.ceil(maxHp * (safeZone.damagePercent || SAFE_ZONE_POISON_DAMAGE_PERCENT)));
+    }
+    if (!Number.isFinite(damage) || damage <= 0) {
+      continue;
+    }
+    player.hp -= damage;
     if (player.hp < 0) {
       player.hp = 0;
     }
     appendFrameCommand(frameCommands, {
       type: 'safeZoneDamage',
       playerId: player.playerId,
-      damage: safeZone.damagePerTick,
+      damage,
       hp: player.hp,
+      damageMode: safeZone.damageMode || 'outsideFlat',
     });
     if (player.hp <= 0) {
       player.dead = true;

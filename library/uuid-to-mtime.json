@@ -2125,13 +2125,13 @@
     "relativePath": "script\\Player.ts"
   },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778843804081,
-    "meta": 1778843814663,
+    "asset": 1779183476973,
+    "meta": 1779183585714,
     "relativePath": "script\\GameMain.ts"
   },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778844104098,
-    "meta": 1778844122942,
+    "asset": 1779183468928,
+    "meta": 1779183586499,
     "relativePath": "script\\GameMap.ts"
   }
 }

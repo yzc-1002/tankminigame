@@ -1349,6 +1349,8 @@ export default class GameMain extends BaseComponent {
             Math.round((safeZone.radius || 0) * 10) / 10,
             !!safeZone.active,
             !!safeZone.finished,
+            !!safeZone.poisonActive,
+            Math.round((safeZone.poisonRemaining || 0) * 10) / 10,
             context.viewport.width,
             context.viewport.height,
             Math.round(context.halfWidth * 10) / 10,
@@ -1377,11 +1379,13 @@ export default class GameMain extends BaseComponent {
         let center = context.mapPosToMinimap(cc.v2(safeZone.centerX || 0, safeZone.centerY || 0));
         let radiusX = Math.max(2, safeZone.radius / (context.halfWidth * 2) * context.viewport.width);
         let radiusY = Math.max(2, safeZone.radius / (context.halfHeight * 2) * context.viewport.height);
-        safeZoneGraphics.fillColor = cc.color(88, 170, 255, safeZone.active ? 22 : 10);
+        safeZoneGraphics.fillColor = safeZone.poisonActive
+            ? cc.color(255, 120, 120, 10)
+            : cc.color(88, 170, 255, safeZone.active ? 22 : 10);
         safeZoneGraphics.ellipse(center.x, center.y, radiusX, radiusY);
         safeZoneGraphics.fill();
-        safeZoneGraphics.lineWidth = safeZone.finished ? 3 : 2;
-        safeZoneGraphics.strokeColor = safeZone.finished ? cc.color(255, 130, 130, 230) : cc.color(120, 220, 255, 230);
+        safeZoneGraphics.lineWidth = safeZone.poisonActive ? 3 : 2;
+        safeZoneGraphics.strokeColor = safeZone.poisonActive ? cc.color(255, 130, 130, 230) : cc.color(120, 220, 255, 230);
         safeZoneGraphics.ellipse(center.x, center.y, radiusX, radiusY);
         safeZoneGraphics.stroke();
     }

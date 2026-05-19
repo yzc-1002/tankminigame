@@ -5779,12 +5779,18 @@ var GameMap = /** @class */ (function (_super) {
             shrinkDuration: safeZone.shrinkDuration == null ? 45 : safeZone.shrinkDuration,
             damageInterval: safeZone.damageInterval == null ? 1 : safeZone.damageInterval,
             damagePerTick: safeZone.damagePerTick == null ? 0 : safeZone.damagePerTick,
+            damagePercent: safeZone.damagePercent == null ? 0 : safeZone.damagePercent,
+            damageMode: safeZone.damageMode || "",
+            poisonStartTime: safeZone.poisonStartTime == null ? 0 : safeZone.poisonStartTime,
+            poisonRemaining: safeZone.poisonRemaining == null ? 0 : safeZone.poisonRemaining,
+            poisonActive: !!safeZone.poisonActive,
             active: !!safeZone.active,
             shrinking: !!safeZone.shrinking,
             finished: !!safeZone.finished,
             progress: safeZone.progress == null ? 0 : safeZone.progress,
             waitRemaining: safeZone.waitRemaining == null ? 0 : safeZone.waitRemaining,
             shrinkRemaining: safeZone.shrinkRemaining == null ? 0 : safeZone.shrinkRemaining,
+            phase: safeZone.phase || "",
         };
         this._renderMultiplayerSafeZone();
     };
@@ -5821,7 +5827,7 @@ var GameMap = /** @class */ (function (_super) {
         ring.parent = root;
         var ringGraphics = ring.addComponent(cc.Graphics);
         ringGraphics.lineWidth = 8;
-        ringGraphics.strokeColor = safeZone.finished ? cc.color(255, 120, 120, 245) : cc.color(120, 210, 255, 235);
+        ringGraphics.strokeColor = cc.color(120, 210, 255, 235);
         ringGraphics.circle(0, 0, radius);
         ringGraphics.stroke();
         ringGraphics.lineWidth = 2;
@@ -5832,23 +5838,21 @@ var GameMap = /** @class */ (function (_super) {
         labelNode.parent = root;
         labelNode.setPosition(0, radius + 42);
         var label = labelNode.addComponent(cc.Label);
-        if (!safeZone.active) {
-            label.string = "缩圈倒计时 " + Math.max(0, Math.ceil(safeZone.waitRemaining || 0)) + "s";
+        var poisonRemaining = Math.max(0, Math.ceil(safeZone.poisonRemaining || 0));
+        if (safeZone.poisonActive) {
+            label.string = "毒区爆发";
         }
-        else if (safeZone.shrinking) {
-            label.string = "安全区缩小中 " + Math.max(0, Math.ceil(safeZone.shrinkRemaining || 0)) + "s";
-        }
-        else if (safeZone.finished) {
-            label.string = "最终安全区";
+        else if (poisonRemaining > 0) {
+            label.string = "中心安全区 " + poisonRemaining + "s";
         }
         else {
-            label.string = "安全区";
+            label.string = "中心安全区";
         }
         label.fontSize = 22;
         label.lineHeight = 24;
         label.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
         label.verticalAlign = cc.Label.VerticalAlign.CENTER;
-        labelNode.color = safeZone.finished ? cc.color(255, 210, 210, 255) : cc.color(220, 245, 255, 255);
+        labelNode.color = cc.color(220, 245, 255, 255);
         this._multiplayerSafeZoneNode = root;
     };
     GameMap.prototype._applyMultiplayerPortalEvent = function (eventData) {
