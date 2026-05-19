@@ -122,14 +122,17 @@ export class GameMap extends BaseComponent {
     _energyEggTestMode = false; //能量蛋收藏测试模式
     _damageDoubleTestMode = false; //伤害翻倍区域测试模式
     _damageDoubleAreaData = null;
+    _multiplayerDamageDoubleAreas = [];
     _speedDoubleTestMode = false; //速度翻倍区域测试模式
     _speedDoubleAreaData = null;
+    _multiplayerSpeedDoubleAreas = [];
     _spreadBulletTestMode = false; //子弹扩散区域测试模式
     _spreadBulletAreaData = null;
     _bounceObstacleTestMode = false; //子弹反弹障碍测试模式
     _bounceObstacles = [];
     _blackHoleTestMode = false; //黑洞区域测试模式
     _blackHoleAreaData = null;
+    _multiplayerBlackHoleAreas = [];
     _clusterBombTestMode = false; //集束炸弹测试模式
     _multiplayerMode = false; //多人模式
     _multiplayerPlayers = []; //多人玩家列表
@@ -912,6 +915,7 @@ export class GameMap extends BaseComponent {
 
     _clearDamageDoubleTestNodes() {
         this._damageDoubleAreaData = null;
+        this._multiplayerDamageDoubleAreas = [];
         let children = this._fire._tmLayerObstacle.children.slice();
         for (let i = 0; i < children.length; i++) {
             let child = children[i];
@@ -1040,19 +1044,30 @@ export class GameMap extends BaseComponent {
     }
 
     tryEnterDamageDoubleArea(bullet, fromPos, toPos) {
-        if (!this._damageDoubleTestMode || !bullet || !this._damageDoubleAreaData) {
+        let areaList = [];
+        if (this._multiplayerMode) {
+            areaList = this._multiplayerDamageDoubleAreas || [];
+        }
+        else if (this._damageDoubleTestMode && this._damageDoubleAreaData) {
+            areaList = [this._damageDoubleAreaData];
+        }
+        if (!bullet || areaList.length == 0) {
             return false;
         }
         if (bullet.hasUsedDamageDoubleArea && bullet.hasUsedDamageDoubleArea()) {
             return false;
         }
-
-        let area = this._damageDoubleAreaData;
-        if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
-            return false;
+        for (let i = 0; i < areaList.length; i++) {
+            let area = areaList[i];
+            if (!area) {
+                continue;
+            }
+            if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
+                continue;
+            }
+            return bullet.enterDamageDoubleArea ? bullet.enterDamageDoubleArea(area) : false;
         }
-
-        return bullet.enterDamageDoubleArea ? bullet.enterDamageDoubleArea(area) : false;
+        return false;
     }
 
     spawnDamageDoubleFx(pos) {
@@ -1083,6 +1098,7 @@ export class GameMap extends BaseComponent {
 
     _clearSpeedDoubleTestNodes() {
         this._speedDoubleAreaData = null;
+        this._multiplayerSpeedDoubleAreas = [];
         let children = this._fire._tmLayerObstacle.children.slice();
         for (let i = 0; i < children.length; i++) {
             let child = children[i];
@@ -1210,19 +1226,30 @@ export class GameMap extends BaseComponent {
     }
 
     tryEnterSpeedDoubleArea(bullet, fromPos, toPos) {
-        if (!this._speedDoubleTestMode || !bullet || !this._speedDoubleAreaData) {
+        let areaList = [];
+        if (this._multiplayerMode) {
+            areaList = this._multiplayerSpeedDoubleAreas || [];
+        }
+        else if (this._speedDoubleTestMode && this._speedDoubleAreaData) {
+            areaList = [this._speedDoubleAreaData];
+        }
+        if (!bullet || areaList.length == 0) {
             return false;
         }
         if (bullet.hasUsedSpeedDoubleArea && bullet.hasUsedSpeedDoubleArea()) {
             return false;
         }
-
-        let area = this._speedDoubleAreaData;
-        if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
-            return false;
+        for (let i = 0; i < areaList.length; i++) {
+            let area = areaList[i];
+            if (!area) {
+                continue;
+            }
+            if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
+                continue;
+            }
+            return bullet.enterSpeedDoubleArea ? bullet.enterSpeedDoubleArea(area) : false;
         }
-
-        return bullet.enterSpeedDoubleArea ? bullet.enterSpeedDoubleArea(area) : false;
+        return false;
     }
 
     spawnSpeedDoubleFx(pos) {
@@ -1608,6 +1635,7 @@ export class GameMap extends BaseComponent {
 
     _clearBlackHoleTestNodes() {
         this._blackHoleAreaData = null;
+        this._multiplayerBlackHoleAreas = [];
         let children = this._fire._tmLayerObstacle.children.slice();
         for (let i = 0; i < children.length; i++) {
             let child = children[i];
@@ -1772,13 +1800,29 @@ export class GameMap extends BaseComponent {
     }
 
     tryEnterBlackHoleArea(bullet, fromPos, toPos) {
-        if (!this._blackHoleTestMode || !bullet || !this._blackHoleAreaData) {
+        let areaList = [];
+        if (this._multiplayerMode) {
+            areaList = this._multiplayerBlackHoleAreas || [];
+        }
+        else if (this._blackHoleTestMode && this._blackHoleAreaData) {
+            areaList = [this._blackHoleAreaData];
+        }
+        if (!bullet || areaList.length == 0) {
             return false;
         }
 
         let pos = cc.v2(bullet.node.position);
-        let dist = pos.sub(this._blackHoleAreaData.center).mag();
-        return dist < this._blackHoleAreaData.radius;
+        for (let i = 0; i < areaList.length; i++) {
+            let area = areaList[i];
+            if (!area) {
+                continue;
+            }
+            let dist = pos.sub(area.center).mag();
+            if (dist < area.radius) {
+                return true;
+            }
+        }
+        return false;
     }
 
     spawnBlackHoleSwallowFx(pos) {
@@ -3133,12 +3177,12 @@ export class GameMap extends BaseComponent {
         pickup.addComponent(OilPickup);
         pickup.position = cc.v3(pos || this._getOilTestPickupPos());
         pickup.zIndex = this.judgezIndex(pickup.y);
-        pickup.script.setInGame(18);
+        pickup.script.setInGame(120);
         this._skills.push(pickup);
         return pickup;
     }
 
-    spawnTarPickupAt(pos, pickupId = null) {
+    spawnTarPickupAt(pos, pickupId = null, lifeTime = 120) {
         if (!this._fire._tmLayerObstacle) {
             return null;
         }
@@ -3148,7 +3192,7 @@ export class GameMap extends BaseComponent {
         pickup.position = cc.v3(pos || this._getOilTestPickupPos());
         pickup.zIndex = this.judgezIndex(pickup.y);
         pickup.script.setPickupType("oil");
-        pickup.script.setInGame(18);
+        pickup.script.setInGame(lifeTime);
         if (pickupId != null) {
             pickup["__tarPickupId"] = pickupId;
         }
@@ -3156,7 +3200,7 @@ export class GameMap extends BaseComponent {
         return pickup;
     }
 
-    spawnBlackHolePickupAt(pos, pickupId = null) {
+    spawnBlackHolePickupAt(pos, pickupId = null, lifeTime = 120) {
         if (!this._fire._tmLayerObstacle) {
             return null;
         }
@@ -3166,7 +3210,7 @@ export class GameMap extends BaseComponent {
         pickup.position = cc.v3(pos || this._getOilTestPickupPos());
         pickup.zIndex = this.judgezIndex(pickup.y);
         pickup.script.setPickupType("blackHole");
-        pickup.script.setInGame(18);
+        pickup.script.setInGame(lifeTime);
         if (pickupId != null) {
             pickup["__blackHolePickupId"] = pickupId;
         }
@@ -3861,6 +3905,26 @@ export class GameMap extends BaseComponent {
     }
 
     _updateBlackHoleArea(dt) {
+        if (this._multiplayerMode) {
+            for (let i = this._multiplayerBlackHoleAreas.length - 1; i >= 0; i--) {
+                let area = this._multiplayerBlackHoleAreas[i];
+                if (!area || !area.node || !cc.isValid(area.node)) {
+                    this._multiplayerBlackHoleAreas.splice(i, 1);
+                    continue;
+                }
+                if (area.duration != null) {
+                    area.remainTime -= dt;
+                    if (area.remainTime <= 0) {
+                        area.remainTime = 0;
+                        if (cc.isValid(area.node)) {
+                            area.node.destroy();
+                        }
+                        this._multiplayerBlackHoleAreas.splice(i, 1);
+                    }
+                }
+            }
+            return;
+        }
         if (!this._blackHoleAreaData || !this._blackHoleAreaData.node || !cc.isValid(this._blackHoleAreaData.node)) {
             return;
         }
@@ -5660,6 +5724,9 @@ export class GameMap extends BaseComponent {
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
         this._multiplayerSpecialEventMap = {};
+        this._multiplayerDamageDoubleAreas = [];
+        this._multiplayerSpeedDoubleAreas = [];
+        this._multiplayerBlackHoleAreas = [];
         this._multiplayerSpawnSlots = [];
         this._multiplayerSafeZone = null;
         this._killEffectTestMode = false;
@@ -5904,6 +5971,9 @@ export class GameMap extends BaseComponent {
         this._multiplayerTarSpillMap = {};
         this._multiplayerBlackHolePickupMap = {};
         this._multiplayerBlackHoleZoneMap = {};
+        this._multiplayerDamageDoubleAreas = [];
+        this._multiplayerSpeedDoubleAreas = [];
+        this._multiplayerBlackHoleAreas = [];
         this._multiplayerSafeZone = null;
         this._multiplayerSafeZoneNode = null;
         this._pendingTarThrowMap = {};
@@ -6240,7 +6310,11 @@ export class GameMap extends BaseComponent {
         if (this._multiplayerTarPickupMap[pickupData.id] && cc.isValid(this._multiplayerTarPickupMap[pickupData.id])) {
             return;
         }
-        let pickup = this.spawnTarPickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id);
+        let pickup = this.spawnTarPickupAt(
+            cc.v2(pickupData.x || 0, pickupData.y || 0),
+            pickupData.id,
+            pickupData.remainTime == null ? 120 : pickupData.remainTime
+        );
         if (pickup) {
             this._multiplayerTarPickupMap[pickupData.id] = pickup;
         }
@@ -6296,7 +6370,11 @@ export class GameMap extends BaseComponent {
         if (this._multiplayerBlackHolePickupMap[pickupData.id] && cc.isValid(this._multiplayerBlackHolePickupMap[pickupData.id])) {
             return;
         }
-        let pickup = this.spawnBlackHolePickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id);
+        let pickup = this.spawnBlackHolePickupAt(
+            cc.v2(pickupData.x || 0, pickupData.y || 0),
+            pickupData.id,
+            pickupData.remainTime == null ? 120 : pickupData.remainTime
+        );
         if (pickup) {
             this._multiplayerBlackHolePickupMap[pickupData.id] = pickup;
         }
@@ -6383,6 +6461,16 @@ export class GameMap extends BaseComponent {
         let node = this.spawnBlackHoleZone(cc.v2(zoneData.x || 0, zoneData.y || 0), zoneData);
         if (node) {
             this._multiplayerBlackHoleZoneMap[zoneData.id] = node;
+            this._multiplayerBlackHoleAreas.push({
+                node: node,
+                center: cc.v2(zoneData.x || 0, zoneData.y || 0),
+                radius: zoneData.radius == null ? 100 : zoneData.radius,
+                destroyRadius: zoneData.destroyRadius == null ? 14 : zoneData.destroyRadius,
+                gravityStrength: zoneData.gravityStrength == null ? 160 : zoneData.gravityStrength,
+                duration: zoneData.duration == null ? null : zoneData.duration,
+                remainTime: zoneData.remainTime == null ? zoneData.duration : zoneData.remainTime,
+                eventId: zoneData.id,
+            });
         }
     }
 
@@ -6390,8 +6478,17 @@ export class GameMap extends BaseComponent {
         if (zoneId == null) {
             return;
         }
+        let node = this._multiplayerBlackHoleZoneMap[zoneId];
+        if (node && cc.isValid(node)) {
+            node.destroy();
+        }
         delete this._multiplayerBlackHoleZoneMap[zoneId];
-        this._clearBlackHoleTestNodes();
+        for (let i = this._multiplayerBlackHoleAreas.length - 1; i >= 0; i--) {
+            let area = this._multiplayerBlackHoleAreas[i];
+            if (!area || area.eventId == zoneId) {
+                this._multiplayerBlackHoleAreas.splice(i, 1);
+            }
+        }
     }
 
     _playMultiplayerBlackHoleThrow(command) {
@@ -6536,22 +6633,7 @@ export class GameMap extends BaseComponent {
         if (eventId != null && this._multiplayerSpecialEventMap[eventId]) {
             delete this._multiplayerSpecialEventMap[eventId];
         }
-        if (eventType === "portal") {
-            this._portalTestMode = false;
-            this._clearPortalTestNodes();
-        }
-        else if (eventType === "damageDouble") {
-            this._damageDoubleTestMode = false;
-            this._clearDamageDoubleTestNodes();
-        }
-        else if (eventType === "speedDouble") {
-            this._speedDoubleTestMode = false;
-            this._clearSpeedDoubleTestNodes();
-        }
-        else if (eventType === "blackHole") {
-            this._blackHoleTestMode = false;
-            this._clearBlackHoleTestNodes();
-        }
+        this._rebuildMultiplayerSpecialEventViews();
     }
 
     _applyMultiplayerSafeZoneDamage(command) {
@@ -6680,7 +6762,6 @@ export class GameMap extends BaseComponent {
             return;
         }
         this._portalTestMode = true;
-        this._clearPortalTestNodes();
         let entryPos = this.clampMapInnerPosition(cc.v2(eventData.entryPos), 90);
         let exitPos = this.clampMapInnerPosition(cc.v2(eventData.exitPos), 90);
         this._createPortalGate("_portalGateA", entryPos, cc.color(90, 215, 255, 255), "A");
@@ -6710,17 +6791,18 @@ export class GameMap extends BaseComponent {
             return;
         }
         this._damageDoubleTestMode = true;
-        this._clearDamageDoubleTestNodes();
         let center = this.clampMapInnerPosition(cc.v2(eventData.center), 100);
         let radius = eventData.radius == null ? 60 : eventData.radius;
         this._createDamageDoubleAreaNode(center, radius, cc.color(255, 40, 40, 255));
-        this._damageDoubleAreaData = {
+        let areaData = {
             center: center,
             radius: radius,
             damageMultiplier: eventData.damageMultiplier == null ? 2 : eventData.damageMultiplier,
             scaleMultiplier: eventData.scaleMultiplier == null ? 1.5 : eventData.scaleMultiplier,
             eventId: eventData.id,
         };
+        this._damageDoubleAreaData = areaData;
+        this._multiplayerDamageDoubleAreas.push(areaData);
     }
 
     _applyMultiplayerSpeedDoubleEvent(eventData) {
@@ -6728,16 +6810,17 @@ export class GameMap extends BaseComponent {
             return;
         }
         this._speedDoubleTestMode = true;
-        this._clearSpeedDoubleTestNodes();
         let center = this.clampMapInnerPosition(cc.v2(eventData.center), 100);
         let radius = eventData.radius == null ? 60 : eventData.radius;
         this._createSpeedDoubleAreaNode(center, radius, cc.color(30, 130, 255, 255));
-        this._speedDoubleAreaData = {
+        let areaData = {
             center: center,
             radius: radius,
             speedMultiplier: eventData.speedMultiplier == null ? 3 : eventData.speedMultiplier,
             eventId: eventData.id,
         };
+        this._speedDoubleAreaData = areaData;
+        this._multiplayerSpeedDoubleAreas.push(areaData);
     }
 
     _applyMultiplayerBlackHoleEvent(eventData) {
@@ -6745,18 +6828,62 @@ export class GameMap extends BaseComponent {
             return;
         }
         this._blackHoleTestMode = true;
-        this._clearBlackHoleTestNodes();
         let center = this.clampMapInnerPosition(cc.v2(eventData.center), 120);
         let radius = eventData.radius == null ? 100 : eventData.radius;
         let destroyRadius = eventData.destroyRadius == null ? 14 : eventData.destroyRadius;
-        this._createBlackHoleAreaNode(center, radius, destroyRadius, cc.color(80, 30, 160, 200));
-        this._blackHoleAreaData = {
+        let node = this._createBlackHoleAreaNode(center, radius, destroyRadius, cc.color(80, 30, 160, 200));
+        let areaData = {
+            node: node,
             center: center,
             radius: radius,
             destroyRadius: destroyRadius,
             gravityStrength: eventData.gravityStrength == null ? 160 : eventData.gravityStrength,
             eventId: eventData.id,
         };
+        this._blackHoleAreaData = areaData;
+        this._multiplayerBlackHoleAreas.push(areaData);
+    }
+
+    _rebuildMultiplayerSpecialEventViews() {
+        if (!this._multiplayerMode) {
+            return;
+        }
+        this._portalTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clearPortalTestNodes();
+        this._clearDamageDoubleTestNodes();
+        this._clearSpeedDoubleTestNodes();
+        let zoneIds = Object.keys(this._multiplayerBlackHoleZoneMap || {});
+        for (let i = 0; i < zoneIds.length; i++) {
+            let zoneId = zoneIds[i];
+            let node = this._multiplayerBlackHoleZoneMap[zoneId];
+            if (node && cc.isValid(node)) {
+                node.destroy();
+            }
+        }
+        this._multiplayerBlackHoleZoneMap = {};
+        this._clearBlackHoleTestNodes();
+        let eventIds = Object.keys(this._multiplayerSpecialEventMap || {});
+        for (let i = 0; i < eventIds.length; i++) {
+            let eventData = this._multiplayerSpecialEventMap[eventIds[i]];
+            if (!eventData) {
+                continue;
+            }
+            if (eventData.type === "portal") {
+                this._applyMultiplayerPortalEvent(eventData);
+            }
+            else if (eventData.type === "damageDouble") {
+                this._applyMultiplayerDamageDoubleEvent(eventData);
+            }
+            else if (eventData.type === "speedDouble") {
+                this._applyMultiplayerSpeedDoubleEvent(eventData);
+            }
+            else if (eventData.type === "blackHole") {
+                this._applyMultiplayerBlackHoleEvent(eventData);
+            }
+        }
     }
 
     _centerOnLocalPlayer() {

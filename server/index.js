@@ -42,7 +42,7 @@ const PLAYER_LEVEL_SPEED_ADD = 18;
 const SPECIAL_EVENT_START_DELAY = 8;
 const SPECIAL_EVENT_RESPAWN_MIN = 12;
 const SPECIAL_EVENT_RESPAWN_MAX = 20;
-const SPECIAL_EVENT_DURATION = 14;
+const SPECIAL_EVENT_DURATION = 120;
 const SPECIAL_EVENT_MIN_PLAYER_DISTANCE = 180;
 const SPECIAL_EVENT_MIN_ENERGY_DISTANCE = 170;
 const SPECIAL_EVENT_MIN_EGG_DISTANCE = 220;
@@ -59,6 +59,7 @@ const TAR_PICKUP_RESPAWN_MIN = 10;
 const TAR_PICKUP_RESPAWN_MAX = 16;
 const TAR_PICKUP_RADIUS = 42;
 const TAR_PICKUP_TOUCH_RADIUS = 92;
+const TAR_PICKUP_LIFETIME = 120;
 const TAR_SPILL_DURATION = 10;
 const TAR_SPILL_RADIUS = 120;
 const TAR_SPILL_SLOW_FACTOR = 0.52;
@@ -68,6 +69,7 @@ const BLACK_HOLE_PICKUP_RESPAWN_MIN = 14;
 const BLACK_HOLE_PICKUP_RESPAWN_MAX = 20;
 const BLACK_HOLE_PICKUP_RADIUS = 42;
 const BLACK_HOLE_PICKUP_TOUCH_RADIUS = 92;
+const BLACK_HOLE_PICKUP_LIFETIME = 120;
 const BLACK_HOLE_ZONE_DURATION = 8;
 const BLACK_HOLE_ZONE_RADIUS = 100;
 const BLACK_HOLE_ZONE_DESTROY_RADIUS = 14;
@@ -86,6 +88,8 @@ const MULTIPLAYER_BUSH_RADIUS = 94;
 const MULTIPLAYER_BUSH_MIN_GAP = 220;
 const MULTIPLAYER_BUSH_SPAWN_PADDING = 120;
 const MULTIPLAYER_BUSH_MIN_SPAWN_DISTANCE = 210;
+const MULTIPLAYER_INITIAL_PICKUP_COUNT = 5;
+const MULTIPLAYER_INITIAL_SPECIAL_EVENT_COUNT = 5;
 
 const ROOM_STATE = {
   WAITING: 'waiting',
@@ -124,7 +128,7 @@ const room = {
   energyEggMidgameSpawned: 0,
   nextSpecialEventId: 1,
   specialEventSpawnCd: 0,
-  activeSpecialEvent: null,
+  activeSpecialEvents: [],
   tarPickups: [],
   nextTarPickupId: 1,
   tarPickupSpawnCd: 0,
@@ -912,6 +916,12 @@ function isTarPickupPointAvailable(point) {
       return false;
     }
   }
+  for (let i = 0; i < room.blackHolePickups.length; i++) {
+    const pickup = room.blackHolePickups[i];
+    if (pickup && !pickup.removed && Math.sqrt(distanceSqr(pickup, point)) < 180) {
+      return false;
+    }
+  }
   for (let i = 0; i < room.tarSpills.length; i++) {
     const spill = room.tarSpills[i];
     if (spill && !spill.removed && Math.sqrt(distanceSqr(spill, point)) < spill.radius + 90) {
@@ -974,6 +984,7 @@ function createTarPickup(point) {
     x: pos.x,
     y: pos.y,
     radius: TAR_PICKUP_RADIUS,
+    remainTime: TAR_PICKUP_LIFETIME,
     removed: false,
   };
 }
@@ -988,6 +999,7 @@ function createBlackHolePickup(point) {
     x: pos.x,
     y: pos.y,
     radius: BLACK_HOLE_PICKUP_RADIUS,
+    remainTime: BLACK_HOLE_PICKUP_LIFETIME,
     removed: false,
   };
 }
@@ -1009,6 +1021,7 @@ function spawnTarPickupInFrame(frameCommands) {
       x: pickup.x,
       y: pickup.y,
       radius: pickup.radius,
+      remainTime: pickup.remainTime,
     },
   });
   return pickup;
@@ -1031,6 +1044,7 @@ function spawnBlackHolePickupInFrame(frameCommands) {
       x: pickup.x,
       y: pickup.y,
       radius: pickup.radius,
+      remainTime: pickup.remainTime,
     },
   });
   return pickup;
@@ -1328,6 +1342,19 @@ function tryThrowBlackHoleByPlayer(player, throwPayload, frameCommands) {
 }
 
 function updateTarPickupSpawns(frameCommands) {
+  for (let i = room.tarPickups.length - 1; i >= 0; i--) {
+    const pickup = room.tarPickups[i];
+    if (!pickup || pickup.removed) {
+      continue;
+    }
+    if (Number.isFinite(pickup.remainTime)) {
+      pickup.remainTime -= TICK_INTERVAL / 1000;
+      if (pickup.remainTime <= 0) {
+        pickup.remainTime = 0;
+        removeTarPickupInFrame(pickup.id, frameCommands, 'timeout');
+      }
+    }
+  }
   const aliveCount = room.tarPickups.filter((pickup) => pickup && !pickup.removed).length;
   if (aliveCount >= TAR_PICKUP_MAX_COUNT) {
     return;
@@ -1348,6 +1375,19 @@ function updateTarPickupSpawns(frameCommands) {
 }
 
 function updateBlackHolePickupSpawns(frameCommands) {
+  for (let i = room.blackHolePickups.length - 1; i >= 0; i--) {
+    const pickup = room.blackHolePickups[i];
+    if (!pickup || pickup.removed) {
+      continue;
+    }
+    if (Number.isFinite(pickup.remainTime)) {
+      pickup.remainTime -= TICK_INTERVAL / 1000;
+      if (pickup.remainTime <= 0) {
+        pickup.remainTime = 0;
+        removeBlackHolePickupInFrame(pickup.id, frameCommands, 'timeout');
+      }
+    }
+  }
   const aliveCount = room.blackHolePickups.filter((pickup) => pickup && !pickup.removed).length;
   if (aliveCount >= BLACK_HOLE_PICKUP_MAX_COUNT) {
     return;
@@ -1566,14 +1606,17 @@ function buildSpecialEventPayload(eventType) {
   };
 }
 
-function spawnSpecialEventInFrame(frameCommands) {
-  if (room.activeSpecialEvent) {
+function spawnSpecialEventInFrame(frameCommands, maxActiveCount = 1, preferredType = '') {
+  if (room.activeSpecialEvents.length >= maxActiveCount) {
     return null;
   }
   const eventTypes = ['portal', 'damageDouble', 'speedDouble'];
-  const eventData = buildSpecialEventPayload(pickOne(eventTypes));
+  const eventType = preferredType && eventTypes.indexOf(preferredType) >= 0
+    ? preferredType
+    : pickOne(eventTypes);
+  const eventData = buildSpecialEventPayload(eventType);
   eventData.remainTime = eventData.duration;
-  room.activeSpecialEvent = eventData;
+  room.activeSpecialEvents.push(eventData);
   appendFrameCommand(frameCommands, {
     type: 'specialEventSpawn',
     event: eventData,
@@ -1581,13 +1624,16 @@ function spawnSpecialEventInFrame(frameCommands) {
   return eventData;
 }
 
-function removeSpecialEventInFrame(frameCommands, reason = 'timeout') {
-  if (!room.activeSpecialEvent) {
+function removeSpecialEventInFrame(eventId, frameCommands, reason = 'timeout') {
+  const index = room.activeSpecialEvents.findIndex((item) => item && item.id === eventId);
+  if (index < 0) {
     return;
   }
-  const active = room.activeSpecialEvent;
-  room.activeSpecialEvent = null;
-  room.specialEventSpawnCd = randomBetween(SPECIAL_EVENT_RESPAWN_MIN, SPECIAL_EVENT_RESPAWN_MAX);
+  const active = room.activeSpecialEvents[index];
+  room.activeSpecialEvents.splice(index, 1);
+  if (room.activeSpecialEvents.length <= 0) {
+    room.specialEventSpawnCd = randomBetween(SPECIAL_EVENT_RESPAWN_MIN, SPECIAL_EVENT_RESPAWN_MAX);
+  }
   appendFrameCommand(frameCommands, {
     type: 'specialEventRemove',
     eventId: active.id,
@@ -1621,12 +1667,19 @@ function applyBulletEventToServerState(player, bulletEvent) {
 }
 
 function updateSpecialEvents(frameCommands) {
-  if (room.activeSpecialEvent) {
-    room.activeSpecialEvent.remainTime -= TICK_INTERVAL / 1000;
-    if (room.activeSpecialEvent.remainTime <= 0) {
-      room.activeSpecialEvent.remainTime = 0;
-      removeSpecialEventInFrame(frameCommands, 'timeout');
+  for (let i = room.activeSpecialEvents.length - 1; i >= 0; i--) {
+    const eventData = room.activeSpecialEvents[i];
+    if (!eventData) {
+      room.activeSpecialEvents.splice(i, 1);
+      continue;
     }
+    eventData.remainTime -= TICK_INTERVAL / 1000;
+    if (eventData.remainTime <= 0) {
+      eventData.remainTime = 0;
+      removeSpecialEventInFrame(eventData.id, frameCommands, 'timeout');
+    }
+  }
+  if (room.activeSpecialEvents.length > 0) {
     return;
   }
   if (room.elapsedSeconds < SPECIAL_EVENT_START_DELAY) {
@@ -1637,6 +1690,32 @@ function updateSpecialEvents(frameCommands) {
     return;
   }
   spawnSpecialEventInFrame(frameCommands);
+}
+
+function spawnInitialMatchPickups() {
+  const total = Math.max(0, MULTIPLAYER_INITIAL_PICKUP_COUNT);
+  for (let i = 0; i < total; i++) {
+    if (i % 2 === 0) {
+      const pickup = createTarPickup(chooseTarPickupSpawnPoint());
+      if (pickup) {
+        room.tarPickups.push(pickup);
+      }
+    } else {
+      const pickup = createBlackHolePickup(chooseTarPickupSpawnPoint());
+      if (pickup) {
+        room.blackHolePickups.push(pickup);
+      }
+    }
+  }
+}
+
+function spawnInitialSpecialEvents() {
+  const initialTypes = ['portal', 'damageDouble', 'speedDouble'];
+  const total = Math.max(0, MULTIPLAYER_INITIAL_SPECIAL_EVENT_COUNT);
+  for (let i = 0; i < total; i++) {
+    const preferredType = initialTypes[i % initialTypes.length];
+    spawnSpecialEventInFrame(null, total, preferredType);
+  }
 }
 
 function buildPlayerStateCommand(player) {
@@ -2443,7 +2522,7 @@ function startGame() {
   room.elapsedSeconds = 0;
   room.nextSpecialEventId = 1;
   room.specialEventSpawnCd = 0;
-  room.activeSpecialEvent = null;
+  room.activeSpecialEvents = [];
   room.tarPickups = [];
   room.nextTarPickupId = 1;
   room.tarPickupSpawnCd = 0;
@@ -2473,6 +2552,8 @@ function startGame() {
   for (let i = 0; i < Math.min(ENERGY_MAX_COUNT, 3); i++) {
     spawnEnergy();
   }
+  spawnInitialMatchPickups();
+  spawnInitialSpecialEvents();
 
   broadcastRoomState({ spawnSlots: room.spawnSlots });
   room.players.forEach((p) => {
@@ -2487,7 +2568,7 @@ function startGame() {
       playerCount: room.players.length,
       spawnSlots: room.spawnSlots,
       energies: room.energies,
-      specialEvents: room.activeSpecialEvent ? [room.activeSpecialEvent] : [],
+      specialEvents: room.activeSpecialEvents.slice(),
       tarPickups: room.tarPickups,
       tarSpills: room.tarSpills,
       blackHolePickups: room.blackHolePickups,
@@ -2686,7 +2767,7 @@ function resetRoom() {
   room.energyEggMidgameSpawned = 0;
   room.nextSpecialEventId = 1;
   room.specialEventSpawnCd = 0;
-  room.activeSpecialEvent = null;
+  room.activeSpecialEvents = [];
   room.tarPickups = [];
   room.nextTarPickupId = 1;
   room.tarPickupSpawnCd = 0;

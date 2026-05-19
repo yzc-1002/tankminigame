@@ -125,14 +125,17 @@ var GameMap = /** @class */ (function (_super) {
         _this._energyEggTestMode = false; //能量蛋收藏测试模式
         _this._damageDoubleTestMode = false; //伤害翻倍区域测试模式
         _this._damageDoubleAreaData = null;
+        _this._multiplayerDamageDoubleAreas = [];
         _this._speedDoubleTestMode = false; //速度翻倍区域测试模式
         _this._speedDoubleAreaData = null;
+        _this._multiplayerSpeedDoubleAreas = [];
         _this._spreadBulletTestMode = false; //子弹扩散区域测试模式
         _this._spreadBulletAreaData = null;
         _this._bounceObstacleTestMode = false; //子弹反弹障碍测试模式
         _this._bounceObstacles = [];
         _this._blackHoleTestMode = false; //黑洞区域测试模式
         _this._blackHoleAreaData = null;
+        _this._multiplayerBlackHoleAreas = [];
         _this._clusterBombTestMode = false; //集束炸弹测试模式
         _this._multiplayerMode = false; //多人模式
         _this._multiplayerPlayers = []; //多人玩家列表
@@ -800,6 +803,7 @@ var GameMap = /** @class */ (function (_super) {
     };
     GameMap.prototype._clearDamageDoubleTestNodes = function () {
         this._damageDoubleAreaData = null;
+        this._multiplayerDamageDoubleAreas = [];
         var children = this._fire._tmLayerObstacle.children.slice();
         for (var i = 0; i < children.length; i++) {
             var child = children[i];
@@ -905,17 +909,30 @@ var GameMap = /** @class */ (function (_super) {
         };
     };
     GameMap.prototype.tryEnterDamageDoubleArea = function (bullet, fromPos, toPos) {
-        if (!this._damageDoubleTestMode || !bullet || !this._damageDoubleAreaData) {
+        var areaList = [];
+        if (this._multiplayerMode) {
+            areaList = this._multiplayerDamageDoubleAreas || [];
+        }
+        else if (this._damageDoubleTestMode && this._damageDoubleAreaData) {
+            areaList = [this._damageDoubleAreaData];
+        }
+        if (!bullet || areaList.length == 0) {
             return false;
         }
         if (bullet.hasUsedDamageDoubleArea && bullet.hasUsedDamageDoubleArea()) {
             return false;
         }
-        var area = this._damageDoubleAreaData;
-        if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
-            return false;
+        for (var i = 0; i < areaList.length; i++) {
+            var area = areaList[i];
+            if (!area) {
+                continue;
+            }
+            if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
+                continue;
+            }
+            return bullet.enterDamageDoubleArea ? bullet.enterDamageDoubleArea(area) : false;
         }
-        return bullet.enterDamageDoubleArea ? bullet.enterDamageDoubleArea(area) : false;
+        return false;
     };
     GameMap.prototype.spawnDamageDoubleFx = function (pos) {
         var fx = new cc.Node("_damageDoubleFx");
@@ -936,6 +953,7 @@ var GameMap = /** @class */ (function (_super) {
     };
     GameMap.prototype._clearSpeedDoubleTestNodes = function () {
         this._speedDoubleAreaData = null;
+        this._multiplayerSpeedDoubleAreas = [];
         var children = this._fire._tmLayerObstacle.children.slice();
         for (var i = 0; i < children.length; i++) {
             var child = children[i];
@@ -1040,17 +1058,30 @@ var GameMap = /** @class */ (function (_super) {
         };
     };
     GameMap.prototype.tryEnterSpeedDoubleArea = function (bullet, fromPos, toPos) {
-        if (!this._speedDoubleTestMode || !bullet || !this._speedDoubleAreaData) {
+        var areaList = [];
+        if (this._multiplayerMode) {
+            areaList = this._multiplayerSpeedDoubleAreas || [];
+        }
+        else if (this._speedDoubleTestMode && this._speedDoubleAreaData) {
+            areaList = [this._speedDoubleAreaData];
+        }
+        if (!bullet || areaList.length == 0) {
             return false;
         }
         if (bullet.hasUsedSpeedDoubleArea && bullet.hasUsedSpeedDoubleArea()) {
             return false;
         }
-        var area = this._speedDoubleAreaData;
-        if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
-            return false;
+        for (var i = 0; i < areaList.length; i++) {
+            var area = areaList[i];
+            if (!area) {
+                continue;
+            }
+            if (this._distancePointToSegment(area.center, cc.v2(fromPos), cc.v2(toPos)) > area.radius) {
+                continue;
+            }
+            return bullet.enterSpeedDoubleArea ? bullet.enterSpeedDoubleArea(area) : false;
         }
-        return bullet.enterSpeedDoubleArea ? bullet.enterSpeedDoubleArea(area) : false;
+        return false;
     };
     GameMap.prototype.spawnSpeedDoubleFx = function (pos) {
         var fx = new cc.Node("_speedDoubleFx");
@@ -1361,6 +1392,7 @@ var GameMap = /** @class */ (function (_super) {
     };
     GameMap.prototype._clearBlackHoleTestNodes = function () {
         this._blackHoleAreaData = null;
+        this._multiplayerBlackHoleAreas = [];
         var children = this._fire._tmLayerObstacle.children.slice();
         for (var i = 0; i < children.length; i++) {
             var child = children[i];
@@ -1501,12 +1533,28 @@ var GameMap = /** @class */ (function (_super) {
         };
     };
     GameMap.prototype.tryEnterBlackHoleArea = function (bullet, fromPos, toPos) {
-        if (!this._blackHoleTestMode || !bullet || !this._blackHoleAreaData) {
+        var areaList = [];
+        if (this._multiplayerMode) {
+            areaList = this._multiplayerBlackHoleAreas || [];
+        }
+        else if (this._blackHoleTestMode && this._blackHoleAreaData) {
+            areaList = [this._blackHoleAreaData];
+        }
+        if (!bullet || areaList.length == 0) {
             return false;
         }
         var pos = cc.v2(bullet.node.position);
-        var dist = pos.sub(this._blackHoleAreaData.center).mag();
-        return dist < this._blackHoleAreaData.radius;
+        for (var i = 0; i < areaList.length; i++) {
+            var area = areaList[i];
+            if (!area) {
+                continue;
+            }
+            var dist = pos.sub(area.center).mag();
+            if (dist < area.radius) {
+                return true;
+            }
+        }
+        return false;
     };
     GameMap.prototype.spawnBlackHoleSwallowFx = function (pos) {
         var fx = new cc.Node("_blackHoleFx");
@@ -2638,12 +2686,13 @@ var GameMap = /** @class */ (function (_super) {
         pickup.addComponent(OilPickup_1.OilPickup);
         pickup.position = cc.v3(pos || this._getOilTestPickupPos());
         pickup.zIndex = this.judgezIndex(pickup.y);
-        pickup.script.setInGame(18);
+        pickup.script.setInGame(120);
         this._skills.push(pickup);
         return pickup;
     };
-    GameMap.prototype.spawnTarPickupAt = function (pos, pickupId) {
+    GameMap.prototype.spawnTarPickupAt = function (pos, pickupId, lifeTime) {
         if (pickupId === void 0) { pickupId = null; }
+        if (lifeTime === void 0) { lifeTime = 120; }
         if (!this._fire._tmLayerObstacle) {
             return null;
         }
@@ -2653,15 +2702,16 @@ var GameMap = /** @class */ (function (_super) {
         pickup.position = cc.v3(pos || this._getOilTestPickupPos());
         pickup.zIndex = this.judgezIndex(pickup.y);
         pickup.script.setPickupType("oil");
-        pickup.script.setInGame(18);
+        pickup.script.setInGame(lifeTime);
         if (pickupId != null) {
             pickup["__tarPickupId"] = pickupId;
         }
         this._skills.push(pickup);
         return pickup;
     };
-    GameMap.prototype.spawnBlackHolePickupAt = function (pos, pickupId) {
+    GameMap.prototype.spawnBlackHolePickupAt = function (pos, pickupId, lifeTime) {
         if (pickupId === void 0) { pickupId = null; }
+        if (lifeTime === void 0) { lifeTime = 120; }
         if (!this._fire._tmLayerObstacle) {
             return null;
         }
@@ -2671,7 +2721,7 @@ var GameMap = /** @class */ (function (_super) {
         pickup.position = cc.v3(pos || this._getOilTestPickupPos());
         pickup.zIndex = this.judgezIndex(pickup.y);
         pickup.script.setPickupType("blackHole");
-        pickup.script.setInGame(18);
+        pickup.script.setInGame(lifeTime);
         if (pickupId != null) {
             pickup["__blackHolePickupId"] = pickupId;
         }
@@ -3284,6 +3334,26 @@ var GameMap = /** @class */ (function (_super) {
         }
     };
     GameMap.prototype._updateBlackHoleArea = function (dt) {
+        if (this._multiplayerMode) {
+            for (var i = this._multiplayerBlackHoleAreas.length - 1; i >= 0; i--) {
+                var area = this._multiplayerBlackHoleAreas[i];
+                if (!area || !area.node || !cc.isValid(area.node)) {
+                    this._multiplayerBlackHoleAreas.splice(i, 1);
+                    continue;
+                }
+                if (area.duration != null) {
+                    area.remainTime -= dt;
+                    if (area.remainTime <= 0) {
+                        area.remainTime = 0;
+                        if (cc.isValid(area.node)) {
+                            area.node.destroy();
+                        }
+                        this._multiplayerBlackHoleAreas.splice(i, 1);
+                    }
+                }
+            }
+            return;
+        }
         if (!this._blackHoleAreaData || !this._blackHoleAreaData.node || !cc.isValid(this._blackHoleAreaData.node)) {
             return;
         }
@@ -4819,6 +4889,9 @@ var GameMap = /** @class */ (function (_super) {
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
         this._multiplayerSpecialEventMap = {};
+        this._multiplayerDamageDoubleAreas = [];
+        this._multiplayerSpeedDoubleAreas = [];
+        this._multiplayerBlackHoleAreas = [];
         this._multiplayerSpawnSlots = [];
         this._multiplayerSafeZone = null;
         this._killEffectTestMode = false;
@@ -5051,6 +5124,9 @@ var GameMap = /** @class */ (function (_super) {
         this._multiplayerTarSpillMap = {};
         this._multiplayerBlackHolePickupMap = {};
         this._multiplayerBlackHoleZoneMap = {};
+        this._multiplayerDamageDoubleAreas = [];
+        this._multiplayerSpeedDoubleAreas = [];
+        this._multiplayerBlackHoleAreas = [];
         this._multiplayerSafeZone = null;
         this._multiplayerSafeZoneNode = null;
         this._pendingTarThrowMap = {};
@@ -5367,7 +5443,7 @@ var GameMap = /** @class */ (function (_super) {
         if (this._multiplayerTarPickupMap[pickupData.id] && cc.isValid(this._multiplayerTarPickupMap[pickupData.id])) {
             return;
         }
-        var pickup = this.spawnTarPickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id);
+        var pickup = this.spawnTarPickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id, pickupData.remainTime == null ? 120 : pickupData.remainTime);
         if (pickup) {
             this._multiplayerTarPickupMap[pickupData.id] = pickup;
         }
@@ -5420,7 +5496,7 @@ var GameMap = /** @class */ (function (_super) {
         if (this._multiplayerBlackHolePickupMap[pickupData.id] && cc.isValid(this._multiplayerBlackHolePickupMap[pickupData.id])) {
             return;
         }
-        var pickup = this.spawnBlackHolePickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id);
+        var pickup = this.spawnBlackHolePickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.id, pickupData.remainTime == null ? 120 : pickupData.remainTime);
         if (pickup) {
             this._multiplayerBlackHolePickupMap[pickupData.id] = pickup;
         }
@@ -5503,14 +5579,33 @@ var GameMap = /** @class */ (function (_super) {
         var node = this.spawnBlackHoleZone(cc.v2(zoneData.x || 0, zoneData.y || 0), zoneData);
         if (node) {
             this._multiplayerBlackHoleZoneMap[zoneData.id] = node;
+            this._multiplayerBlackHoleAreas.push({
+                node: node,
+                center: cc.v2(zoneData.x || 0, zoneData.y || 0),
+                radius: zoneData.radius == null ? 100 : zoneData.radius,
+                destroyRadius: zoneData.destroyRadius == null ? 14 : zoneData.destroyRadius,
+                gravityStrength: zoneData.gravityStrength == null ? 160 : zoneData.gravityStrength,
+                duration: zoneData.duration == null ? null : zoneData.duration,
+                remainTime: zoneData.remainTime == null ? zoneData.duration : zoneData.remainTime,
+                eventId: zoneData.id,
+            });
         }
     };
     GameMap.prototype._removeMultiplayerBlackHoleZone = function (zoneId) {
         if (zoneId == null) {
             return;
         }
+        var node = this._multiplayerBlackHoleZoneMap[zoneId];
+        if (node && cc.isValid(node)) {
+            node.destroy();
+        }
         delete this._multiplayerBlackHoleZoneMap[zoneId];
-        this._clearBlackHoleTestNodes();
+        for (var i = this._multiplayerBlackHoleAreas.length - 1; i >= 0; i--) {
+            var area = this._multiplayerBlackHoleAreas[i];
+            if (!area || area.eventId == zoneId) {
+                this._multiplayerBlackHoleAreas.splice(i, 1);
+            }
+        }
     };
     GameMap.prototype._playMultiplayerBlackHoleThrow = function (command) {
         if (!command || !command.from || !command.to) {
@@ -5643,22 +5738,7 @@ var GameMap = /** @class */ (function (_super) {
         if (eventId != null && this._multiplayerSpecialEventMap[eventId]) {
             delete this._multiplayerSpecialEventMap[eventId];
         }
-        if (eventType === "portal") {
-            this._portalTestMode = false;
-            this._clearPortalTestNodes();
-        }
-        else if (eventType === "damageDouble") {
-            this._damageDoubleTestMode = false;
-            this._clearDamageDoubleTestNodes();
-        }
-        else if (eventType === "speedDouble") {
-            this._speedDoubleTestMode = false;
-            this._clearSpeedDoubleTestNodes();
-        }
-        else if (eventType === "blackHole") {
-            this._blackHoleTestMode = false;
-            this._clearBlackHoleTestNodes();
-        }
+        this._rebuildMultiplayerSpecialEventViews();
     };
     GameMap.prototype._applyMultiplayerSafeZoneDamage = function (command) {
         if (!this._multiplayerMode || !command || command.playerId == null) {
@@ -5776,7 +5856,6 @@ var GameMap = /** @class */ (function (_super) {
             return;
         }
         this._portalTestMode = true;
-        this._clearPortalTestNodes();
         var entryPos = this.clampMapInnerPosition(cc.v2(eventData.entryPos), 90);
         var exitPos = this.clampMapInnerPosition(cc.v2(eventData.exitPos), 90);
         this._createPortalGate("_portalGateA", entryPos, cc.color(90, 215, 255, 255), "A");
@@ -5805,51 +5884,96 @@ var GameMap = /** @class */ (function (_super) {
             return;
         }
         this._damageDoubleTestMode = true;
-        this._clearDamageDoubleTestNodes();
         var center = this.clampMapInnerPosition(cc.v2(eventData.center), 100);
         var radius = eventData.radius == null ? 60 : eventData.radius;
         this._createDamageDoubleAreaNode(center, radius, cc.color(255, 40, 40, 255));
-        this._damageDoubleAreaData = {
+        var areaData = {
             center: center,
             radius: radius,
             damageMultiplier: eventData.damageMultiplier == null ? 2 : eventData.damageMultiplier,
             scaleMultiplier: eventData.scaleMultiplier == null ? 1.5 : eventData.scaleMultiplier,
             eventId: eventData.id,
         };
+        this._damageDoubleAreaData = areaData;
+        this._multiplayerDamageDoubleAreas.push(areaData);
     };
     GameMap.prototype._applyMultiplayerSpeedDoubleEvent = function (eventData) {
         if (!eventData.center) {
             return;
         }
         this._speedDoubleTestMode = true;
-        this._clearSpeedDoubleTestNodes();
         var center = this.clampMapInnerPosition(cc.v2(eventData.center), 100);
         var radius = eventData.radius == null ? 60 : eventData.radius;
         this._createSpeedDoubleAreaNode(center, radius, cc.color(30, 130, 255, 255));
-        this._speedDoubleAreaData = {
+        var areaData = {
             center: center,
             radius: radius,
             speedMultiplier: eventData.speedMultiplier == null ? 3 : eventData.speedMultiplier,
             eventId: eventData.id,
         };
+        this._speedDoubleAreaData = areaData;
+        this._multiplayerSpeedDoubleAreas.push(areaData);
     };
     GameMap.prototype._applyMultiplayerBlackHoleEvent = function (eventData) {
         if (!eventData.center) {
             return;
         }
         this._blackHoleTestMode = true;
-        this._clearBlackHoleTestNodes();
         var center = this.clampMapInnerPosition(cc.v2(eventData.center), 120);
         var radius = eventData.radius == null ? 100 : eventData.radius;
         var destroyRadius = eventData.destroyRadius == null ? 14 : eventData.destroyRadius;
-        this._createBlackHoleAreaNode(center, radius, destroyRadius, cc.color(80, 30, 160, 200));
-        this._blackHoleAreaData = {
+        var node = this._createBlackHoleAreaNode(center, radius, destroyRadius, cc.color(80, 30, 160, 200));
+        var areaData = {
+            node: node,
             center: center,
             radius: radius,
             destroyRadius: destroyRadius,
             gravityStrength: eventData.gravityStrength == null ? 160 : eventData.gravityStrength,
             eventId: eventData.id,
         };
+        this._blackHoleAreaData = areaData;
+        this._multiplayerBlackHoleAreas.push(areaData);
+    };
+    GameMap.prototype._rebuildMultiplayerSpecialEventViews = function () {
+        if (!this._multiplayerMode) {
+            return;
+        }
+        this._portalTestMode = false;
+        this._damageDoubleTestMode = false;
+        this._speedDoubleTestMode = false;
+        this._blackHoleTestMode = false;
+        this._clearPortalTestNodes();
+        this._clearDamageDoubleTestNodes();
+        this._clearSpeedDoubleTestNodes();
+        var zoneIds = Object.keys(this._multiplayerBlackHoleZoneMap || {});
+        for (var i = 0; i < zoneIds.length; i++) {
+            var zoneId = zoneIds[i];
+            var node = this._multiplayerBlackHoleZoneMap[zoneId];
+            if (node && cc.isValid(node)) {
+                node.destroy();
+            }
+        }
+        this._multiplayerBlackHoleZoneMap = {};
+        this._clearBlackHoleTestNodes();
+        var eventIds = Object.keys(this._multiplayerSpecialEventMap || {});
+        for (var i = 0; i < eventIds.length; i++) {
+            var eventData = this._multiplayerSpecialEventMap[eventIds[i]];
+            if (!eventData) {
+                continue;
+            }
+            if (eventData.type === "portal") {
+                this._applyMultiplayerPortalEvent(eventData);
+            }
+            else if (eventData.type === "damageDouble") {
+                this._applyMultiplayerDamageDoubleEvent(eventData);
+            }
+            else if (eventData.type === "speedDouble") {
+                this._applyMultiplayerSpeedDoubleEvent(eventData);
+            }
+            else if (eventData.type === "blackHole") {
+                this._applyMultiplayerBlackHoleEvent(eventData);
+            }
+        }
     };
     GameMap.prototype._centerOnLocalPlayer = function () {
         if (!this._multiplayerMode)

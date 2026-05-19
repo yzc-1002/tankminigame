@@ -2345,8 +2345,8 @@
       "__type__": "TypedArray",
       "ctor": "Float64Array",
       "array": [
-        -530.404,
-        0,
+        -525.94,
+        328.158,
         0,
         0,
         0,
@@ -2549,7 +2549,7 @@
         "__id__": 102
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [],
     "_prefab": {
       "__id__": 105
@@ -4172,7 +4172,7 @@
         "__id__": 130
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [],
     "_prefab": {
       "__id__": 136
@@ -4278,7 +4278,7 @@
         1,
         1,
         1,
-        0
+        1
       ]
     },
     "_eulerAngles": {
@@ -4508,7 +4508,7 @@
         1,
         1,
         1,
-        0
+        1
       ]
     },
     "_eulerAngles": {
@@ -4735,7 +4735,7 @@
         1,
         1,
         1,
-        0
+        1
       ]
     },
     "_eulerAngles": {

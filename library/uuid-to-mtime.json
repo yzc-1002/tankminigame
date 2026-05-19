@@ -500,8 +500,8 @@
     "relativePath": "model\\primitives.fbx"
   },
   "699e2598-5707-4272-9b4e-9135dc30345b": {
-    "asset": 1776930948959,
-    "meta": 1776934462552,
+    "asset": 1778835088846,
+    "meta": 1779075551596,
     "relativePath": "map"
   },
   "b08cbb29-bb8a-446f-8bc2-d27b2674234d": {
@@ -515,8 +515,8 @@
     "relativePath": "migration\\use_v2.1-2.2.1_cc.Toggle_event.js"
   },
   "6cae3224-9505-4e63-9a96-6face22c6bc4": {
-    "asset": 1776754823599,
-    "meta": 1776856747641,
+    "asset": 1778835088870,
+    "meta": 1779075551597,
     "relativePath": "prefab"
   },
   "a56ee7bb-5bc3-4418-8683-4993145b9e56": {
@@ -570,8 +570,8 @@
     "relativePath": "prefab\\skill"
   },
   "24268077-3473-412a-81cf-725649348735": {
-    "asset": 1609561794000,
-    "meta": 1776683591537,
+    "asset": 1778835088873,
+    "meta": 1779075551598,
     "relativePath": "prefab\\tank"
   },
   "a764c1c6-00c9-4f63-b136-bdf247b9cd15": {
@@ -595,8 +595,8 @@
     "relativePath": "resources\\default"
   },
   "cee59b64-5aa0-4aad-b678-ea93cb692d70": {
-    "asset": 1609561796000,
-    "meta": 1776683591563,
+    "asset": 1778835088941,
+    "meta": 1779075551599,
     "relativePath": "resources\\sfx"
   },
   "38e67082-ddca-4258-bf00-e84ca759d0c6": {
@@ -640,8 +640,8 @@
     "relativePath": "resources\\sfx\\shoot.mp3"
   },
   "6b442fd2-d2c7-4647-8dd0-114a70c7e752": {
-    "asset": 1609561796000,
-    "meta": 1776683591968,
+    "asset": 1778835088942,
+    "meta": 1779075551601,
     "relativePath": "resources\\shader"
   },
   "b00fcdc2-a1cb-490d-87c1-b5a0eded3070": {
@@ -690,8 +690,8 @@
     "relativePath": "resources\\shader\\material-grey.mtl"
   },
   "29f52784-2fca-467b-92e7-8fd9ef8c57b7": {
-    "asset": 1609561796000,
-    "meta": 1776683592136,
+    "asset": 1778835088944,
+    "meta": 1779075551602,
     "relativePath": "scene"
   },
   "e9c80bf9-0c51-4a77-9c37-65060a0ecf5f": {
@@ -700,8 +700,8 @@
     "relativePath": "resources\\shader\\material-normal.mtl"
   },
   "4734c20c-0db8-4eb2-92ea-e692f4d70934": {
-    "asset": 1609561796000,
-    "meta": 1776683592146,
+    "asset": 1778835088967,
+    "meta": 1779075551605,
     "relativePath": "script"
   },
   "cbe8dd06-17ca-4118-a0e5-f3b30318b73f": {
@@ -830,8 +830,8 @@
     "relativePath": "script\\ad\\wechat\\WechatShare.ts"
   },
   "50850cfc-6b76-428e-8b32-f3fa0cfcc91b": {
-    "asset": 1609561796000,
-    "meta": 1776683592608,
+    "asset": 1778835088959,
+    "meta": 1779075551606,
     "relativePath": "script\\base"
   },
   "447fce45-c84e-466e-8145-b6797410bd5c": {
@@ -855,8 +855,8 @@
     "relativePath": "script\\CoinItem.ts"
   },
   "2cd660ec-f7c1-4d55-a24c-4232eece872c": {
-    "asset": 1609561796000,
-    "meta": 1776683592867,
+    "asset": 1778835088964,
+    "meta": 1779075551607,
     "relativePath": "script\\config"
   },
   "0ed43eb6-ab60-4b35-8f08-b5c675e85889": {
@@ -1375,8 +1375,8 @@
     "relativePath": "script\\Upgrade.ts"
   },
   "7b81d4e8-ec84-4716-968d-500ac1d78a54": {
-    "asset": 1609561796000,
-    "meta": 1776683594656,
+    "asset": 1778835089002,
+    "meta": 1779075551609,
     "relativePath": "texture"
   },
   "31d54cb0-dd99-466f-8aa7-0cd4ffe03431": {
@@ -1435,8 +1435,8 @@
     "relativePath": "texture\\sp\\sp_sk_hit_ice_explosion2.png"
   },
   "655db4d9-d4ee-4a7c-a326-76401369422f": {
-    "asset": 1609561798000,
-    "meta": 1776683594739,
+    "asset": 1778835089005,
+    "meta": 1779075551610,
     "relativePath": "texture\\ui"
   },
   "3357da52-e6b2-4637-ba32-1d99de29d8cd": {
@@ -1830,8 +1830,8 @@
     "relativePath": "prefab\\GameMap.prefab"
   },
   "9eb8f898-f012-4150-bd35-1b087a918955": {
-    "asset": 1778835810959,
-    "meta": 1778835810961,
+    "asset": 1778843707908,
+    "meta": 1778843707909,
     "relativePath": "prefab\\GameMain.prefab"
   },
   "099f4dde-58f4-4a3e-b662-48642286555d": {
@@ -1905,8 +1905,8 @@
     "relativePath": "resources\\shader\\ripple-distortion.effect"
   },
   "2d2f792f-a40c-49bb-a189-ed176a246e49": {
-    "asset": 1778835088943,
-    "meta": 1778835814397,
+    "asset": 1778843714952,
+    "meta": 1778843714961,
     "relativePath": "scene\\GameScene.fire"
   },
   "1e8b141b-5b9d-48bb-aac6-bbfe073b2e61": {
@@ -2119,19 +2119,19 @@
     "meta": 1778841986828,
     "relativePath": "script\\config\\Tank.ts"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1778842854921,
-    "meta": 1778842921941,
-    "relativePath": "script\\GameMain.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1778842849772,
-    "meta": 1778842922629,
-    "relativePath": "script\\GameMap.ts"
-  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
     "asset": 1778842841185,
     "meta": 1778842922800,
     "relativePath": "script\\Player.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1778843804081,
+    "meta": 1778843814663,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1778844104098,
+    "meta": 1778844122942,
+    "relativePath": "script\\GameMap.ts"
   }
 }
