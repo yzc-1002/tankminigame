@@ -72,6 +72,7 @@ var GameMain = /** @class */ (function (_super) {
         _this._multiplayerTarThrowRepeat = 0;
         _this._multiplayerCoverToggleRepeat = 0;
         _this._multiplayerFireSeq = 1;
+        _this._multiplayerCoverActionSeq = 1;
         _this._multiplayerJoyMoveHandler = null;
         _this._multiplayerJoyShootHandler = null;
         _this._multiplayerCameraFollowCallback = null;
@@ -1330,6 +1331,7 @@ var GameMain = /** @class */ (function (_super) {
             throwTar: false,
             throwBlackHole: false,
             toggleCover: false,
+            coverAction: null,
         };
     };
     GameMain.prototype._ensureMultiplayerInputs = function () {
@@ -1356,6 +1358,9 @@ var GameMain = /** @class */ (function (_super) {
         }
         if (this._multiplayerInputs.toggleCover === undefined) {
             this._multiplayerInputs.toggleCover = false;
+        }
+        if (this._multiplayerInputs.coverAction === undefined) {
+            this._multiplayerInputs.coverAction = null;
         }
         return this._multiplayerInputs;
     };
@@ -1388,6 +1393,7 @@ var GameMain = /** @class */ (function (_super) {
         else {
             inputs.toggleCover = false;
         }
+        inputs.coverAction = null;
     };
     GameMain.prototype._flushMultiplayerInputsNow = function () {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !this._netManager || !this._netManager.connected) {
@@ -1427,6 +1433,7 @@ var GameMain = /** @class */ (function (_super) {
             throwTar: source.throwTar ? source.throwTar : false,
             throwBlackHole: source.throwBlackHole ? source.throwBlackHole : false,
             toggleCover: !!source.toggleCover,
+            coverAction: source.coverAction ? source.coverAction : null,
             playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
         };
     };
@@ -1538,9 +1545,24 @@ var GameMain = /** @class */ (function (_super) {
         if (!this._multiplayerActive || this._multiplayerLocalDead) {
             return;
         }
+        var mapScript = this._fire && this._fire._tiled ? this._fire._tiled.script : null;
+        if (mapScript && mapScript.isLocalMultiplayerCoverActionAvailable && !mapScript.isLocalMultiplayerCoverActionAvailable()) {
+            return;
+        }
+        var coverAction = null;
+        if (mapScript && mapScript.buildLocalMultiplayerCoverAction) {
+            coverAction = mapScript.buildLocalMultiplayerCoverAction(this._multiplayerCoverActionSeq++);
+        }
+        else if (mapScript && mapScript.notifyLocalMultiplayerCoverToggleRequested) {
+            mapScript.notifyLocalMultiplayerCoverToggleRequested();
+        }
+        if (!coverAction) {
+            return;
+        }
         var inputs = this._ensureMultiplayerInputs();
-        inputs.toggleCover = true;
-        this._multiplayerCoverToggleRepeat = 2;
+        inputs.toggleCover = false;
+        inputs.coverAction = coverAction;
+        this._multiplayerCoverToggleRepeat = 0;
         this._flushMultiplayerInputsNow();
     };
     GameMain.prototype._onMultiplayerBulletEvent = function (event) {
@@ -1606,6 +1628,7 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
         this._multiplayerCoverToggleRepeat = 0;
+        this._multiplayerCoverActionSeq = 1;
         if (this._netManager) {
             this._netManager.onDisconnect = null;
             this._netManager.disconnect();
@@ -1627,6 +1650,7 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
         this._multiplayerCoverToggleRepeat = 0;
+        this._multiplayerCoverActionSeq = 1;
         this._teardownMultiplayerInputLoop();
         this._hideMultiplayerAnnouncement();
         this._hideMultiplayerHud();
@@ -1683,6 +1707,7 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerTarThrowRepeat = 0;
         this._multiplayerCoverToggleRepeat = 0;
         this._multiplayerFireSeq = 1;
+        this._multiplayerCoverActionSeq = 1;
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
         var self = this;
         this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, function () {

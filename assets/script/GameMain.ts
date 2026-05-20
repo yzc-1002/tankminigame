@@ -58,6 +58,7 @@ export default class GameMain extends BaseComponent {
     _multiplayerTarThrowRepeat = 0;
     _multiplayerCoverToggleRepeat = 0;
     _multiplayerFireSeq = 1;
+    _multiplayerCoverActionSeq = 1;
     _multiplayerJoyMoveHandler = null;
     _multiplayerJoyShootHandler = null;
     _multiplayerCameraFollowCallback = null;
@@ -1466,6 +1467,7 @@ export default class GameMain extends BaseComponent {
             throwTar: false,
             throwBlackHole: false,
             toggleCover: false,
+            coverAction: null,
         };
     }
 
@@ -1493,6 +1495,9 @@ export default class GameMain extends BaseComponent {
         }
         if (this._multiplayerInputs.toggleCover === undefined) {
             this._multiplayerInputs.toggleCover = false;
+        }
+        if (this._multiplayerInputs.coverAction === undefined) {
+            this._multiplayerInputs.coverAction = null;
         }
         return this._multiplayerInputs;
     }
@@ -1526,6 +1531,7 @@ export default class GameMain extends BaseComponent {
         else{
             inputs.toggleCover = false;
         }
+        inputs.coverAction = null;
     }
 
     _flushMultiplayerInputsNow() {
@@ -1567,6 +1573,7 @@ export default class GameMain extends BaseComponent {
             throwTar: source.throwTar ? source.throwTar : false,
             throwBlackHole: source.throwBlackHole ? source.throwBlackHole : false,
             toggleCover: !!source.toggleCover,
+            coverAction: source.coverAction ? source.coverAction : null,
             playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
         };
     }
@@ -1692,12 +1699,20 @@ export default class GameMain extends BaseComponent {
         if (mapScript && mapScript.isLocalMultiplayerCoverActionAvailable && !mapScript.isLocalMultiplayerCoverActionAvailable()) {
             return;
         }
-        if (mapScript && mapScript.notifyLocalMultiplayerCoverToggleRequested) {
+        let coverAction = null;
+        if (mapScript && mapScript.buildLocalMultiplayerCoverAction) {
+            coverAction = mapScript.buildLocalMultiplayerCoverAction(this._multiplayerCoverActionSeq++);
+        }
+        else if (mapScript && mapScript.notifyLocalMultiplayerCoverToggleRequested) {
             mapScript.notifyLocalMultiplayerCoverToggleRequested();
         }
+        if (!coverAction) {
+            return;
+        }
         let inputs = this._ensureMultiplayerInputs();
-        inputs.toggleCover = true;
-        this._multiplayerCoverToggleRepeat = 2;
+        inputs.toggleCover = false;
+        inputs.coverAction = coverAction;
+        this._multiplayerCoverToggleRepeat = 0;
         this._flushMultiplayerInputsNow();
     }
 
@@ -1770,6 +1785,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
         this._multiplayerCoverToggleRepeat = 0;
+        this._multiplayerCoverActionSeq = 1;
         if (this._netManager) {
             this._netManager.onDisconnect = null;
             this._netManager.disconnect();
@@ -1791,6 +1807,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
         this._multiplayerCoverToggleRepeat = 0;
+        this._multiplayerCoverActionSeq = 1;
         this._teardownMultiplayerInputLoop();
         this._hideMultiplayerAnnouncement();
         this._hideMultiplayerHud();
@@ -1840,6 +1857,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerTarThrowRepeat = 0;
         this._multiplayerCoverToggleRepeat = 0;
         this._multiplayerFireSeq = 1;
+        this._multiplayerCoverActionSeq = 1;
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
 
         let self = this;

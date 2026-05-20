@@ -141,6 +141,11 @@ export class NetworkManager {
                 ratio: Number.isFinite(source.throwBlackHole.ratio) ? source.throwBlackHole.ratio : 1,
             } : false,
             toggleCover: !!source.toggleCover,
+            coverAction: source.coverAction && Number.isFinite(source.coverAction.seq) && source.coverAction.coverId != null ? {
+                seq: source.coverAction.seq,
+                coverId: source.coverAction.coverId,
+                action: source.coverAction.action == "detach" ? "detach" : "attach",
+            } : null,
             playerSnapshot: snapshot ? {
                 x: snapshot.x,
                 y: snapshot.y,

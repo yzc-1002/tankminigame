@@ -441,6 +441,26 @@ function sanitizeAimInput(aim) {
   };
 }
 
+function sanitizeCoverActionInput(action) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  if (action.coverId == null) {
+    return null;
+  }
+  const seq = Number(action.seq);
+  const coverId = Number(action.coverId);
+  const actionType = action.action === 'detach' ? 'detach' : 'attach';
+  if (!Number.isFinite(seq) || seq <= 0 || !Number.isFinite(coverId)) {
+    return null;
+  }
+  return {
+    seq: Math.floor(seq),
+    coverId: Math.floor(coverId),
+    action: actionType,
+  };
+}
+
 function createMatchFlowState() {
   return {
     openingAnnounced: false,
@@ -985,6 +1005,20 @@ function buildCoverSyncCommand(cover) {
   };
 }
 
+function buildCoverActionResultCommand(player, action, accepted) {
+  if (!player || !action) {
+    return null;
+  }
+  return {
+    type: 'coverActionResult',
+    playerId: player.playerId,
+    seq: action.seq,
+    coverId: action.coverId,
+    action: action.action,
+    accepted: !!accepted,
+  };
+}
+
 function appendAllCoverSyncCommands(frameCommands) {
   for (let i = 0; i < room.covers.length; i++) {
     appendFrameCommand(frameCommands, buildCoverSyncCommand(room.covers[i]));
@@ -1123,6 +1157,75 @@ function tryToggleCoverByPlayer(player, frameCommands) {
   nearest.ownerPlayerId = player.playerId;
   syncAttachedCoversFromPlayers();
   appendFrameCommand(frameCommands, buildCoverSyncCommand(nearest));
+  return true;
+}
+
+function tryCoverActionByPlayer(player, action, frameCommands) {
+  if (!player || player.dead || player.disconnected || !action) {
+    return false;
+  }
+  if (action.seq <= (player.lastCoverActionSeq || 0)) {
+    return false;
+  }
+  player.lastCoverActionSeq = action.seq;
+
+  const cover = getCoverById(action.coverId);
+  if (!cover || cover.hp <= 0) {
+    appendFrameCommand(frameCommands, buildCoverActionResultCommand(player, action, false));
+    return false;
+  }
+
+  if (action.action === 'detach') {
+    if (!cover.attached || cover.ownerPlayerId !== player.playerId) {
+      appendFrameCommand(frameCommands, buildCoverSyncCommand(cover));
+      appendFrameCommand(frameCommands, buildCoverActionResultCommand(player, action, false));
+      return false;
+    }
+    cover.attached = false;
+    cover.ownerPlayerId = null;
+    cover.attachOffsetX = 0;
+    cover.attachOffsetY = 0;
+    appendFrameCommand(frameCommands, buildCoverSyncCommand(cover));
+    appendFrameCommand(frameCommands, buildCoverActionResultCommand(player, action, true));
+    return true;
+  }
+
+  if (cover.attached) {
+    appendFrameCommand(frameCommands, buildCoverSyncCommand(cover));
+    appendFrameCommand(frameCommands, buildCoverActionResultCommand(player, action, false));
+    return false;
+  }
+
+  const playerPos = getPlayerRuntimePosition(player);
+  const lenToCover = Math.sqrt(distanceSqr(playerPos, cover));
+  if (!Number.isFinite(lenToCover) || lenToCover > MULTIPLAYER_COVER_ATTACH_DISTANCE) {
+    appendFrameCommand(frameCommands, buildCoverSyncCommand(cover));
+    appendFrameCommand(frameCommands, buildCoverActionResultCommand(player, action, false));
+    return false;
+  }
+
+  let offsetX = cover.x - playerPos.x;
+  let offsetY = cover.y - playerPos.y;
+  let len = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+  if (!Number.isFinite(len) || len <= 5) {
+    const dir = getPlayerRuntimeDir(player);
+    offsetX = dir.x;
+    offsetY = dir.y;
+    len = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+  }
+  if (!Number.isFinite(len) || len <= 0.0001) {
+    offsetX = 1;
+    offsetY = 0;
+    len = 1;
+  }
+  const offsetDistance = clamp(len, MULTIPLAYER_COVER_ATTACH_MIN_OFFSET, MULTIPLAYER_COVER_ATTACH_MAX_OFFSET);
+  cover.attachOffsetX = Number(((offsetX / len) * offsetDistance).toFixed(3));
+  cover.attachOffsetY = Number(((offsetY / len) * offsetDistance).toFixed(3));
+  cover.attached = true;
+  cover.ownerPlayerId = player.playerId;
+  syncAttachedCoversFromPlayers();
+  appendFrameCommand(frameCommands, buildCoverSyncCommand(cover));
+  appendFrameCommand(frameCommands, buildCoverActionResultCommand(player, action, true));
   return true;
 }
 
@@ -2593,6 +2696,7 @@ function tick() {
       throwTar: false,
       throwBlackHole: false,
       toggleCover: false,
+      coverAction: null,
     };
 
     if (p.dead || p.disconnected) {
@@ -2668,6 +2772,10 @@ function tick() {
       if (src.toggleCover) {
         inputs.toggleCover = true;
       }
+      const coverAction = sanitizeCoverActionInput(src.coverAction);
+      if (coverAction && (!inputs.coverAction || coverAction.seq > inputs.coverAction.seq)) {
+        inputs.coverAction = coverAction;
+      }
       if (src.playerSnapshot) {
         p.lastSnapshot = sanitizePlayerSnapshot(src.playerSnapshot);
         if (p.lastSnapshot) {
@@ -2715,7 +2823,10 @@ function tick() {
       tryThrowBlackHoleByPlayer(p, sanitizeThrowTarPayload(inputs.throwBlackHole), eventCommands);
     }
     syncAttachedCoversFromPlayers();
-    if (inputs.toggleCover) {
+    if (inputs.coverAction) {
+      tryCoverActionByPlayer(p, inputs.coverAction, eventCommands);
+    }
+    else if (inputs.toggleCover) {
       tryToggleCoverByPlayer(p, eventCommands);
     }
     applySafeZoneDamageToPlayer(p, eventCommands);
@@ -2961,6 +3072,7 @@ wss.on('connection', (ws) => {
   ws.dirX = PLAYER_DIR_FALLBACK.x;
   ws.dirY = PLAYER_DIR_FALLBACK.y;
   ws.lastSnapshot = null;
+  ws.lastCoverActionSeq = 0;
   ws.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
 
   ws.on('message', (data) => {

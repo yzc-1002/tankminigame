@@ -154,6 +154,7 @@ var GameMap = /** @class */ (function (_super) {
         _this._pendingBlackHoleThrowMap = {};
         _this._multiplayerPendingCoverToggleId = null;
         _this._multiplayerCoverTogglePendingFrames = 0;
+        _this._multiplayerPendingCoverAction = null;
         _this._localPlayerId = 0; //本地玩家ID
         _this._multiplayerSpawnSlots = []; //多人出生槽位
         _this._levelId = 1; //当前关卡id
@@ -3821,37 +3822,81 @@ var GameMap = /** @class */ (function (_super) {
     GameMap.prototype._isLocalMultiplayerCoverTogglePending = function () {
         return !!(this._multiplayerMode && this._multiplayerPendingCoverToggleId != null && this._multiplayerCoverTogglePendingFrames > 0);
     };
+    GameMap.prototype._getLocalMultiplayerPlayerNode = function () {
+        return this._multiplayerPlayers && this._multiplayerPlayers.length > 0
+            ? this._multiplayerPlayers[this._localPlayerId]
+            : null;
+    };
+    GameMap.prototype._getLocalMultiplayerPlayerScript = function () {
+        var player = this._getLocalMultiplayerPlayerNode();
+        if (!player || !cc.isValid(player) || !player.script) {
+            return null;
+        }
+        return player.script;
+    };
     GameMap.prototype.isLocalMultiplayerCoverActionAvailable = function () {
         if (!this._multiplayerMode || this._isLocalMultiplayerCoverTogglePending()) {
             return false;
         }
-        var player = this._multiplayerPlayers && this._multiplayerPlayers.length > 0
-            ? this._multiplayerPlayers[this._localPlayerId]
-            : null;
-        if (!player || !cc.isValid(player) || !player.script) {
+        var player = this._getLocalMultiplayerPlayerScript();
+        if (!player) {
             return false;
         }
-        return !!(this._getAttachedMultiplayerCover(player.script) || this._getNearestMultiplayerAttachableCover(player.script));
+        return !!(this._getAttachedMultiplayerCover(player) || this._getNearestMultiplayerAttachableCover(player));
+    };
+    GameMap.prototype.buildLocalMultiplayerCoverAction = function (seq) {
+        if (!this._multiplayerMode || this._isLocalMultiplayerCoverTogglePending()) {
+            return null;
+        }
+        var player = this._getLocalMultiplayerPlayerScript();
+        if (!player) {
+            return null;
+        }
+        var targetCover = this._getAttachedMultiplayerCover(player);
+        var action = "detach";
+        if (!targetCover) {
+            targetCover = this._getNearestMultiplayerAttachableCover(player);
+            action = "attach";
+        }
+        if (!targetCover || targetCover.coverId == null) {
+            return null;
+        }
+        var actionSeq = Number.isFinite(seq) ? seq : 0;
+        this._setLocalMultiplayerCoverTogglePending(targetCover.coverId, action, actionSeq);
+        return {
+            seq: actionSeq,
+            coverId: targetCover.coverId,
+            action: action,
+        };
     };
     GameMap.prototype.notifyLocalMultiplayerCoverToggleRequested = function () {
         if (!this._multiplayerMode) {
             return;
         }
-        var player = this._multiplayerPlayers && this._multiplayerPlayers.length > 0
-            ? this._multiplayerPlayers[this._localPlayerId]
-            : null;
-        if (!player || !cc.isValid(player) || !player.script) {
+        var player = this._getLocalMultiplayerPlayerScript();
+        if (!player) {
             return;
         }
-        var targetCover = this._getAttachedMultiplayerCover(player.script);
+        var targetCover = this._getAttachedMultiplayerCover(player);
+        var action = "detach";
         if (!targetCover) {
-            targetCover = this._getNearestMultiplayerAttachableCover(player.script);
+            targetCover = this._getNearestMultiplayerAttachableCover(player);
+            action = "attach";
         }
         if (!targetCover || targetCover.coverId == null) {
             return;
         }
-        this._multiplayerPendingCoverToggleId = targetCover.coverId;
-        this._multiplayerCoverTogglePendingFrames = 6;
+        this._setLocalMultiplayerCoverTogglePending(targetCover.coverId, action, 0);
+    };
+    GameMap.prototype._setLocalMultiplayerCoverTogglePending = function (coverId, action, seq) {
+        this._multiplayerPendingCoverToggleId = coverId;
+        this._multiplayerCoverTogglePendingFrames = 20;
+        this._multiplayerPendingCoverAction = {
+            coverId: coverId,
+            action: action == "detach" ? "detach" : "attach",
+            seq: Number.isFinite(seq) ? seq : 0,
+            expectedAttached: action == "attach",
+        };
         this._refreshLocalCoverInteractionUi();
     };
     GameMap.prototype._tickLocalMultiplayerCoverTogglePending = function () {
@@ -3862,6 +3907,7 @@ var GameMap = /** @class */ (function (_super) {
         if (this._multiplayerCoverTogglePendingFrames <= 0) {
             this._multiplayerCoverTogglePendingFrames = 0;
             this._multiplayerPendingCoverToggleId = null;
+            this._multiplayerPendingCoverAction = null;
         }
     };
     GameMap.prototype._clearLocalMultiplayerCoverTogglePending = function (coverId) {
@@ -3874,6 +3920,30 @@ var GameMap = /** @class */ (function (_super) {
         }
         this._multiplayerPendingCoverToggleId = null;
         this._multiplayerCoverTogglePendingFrames = 0;
+        this._multiplayerPendingCoverAction = null;
+    };
+    GameMap.prototype._syncLocalMultiplayerCoverTogglePendingFromCover = function (coverData) {
+        if (!this._isLocalMultiplayerCoverTogglePending() || !coverData || coverData.id == null) {
+            return;
+        }
+        if (this._multiplayerPendingCoverToggleId != coverData.id) {
+            return;
+        }
+        var pending = this._multiplayerPendingCoverAction;
+        if (!pending) {
+            return;
+        }
+        var attached = !!coverData.attached;
+        var ownerPlayerId = coverData.ownerPlayerId == null ? null : coverData.ownerPlayerId;
+        if (pending.expectedAttached) {
+            if (attached || coverData.hp <= 0) {
+                this._clearLocalMultiplayerCoverTogglePending(coverData.id);
+            }
+            return;
+        }
+        if (!attached || ownerPlayerId != this._localPlayerId || coverData.hp <= 0) {
+            this._clearLocalMultiplayerCoverTogglePending(coverData.id);
+        }
     };
     GameMap.prototype._isCoverInteractionEnabled = function () {
         return !!(this._coverTestMode || this._multiplayerMode);
@@ -3885,9 +3955,7 @@ var GameMap = /** @class */ (function (_super) {
         }
         var player = null;
         if (this._multiplayerMode) {
-            player = this._multiplayerPlayers && this._multiplayerPlayers.length > 0
-                ? this._multiplayerPlayers[this._localPlayerId]
-                : null;
+            player = this._getLocalMultiplayerPlayerNode();
         }
         else {
             player = this._player;
@@ -3905,9 +3973,7 @@ var GameMap = /** @class */ (function (_super) {
         }
         if (this._multiplayerMode) {
             // Safeguard: only the local player should update the UI button state
-            var localPlayer = this._multiplayerPlayers && this._multiplayerPlayers.length > 0
-                ? this._multiplayerPlayers[this._localPlayerId]
-                : null;
+            var localPlayer = this._getLocalMultiplayerPlayerNode();
             if (!localPlayer || !cc.isValid(localPlayer) || player.node !== localPlayer) {
                 return;
             }
@@ -3997,7 +4063,7 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
         var localPlayer = this._multiplayerMode
-            ? (this._multiplayerPlayers && this._multiplayerPlayers.length > 0 ? this._multiplayerPlayers[this._localPlayerId] : null)
+            ? this._getLocalMultiplayerPlayerNode()
             : this._player;
         if (!player || player.node === localPlayer) {
             yyp.eventCenter.emit("cover-button-state", { visible: false });
@@ -5344,6 +5410,7 @@ var GameMap = /** @class */ (function (_super) {
         this._pendingBlackHoleThrowMap = {};
         this._multiplayerPendingCoverToggleId = null;
         this._multiplayerCoverTogglePendingFrames = 0;
+        this._multiplayerPendingCoverAction = null;
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
         var playerStates = Array.isArray(players) ? players : [];
@@ -5517,6 +5584,22 @@ var GameMap = /** @class */ (function (_super) {
             else if (command.type === "coverRemove") {
                 this._removeMultiplayerCover(command.coverId);
             }
+            else if (command.type === "coverActionResult") {
+                this._applyMultiplayerCoverActionResult(command);
+            }
+        }
+    };
+    GameMap.prototype._applyMultiplayerCoverActionResult = function (command) {
+        if (!this._isLocalMultiplayerCoverTogglePending() || !command || command.playerId != this._localPlayerId) {
+            return;
+        }
+        var pending = this._multiplayerPendingCoverAction;
+        if (!pending || pending.seq != command.seq || pending.coverId != command.coverId) {
+            return;
+        }
+        if (command.accepted !== true) {
+            this._clearLocalMultiplayerCoverTogglePending(command.coverId);
+            this._refreshLocalCoverInteractionUi();
         }
     };
     GameMap.prototype._initMultiplayerCovers = function (covers) {
@@ -5581,7 +5664,7 @@ var GameMap = /** @class */ (function (_super) {
             cover.node.setPosition(cc.v3(pos));
             cover.node.zIndex = this.judgezIndex(pos.y) + 1;
         }
-        this._clearLocalMultiplayerCoverTogglePending(coverData.id);
+        this._syncLocalMultiplayerCoverTogglePendingFromCover(coverData);
         this._refreshCoverTestCoverVisual(cover);
         this._refreshLocalCoverInteractionUi();
     };
