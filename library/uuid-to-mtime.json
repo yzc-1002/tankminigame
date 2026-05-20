@@ -2124,14 +2124,14 @@
     "meta": 1779251120776,
     "relativePath": "script\\GameMain.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1779250511405,
-    "meta": 1779251121800,
-    "relativePath": "script\\GameMap.ts"
-  },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
     "asset": 1779250367281,
     "meta": 1779251121837,
     "relativePath": "script\\network\\NetworkManager.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1779265816456,
+    "meta": 1779265924112,
+    "relativePath": "script\\GameMap.ts"
   }
 }

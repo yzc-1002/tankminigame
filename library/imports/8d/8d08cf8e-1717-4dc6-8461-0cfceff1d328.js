@@ -2614,8 +2614,8 @@ var GameMap = /** @class */ (function (_super) {
             : null;
         var nextPos = cc.v2(payload.x || 0, payload.y || 0);
         if (egg.attached && egg.owner && cc.isValid(egg.owner)) {
-            nextPos = cc.v2(egg.owner.position).add(egg.attachOffset || cc.v2(0, 0));
-            nextPos = this.clampMapInnerPosition(nextPos, (egg.radius || 34) + 8);
+            this._syncLocalMultiplayerInteractionPendingFromEnergyEgg(payload);
+            return;
         }
         egg.node.setPosition(cc.v3(nextPos));
         egg.node.zIndex = this.judgezIndex(nextPos.y) + 1;
