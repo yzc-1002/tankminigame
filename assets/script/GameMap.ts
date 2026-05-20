@@ -146,8 +146,11 @@ export class GameMap extends BaseComponent {
     _multiplayerBlackHoleZoneMap = {};
     _multiplayerSafeZone = null;
     _multiplayerSafeZoneNode = null;
+    _multiplayerCoverMap = {};
     _pendingTarThrowMap = {};
     _pendingBlackHoleThrowMap = {};
+    _multiplayerPendingCoverToggleId = null;
+    _multiplayerCoverTogglePendingFrames = 0;
     _localPlayerId = 0;       //本地玩家ID
     _multiplayerSpawnSlots = []; //多人出生槽位
     _levelId        = 1;        //当前关卡id
@@ -3359,6 +3362,9 @@ export class GameMap extends BaseComponent {
             attached: false,
             owner: null,
             attachOffset: cc.v2(0, 0),
+            ownerPlayerId: null,
+            multiplayer: false,
+            coverId: null,
         };
         root["__coverTestData"] = cover;
         root["$Crack"] = crack;
@@ -4371,12 +4377,31 @@ export class GameMap extends BaseComponent {
     _getAttachedCoverTestCover(player = null) {
         this._cleanupInvalidCoverTestCovers();
         let ownerNode = player && player.node ? player.node : null;
+        let ownerPlayerId = player && player._multiplayerPlayerId != null ? player._multiplayerPlayerId : null;
         for (let i = 0; i < this._coverTestCovers.length; i++) {
             let cover = this._coverTestCovers[i];
             if (cover && cover.attached) {
-                if (!ownerNode || cover.owner == ownerNode) {
+                if (!ownerNode || cover.owner == ownerNode || (ownerPlayerId != null && cover.ownerPlayerId == ownerPlayerId)) {
                     return cover;
                 }
+            }
+        }
+        return null;
+    }
+
+    _getAttachedMultiplayerCover(player = null) {
+        this._cleanupInvalidCoverTestCovers();
+        let ownerPlayerId = player && player._multiplayerPlayerId != null ? player._multiplayerPlayerId : null;
+        if (ownerPlayerId == null) {
+            return null;
+        }
+        for (let i = 0; i < this._coverTestCovers.length; i++) {
+            let cover = this._coverTestCovers[i];
+            if (!cover || !cover.multiplayer || !cover.attached) {
+                continue;
+            }
+            if (cover.ownerPlayerId == ownerPlayerId) {
+                return cover;
             }
         }
         return null;
@@ -4405,9 +4430,143 @@ export class GameMap extends BaseComponent {
         return nearest;
     }
 
-    refreshCoverTestButton(player) {
-        if (!this._coverTestMode || !player || !player.node || !cc.isValid(player.node)) {
+    _getNearestMultiplayerAttachableCover(player) {
+        if (!player || !player.node || !cc.isValid(player.node)) {
+            return null;
+        }
+
+        this._cleanupInvalidCoverTestCovers();
+        let playerPos = cc.v2(player.node.position);
+        let nearest = null;
+        let nearestLen = 0;
+        for (let i = 0; i < this._coverTestCovers.length; i++) {
+            let cover = this._coverTestCovers[i];
+            if (!cover || !cover.multiplayer || !cover.node || !cc.isValid(cover.node) || cover.attached || cover.hp <= 0) {
+                continue;
+            }
+            let len = playerPos.sub(cover.node.position).mag();
+            if (len <= 110 && (nearest == null || len < nearestLen)) {
+                nearest = cover;
+                nearestLen = len;
+            }
+        }
+        return nearest;
+    }
+
+    _isLocalMultiplayerCoverTogglePending() {
+        return !!(this._multiplayerMode && this._multiplayerPendingCoverToggleId != null && this._multiplayerCoverTogglePendingFrames > 0);
+    }
+
+    isLocalMultiplayerCoverActionAvailable() {
+        if (!this._multiplayerMode || this._isLocalMultiplayerCoverTogglePending()) {
+            return false;
+        }
+        let player = this._multiplayerPlayers && this._multiplayerPlayers.length > 0
+            ? this._multiplayerPlayers[this._localPlayerId]
+            : null;
+        if (!player || !cc.isValid(player) || !player.script) {
+            return false;
+        }
+        return !!(this._getAttachedMultiplayerCover(player.script) || this._getNearestMultiplayerAttachableCover(player.script));
+    }
+
+    notifyLocalMultiplayerCoverToggleRequested() {
+        if (!this._multiplayerMode) {
+            return;
+        }
+        let player = this._multiplayerPlayers && this._multiplayerPlayers.length > 0
+            ? this._multiplayerPlayers[this._localPlayerId]
+            : null;
+        if (!player || !cc.isValid(player) || !player.script) {
+            return;
+        }
+        let targetCover = this._getAttachedMultiplayerCover(player.script);
+        if (!targetCover) {
+            targetCover = this._getNearestMultiplayerAttachableCover(player.script);
+        }
+        if (!targetCover || targetCover.coverId == null) {
+            return;
+        }
+        this._multiplayerPendingCoverToggleId = targetCover.coverId;
+        this._multiplayerCoverTogglePendingFrames = 6;
+        this._refreshLocalCoverInteractionUi();
+    }
+
+    _tickLocalMultiplayerCoverTogglePending() {
+        if (!this._multiplayerMode || this._multiplayerPendingCoverToggleId == null || this._multiplayerCoverTogglePendingFrames <= 0) {
+            return;
+        }
+        this._multiplayerCoverTogglePendingFrames--;
+        if (this._multiplayerCoverTogglePendingFrames <= 0) {
+            this._multiplayerCoverTogglePendingFrames = 0;
+            this._multiplayerPendingCoverToggleId = null;
+        }
+    }
+
+    _clearLocalMultiplayerCoverTogglePending(coverId = null) {
+        if (this._multiplayerPendingCoverToggleId == null) {
+            return;
+        }
+        if (coverId != null && this._multiplayerPendingCoverToggleId != coverId) {
+            return;
+        }
+        this._multiplayerPendingCoverToggleId = null;
+        this._multiplayerCoverTogglePendingFrames = 0;
+    }
+
+    _isCoverInteractionEnabled() {
+        return !!(this._coverTestMode || this._multiplayerMode);
+    }
+
+    _refreshLocalCoverInteractionUi() {
+        if (!this._isCoverInteractionEnabled()) {
             yyp.eventCenter.emit("cover-button-state",{visible:false});
+            return;
+        }
+        let player = null;
+        if (this._multiplayerMode) {
+            player = this._multiplayerPlayers && this._multiplayerPlayers.length > 0
+                ? this._multiplayerPlayers[this._localPlayerId]
+                : null;
+        }
+        else{
+            player = this._player;
+        }
+        if (!player || !cc.isValid(player) || !player.script) {
+            yyp.eventCenter.emit("cover-button-state",{visible:false});
+            return;
+        }
+        this.refreshCoverTestButton(player.script);
+    }
+
+    refreshCoverTestButton(player) {
+        if (!this._isCoverInteractionEnabled() || !player || !player.node || !cc.isValid(player.node)) {
+            yyp.eventCenter.emit("cover-button-state",{visible:false});
+            return;
+        }
+
+        if (this._multiplayerMode) {
+            // Safeguard: only the local player should update the UI button state
+            let localPlayer = this._multiplayerPlayers && this._multiplayerPlayers.length > 0
+                ? this._multiplayerPlayers[this._localPlayerId]
+                : null;
+            if (!localPlayer || !cc.isValid(localPlayer) || player.node !== localPlayer) {
+                return;
+            }
+
+            if (this._isLocalMultiplayerCoverTogglePending()) {
+                yyp.eventCenter.emit("cover-button-state",{visible:false});
+                return;
+            }
+
+            let attached = this._getAttachedMultiplayerCover(player);
+            if (attached) {
+                yyp.eventCenter.emit("cover-button-state",{visible:true, mode:"detach"});
+                return;
+            }
+
+            let nearest = this._getNearestMultiplayerAttachableCover(player);
+            yyp.eventCenter.emit("cover-button-state",{visible:!!nearest, mode:"attach"});
             return;
         }
 
@@ -4422,6 +4581,9 @@ export class GameMap extends BaseComponent {
     }
 
     tryToggleCoverTestAttachment(player) {
+        if (this._multiplayerMode) {
+            return false;
+        }
         if (!this._coverTestMode || !player || !player.node || !cc.isValid(player.node)) {
             return false;
         }
@@ -4462,6 +4624,7 @@ export class GameMap extends BaseComponent {
 
         cover.attached = true;
         cover.owner = player.node;
+        cover.ownerPlayerId = player._multiplayerPlayerId == null ? null : player._multiplayerPlayerId;
         cover.attachOffset = offset;
         this.syncAttachedCoverTestCover(player);
     }
@@ -4472,22 +4635,39 @@ export class GameMap extends BaseComponent {
         }
         cover.attached = false;
         cover.owner = null;
+        cover.ownerPlayerId = null;
     }
 
     forceDetachCoverTestFromPlayer(player) {
-        let attached = this._getAttachedCoverTestCover(player);
+        let attached = this._multiplayerMode
+            ? this._getAttachedMultiplayerCover(player)
+            : this._getAttachedCoverTestCover(player);
         if (attached) {
-            this._detachCoverTestCover(attached);
+            if (this._multiplayerMode) {
+                attached.attached = false;
+                attached.owner = null;
+                attached.ownerPlayerId = null;
+            } else {
+                this._detachCoverTestCover(attached);
+            }
         }
-        yyp.eventCenter.emit("cover-button-state",{visible:false});
+        
+        let localPlayer = this._multiplayerMode
+            ? (this._multiplayerPlayers && this._multiplayerPlayers.length > 0 ? this._multiplayerPlayers[this._localPlayerId] : null)
+            : this._player;
+        if (!player || player.node === localPlayer) {
+            yyp.eventCenter.emit("cover-button-state",{visible:false});
+        }
     }
 
     syncAttachedCoverTestCover(player) {
-        if (!this._coverTestMode || !player || !player.node || !cc.isValid(player.node)) {
+        if (!this._isCoverInteractionEnabled() || !player || !player.node || !cc.isValid(player.node)) {
             return;
         }
 
-        let cover = this._getAttachedCoverTestCover(player);
+        let cover = this._multiplayerMode 
+            ? this._getAttachedMultiplayerCover(player)
+            : this._getAttachedCoverTestCover(player);
         if (!cover || !cover.attachOffset) {
             return;
         }
@@ -4498,8 +4678,34 @@ export class GameMap extends BaseComponent {
         cover.node.zIndex = this.judgezIndex(pos.y) + 1;
     }
 
+    _syncAllAttachedMultiplayerCovers() {
+        if (!this._multiplayerMode) {
+            return;
+        }
+        for (let i = 0; i < this._coverTestCovers.length; i++) {
+            let cover = this._coverTestCovers[i];
+            if (!cover || !cover.multiplayer || !cover.attached || !cover.attachOffset || !cover.node || !cc.isValid(cover.node)) {
+                continue;
+            }
+            let owner = cover.ownerPlayerId != null && this._multiplayerPlayers
+                ? this._multiplayerPlayers[cover.ownerPlayerId]
+                : null;
+            if (!owner || !cc.isValid(owner)) {
+                continue;
+            }
+            cover.owner = owner;
+            let pos = cc.v2(owner.position).add(cover.attachOffset);
+            pos = this.clampMapInnerPosition(pos, (cover.radius || 34) + 6);
+            cover.node.setPosition(cc.v3(pos));
+            cover.node.zIndex = this.judgezIndex(pos.y) + 1;
+        }
+    }
+
     tryHandleCoverBulletCollision(fromPos, toPos, bullet) {
-        if (!this._coverTestMode || !bullet || bullet._camp != "enemy") {
+        if ((!this._coverTestMode && !this._multiplayerMode) || !bullet) {
+            return false;
+        }
+        if (this._coverTestMode && !this._multiplayerMode && bullet._camp != "enemy") {
             return false;
         }
 
@@ -4533,6 +4739,17 @@ export class GameMap extends BaseComponent {
         if (!cover || !cover.node || !cc.isValid(cover.node)) {
             return;
         }
+        if (cover.multiplayer) {
+            if (bullet) {
+                if (bullet.doDestroy) {
+                    bullet.doDestroy();
+                }
+                else if (bullet.node && cc.isValid(bullet.node)) {
+                    bullet.node.destroy();
+                }
+            }
+            return;
+        }
 
         cover.hp = Math.max(0, cover.hp - 1);
         this._refreshCoverTestCoverVisual(cover);
@@ -4549,7 +4766,7 @@ export class GameMap extends BaseComponent {
         if (cover.hp <= 0) {
             this._breakCoverTestCover(cover);
         }
-        else if (this._player && cc.isValid(this._player) && this._player.script && this._coverTestMode) {
+        else if (this._player && cc.isValid(this._player) && this._player.script && this._isCoverInteractionEnabled()) {
             this.refreshCoverTestButton(this._player.script);
         }
     }
@@ -4575,6 +4792,10 @@ export class GameMap extends BaseComponent {
 
     _breakCoverTestCover(cover) {
         if (!cover || !cover.node || !cc.isValid(cover.node)) {
+            return;
+        }
+        if (cover.multiplayer) {
+            this._removeMultiplayerCover(cover.coverId);
             return;
         }
 
@@ -4603,7 +4824,7 @@ export class GameMap extends BaseComponent {
 
         cover.node.destroy();
         this._cleanupInvalidCoverTestCovers();
-        if (this._player && cc.isValid(this._player) && this._player.script) {
+        if (this._player && cc.isValid(this._player) && this._player.script && this._isCoverInteractionEnabled()) {
             this.refreshCoverTestButton(this._player.script);
         }
     }
@@ -5956,11 +6177,12 @@ export class GameMap extends BaseComponent {
         this._multiplayerPlayers[playerIdx] = player;
         if (playerIdx === this._localPlayerId) {
             this._player = player;
+            this._refreshLocalCoverInteractionUi();
         }
         return player;
     }
 
-    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone, onReady) {
+    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
@@ -5971,13 +6193,17 @@ export class GameMap extends BaseComponent {
         this._multiplayerTarSpillMap = {};
         this._multiplayerBlackHolePickupMap = {};
         this._multiplayerBlackHoleZoneMap = {};
+        this._multiplayerCoverMap = {};
         this._multiplayerDamageDoubleAreas = [];
         this._multiplayerSpeedDoubleAreas = [];
         this._multiplayerBlackHoleAreas = [];
         this._multiplayerSafeZone = null;
         this._multiplayerSafeZoneNode = null;
+        this._multiplayerCoverMap = {};
         this._pendingTarThrowMap = {};
         this._pendingBlackHoleThrowMap = {};
+        this._multiplayerPendingCoverToggleId = null;
+        this._multiplayerCoverTogglePendingFrames = 0;
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
         let playerStates = Array.isArray(players) ? players : [];
@@ -5987,6 +6213,7 @@ export class GameMap extends BaseComponent {
         let initialBlackHolePickups = Array.isArray(blackHolePickups) ? blackHolePickups : [];
         let initialBlackHoleZones = Array.isArray(blackHoleZones) ? blackHoleZones : [];
         let initialBushes = Array.isArray(bushes) ? bushes : [];
+        let initialCovers = Array.isArray(covers) ? covers : [];
 
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
@@ -6037,9 +6264,11 @@ export class GameMap extends BaseComponent {
                 for (let i = 0; i < initialBlackHoleZones.length; i++) {
                     self._spawnMultiplayerBlackHoleZone(initialBlackHoleZones[i]);
                 }
+                self._initMultiplayerCovers(initialCovers);
                 self._applyMultiplayerSafeZoneState(safeZone || null);
                 self._gaming = true;
                 self._refreshMultiplayerBushVisibility();
+                self._refreshLocalCoverInteractionUi();
                 // Center camera on local player immediately
                 self._centerOnLocalPlayer();
                 if (onReady) onReady();
@@ -6049,9 +6278,12 @@ export class GameMap extends BaseComponent {
 
     simulateFrame(frameData) {
         if (!this._multiplayerMode) return;
+        this._tickLocalMultiplayerCoverTogglePending();
         let commands = frameData && Array.isArray(frameData.commands) ? frameData.commands : [];
         this._applyMultiplayerFrameCommands(commands);
+        this._syncAllAttachedMultiplayerCovers();
         this._refreshMultiplayerBushVisibility();
+        this._refreshLocalCoverInteractionUi();
 
         this._centerOnLocalPlayer();
     }
@@ -6146,7 +6378,105 @@ export class GameMap extends BaseComponent {
             else if (command.type === "safeZoneDamage") {
                 this._applyMultiplayerSafeZoneDamage(command);
             }
+            else if (command.type === "coverSync") {
+                this._applyMultiplayerCoverSync(command.cover);
+            }
+            else if (command.type === "coverRemove") {
+                this._removeMultiplayerCover(command.coverId);
+            }
         }
+    }
+
+    _initMultiplayerCovers(covers = []) {
+        this._cleanupInvalidCoverTestCovers();
+        for (let i = this._coverTestCovers.length - 1; i >= 0; i--) {
+            let cover = this._coverTestCovers[i];
+            if (cover && cover.multiplayer && cover.node && cc.isValid(cover.node)) {
+                cover.node.destroy();
+                this._coverTestCovers.splice(i, 1);
+            }
+        }
+        this._multiplayerCoverMap = {};
+        for (let i = 0; i < covers.length; i++) {
+            this._applyMultiplayerCoverSync(covers[i]);
+        }
+    }
+
+    _findMultiplayerCoverById(coverId) {
+        if (coverId == null) {
+            return null;
+        }
+        if (this._multiplayerCoverMap && this._multiplayerCoverMap[coverId]) {
+            return this._multiplayerCoverMap[coverId];
+        }
+        for (let i = 0; i < this._coverTestCovers.length; i++) {
+            let cover = this._coverTestCovers[i];
+            if (cover && cover.multiplayer && cover.coverId == coverId) {
+                return cover;
+            }
+        }
+        return null;
+    }
+
+    _applyMultiplayerCoverSync(coverData) {
+        if (!this._multiplayerMode || !coverData || coverData.id == null) {
+            return;
+        }
+        let cover = this._findMultiplayerCoverById(coverData.id);
+        if (!cover) {
+            cover = this._createCoverTestCover(cc.v2(coverData.x || 0, coverData.y || 0));
+            if (!cover) {
+                return;
+            }
+            cover.multiplayer = true;
+            cover.coverId = coverData.id;
+            this._multiplayerCoverMap[coverData.id] = cover;
+        }
+        cover.radius = coverData.radius == null ? cover.radius : coverData.radius;
+        cover.hp = coverData.hp == null ? cover.hp : coverData.hp;
+        cover.maxHp = coverData.maxHp == null ? cover.maxHp : coverData.maxHp;
+        cover.attached = !!coverData.attached;
+        cover.ownerPlayerId = coverData.ownerPlayerId == null ? null : coverData.ownerPlayerId;
+        cover.attachOffset = cc.v2(coverData.attachOffsetX || 0, coverData.attachOffsetY || 0);
+        cover.owner = cover.ownerPlayerId != null && this._multiplayerPlayers
+            ? this._multiplayerPlayers[cover.ownerPlayerId] || null
+            : null;
+        if (cover.node && cc.isValid(cover.node)) {
+            let pos = cc.v2(coverData.x || 0, coverData.y || 0);
+            if (cover.attached && cover.owner && cc.isValid(cover.owner)) {
+                pos = cc.v2(cover.owner.position).add(cover.attachOffset || cc.v2(0, 0));
+                pos = this.clampMapInnerPosition(pos, (cover.radius || 34) + 6);
+            }
+            cover.node.setPosition(cc.v3(pos));
+            cover.node.zIndex = this.judgezIndex(pos.y) + 1;
+        }
+        this._clearLocalMultiplayerCoverTogglePending(coverData.id);
+        this._refreshCoverTestCoverVisual(cover);
+        this._refreshLocalCoverInteractionUi();
+    }
+
+    _removeMultiplayerCover(coverId) {
+        if (coverId == null) {
+            return;
+        }
+        this._clearLocalMultiplayerCoverTogglePending(coverId);
+        let cover = this._findMultiplayerCoverById(coverId);
+        if (this._multiplayerCoverMap && this._multiplayerCoverMap[coverId]) {
+            delete this._multiplayerCoverMap[coverId];
+        }
+        if (!cover) {
+            return;
+        }
+        for (let i = this._coverTestCovers.length - 1; i >= 0; i--) {
+            if (this._coverTestCovers[i] === cover) {
+                this._coverTestCovers.splice(i, 1);
+                break;
+            }
+        }
+        if (cover.node && cc.isValid(cover.node)) {
+            cover.node.destroy();
+        }
+        this._refreshLocalCoverInteractionUi();
     }
 
     _initMultiplayerBushes(bushes = []) {

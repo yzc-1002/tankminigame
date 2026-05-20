@@ -2099,11 +2099,6 @@
     "meta": 1778835816303,
     "relativePath": "texture\\ui\\barrelRed_side.png"
   },
-  "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1778837446992,
-    "meta": 1778837840965,
-    "relativePath": "script\\network\\NetworkManager.ts"
-  },
   "5e9b87ea-daf5-4654-869f-b071ed2994cc": {
     "asset": 1778838468472,
     "meta": 1778838557209,
@@ -2119,19 +2114,24 @@
     "meta": 1778841986828,
     "relativePath": "script\\config\\Tank.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1778842841185,
-    "meta": 1778842922800,
-    "relativePath": "script\\Player.ts"
+  "08aed74e-b757-43ff-80e7-95f39a105a22": {
+    "asset": 1779184771131,
+    "meta": 1779187345706,
+    "relativePath": "script\\network\\NetworkManager.ts"
   },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1779183476973,
-    "meta": 1779183585714,
+    "asset": 1779190404964,
+    "meta": 1779190434328,
     "relativePath": "script\\GameMain.ts"
   },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1779183468928,
-    "meta": 1779183586499,
+    "asset": 1779246432575,
+    "meta": 1779246781670,
     "relativePath": "script\\GameMap.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1779246411490,
+    "meta": 1779246781865,
+    "relativePath": "script\\Player.ts"
   }
 }

@@ -90,6 +90,14 @@ const MULTIPLAYER_BUSH_SPAWN_PADDING = 120;
 const MULTIPLAYER_BUSH_MIN_SPAWN_DISTANCE = 210;
 const MULTIPLAYER_INITIAL_PICKUP_COUNT = 5;
 const MULTIPLAYER_INITIAL_SPECIAL_EVENT_COUNT = 5;
+const MULTIPLAYER_COVER_COUNT = 6;
+const MULTIPLAYER_COVER_RADIUS = 34;
+const MULTIPLAYER_COVER_HP = 5;
+const MULTIPLAYER_COVER_MIN_GAP = 86;
+const MULTIPLAYER_COVER_MIN_PLAYER_DISTANCE = 120;
+const MULTIPLAYER_COVER_ATTACH_DISTANCE = 110;
+const MULTIPLAYER_COVER_ATTACH_MIN_OFFSET = 60;
+const MULTIPLAYER_COVER_ATTACH_MAX_OFFSET = 84;
 
 const ROOM_STATE = {
   WAITING: 'waiting',
@@ -139,6 +147,8 @@ const room = {
   blackHolePickupSpawnCd: 0,
   blackHoleZones: [],
   nextBlackHoleZoneId: 1,
+  covers: [],
+  nextCoverId: 1,
   safeZone: null,
   matchFlow: null,
 };
@@ -558,6 +568,74 @@ function buildSafeZoneStateCommand() {
   };
 }
 
+function getPreferredSpawnSafeZone() {
+  if (!room.safeZone) {
+    room.safeZone = createSafeZoneState();
+  }
+  const safeZone = room.safeZone;
+  let radius = 0;
+  if (safeZone.active && Number.isFinite(safeZone.radius) && safeZone.radius > 0) {
+    radius = safeZone.radius;
+  } else if (Number.isFinite(safeZone.targetRadius) && safeZone.targetRadius > 0) {
+    radius = safeZone.targetRadius;
+  } else if (Number.isFinite(safeZone.startRadius) && safeZone.startRadius > 0) {
+    radius = safeZone.startRadius;
+  }
+  if (!Number.isFinite(radius) || radius <= 0) {
+    return null;
+  }
+  return {
+    centerX: Number.isFinite(safeZone.centerX) ? safeZone.centerX : 0,
+    centerY: Number.isFinite(safeZone.centerY) ? safeZone.centerY : 0,
+    radius,
+  };
+}
+
+function isPointInsidePreferredSafeZone(point, padding = 0) {
+  if (!point) {
+    return false;
+  }
+  const zone = getPreferredSpawnSafeZone();
+  if (!zone) {
+    return true;
+  }
+  const allowRadius = zone.radius - Math.max(0, padding);
+  if (allowRadius <= 0) {
+    return false;
+  }
+  const dx = (point.x || 0) - zone.centerX;
+  const dy = (point.y || 0) - zone.centerY;
+  return dx * dx + dy * dy <= allowRadius * allowRadius;
+}
+
+function filterPointsInsidePreferredSafeZone(points, padding = 0) {
+  if (!Array.isArray(points) || points.length <= 0) {
+    return [];
+  }
+  const preferred = points.filter((point) => isPointInsidePreferredSafeZone(point, padding));
+  return preferred.length > 0 ? preferred : points.slice();
+}
+
+function chooseRandomPreferredSafePoint(padding = 0) {
+  const zone = getPreferredSpawnSafeZone();
+  if (!zone) {
+    return clampPointToBounds({
+      x: Math.floor(Math.random() * 2800) - 1400,
+      y: Math.floor(Math.random() * 1800) - 900,
+    }, padding);
+  }
+  const limitRadius = Math.max(0, zone.radius - Math.max(0, padding));
+  if (limitRadius <= 1) {
+    return clampPointToBounds({ x: zone.centerX, y: zone.centerY }, padding);
+  }
+  const angle = Math.random() * Math.PI * 2;
+  const distance = Math.sqrt(Math.random()) * limitRadius;
+  return clampPointToBounds({
+    x: zone.centerX + Math.cos(angle) * distance,
+    y: zone.centerY + Math.sin(angle) * distance,
+  }, padding);
+}
+
 function appendAnnouncement(frameCommands, payload) {
   if (!payload || !payload.text) {
     return;
@@ -794,7 +872,7 @@ function findBushContainingPlayer(player) {
 
 function buildInitialBushes() {
   const source = Array.isArray(room.bushSpawnPoints) && room.bushSpawnPoints.length > 0
-    ? shuffle(room.bushSpawnPoints)
+    ? shuffle(filterPointsInsidePreferredSafeZone(room.bushSpawnPoints, MULTIPLAYER_BUSH_RADIUS + 12))
     : [];
   const result = [];
   const spawnPositions = room.players.map((player) => getSpawnPositionBySlot(player.spawnSlot));
@@ -839,6 +917,213 @@ function buildInitialBushes() {
     }
   }
   return result;
+}
+
+function createCoverState(point) {
+  if (!point) {
+    return null;
+  }
+  const pos = clampPointToBounds(point, MULTIPLAYER_COVER_RADIUS + 10);
+  return {
+    id: room.nextCoverId++,
+    x: Math.round(pos.x),
+    y: Math.round(pos.y),
+    radius: MULTIPLAYER_COVER_RADIUS,
+    hp: MULTIPLAYER_COVER_HP,
+    maxHp: MULTIPLAYER_COVER_HP,
+    attached: false,
+    ownerPlayerId: null,
+    attachOffsetX: 0,
+    attachOffsetY: 0,
+  };
+}
+
+function getCoverById(coverId) {
+  if (coverId == null) {
+    return null;
+  }
+  for (let i = 0; i < room.covers.length; i++) {
+    const cover = room.covers[i];
+    if (cover && cover.id === coverId) {
+      return cover;
+    }
+  }
+  return null;
+}
+
+function getAttachedCoverByPlayer(player) {
+  if (!player) {
+    return null;
+  }
+  for (let i = 0; i < room.covers.length; i++) {
+    const cover = room.covers[i];
+    if (cover && cover.attached && cover.ownerPlayerId === player.playerId) {
+      return cover;
+    }
+  }
+  return null;
+}
+
+function buildCoverSyncCommand(cover) {
+  if (!cover) {
+    return null;
+  }
+  return {
+    type: 'coverSync',
+    cover: {
+      id: cover.id,
+      x: cover.x,
+      y: cover.y,
+      radius: cover.radius,
+      hp: cover.hp,
+      maxHp: cover.maxHp,
+      attached: !!cover.attached,
+      ownerPlayerId: cover.ownerPlayerId == null ? null : cover.ownerPlayerId,
+      attachOffsetX: Number.isFinite(cover.attachOffsetX) ? cover.attachOffsetX : 0,
+      attachOffsetY: Number.isFinite(cover.attachOffsetY) ? cover.attachOffsetY : 0,
+    },
+  };
+}
+
+function appendAllCoverSyncCommands(frameCommands) {
+  for (let i = 0; i < room.covers.length; i++) {
+    appendFrameCommand(frameCommands, buildCoverSyncCommand(room.covers[i]));
+  }
+}
+
+function isCoverSpawnPointAvailable(point, result) {
+  if (!point || !isPointInsidePreferredSafeZone(point, MULTIPLAYER_COVER_RADIUS + 8)) {
+    return false;
+  }
+  for (let i = 0; i < room.players.length; i++) {
+    const player = room.players[i];
+    if (!player) {
+      continue;
+    }
+    const spawnPos = getSpawnPositionBySlot(player.spawnSlot);
+    if (spawnPos && Math.sqrt(distanceSqr(spawnPos, point)) < MULTIPLAYER_COVER_MIN_PLAYER_DISTANCE) {
+      return false;
+    }
+  }
+  const covers = Array.isArray(result) ? result : [];
+  for (let i = 0; i < covers.length; i++) {
+    const cover = covers[i];
+    if (cover && Math.sqrt(distanceSqr(cover, point)) < MULTIPLAYER_COVER_MIN_GAP) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function buildInitialCovers() {
+  const source = Array.isArray(room.energySpawnPoints) && room.energySpawnPoints.length > 0
+    ? shuffle(filterPointsInsidePreferredSafeZone(room.energySpawnPoints, MULTIPLAYER_COVER_RADIUS + 12))
+    : shuffle(filterPointsInsidePreferredSafeZone(room.spawnCandidates || [], MULTIPLAYER_COVER_RADIUS + 12));
+  const result = [];
+  for (let i = 0; i < source.length; i++) {
+    const point = source[i];
+    if (!isCoverSpawnPointAvailable(point, result)) {
+      continue;
+    }
+    const cover = createCoverState(point);
+    if (cover) {
+      result.push(cover);
+      if (result.length >= MULTIPLAYER_COVER_COUNT) {
+        return result;
+      }
+    }
+  }
+  let attempts = 0;
+  while (result.length < MULTIPLAYER_COVER_COUNT && attempts < MULTIPLAYER_COVER_COUNT * 12) {
+    attempts++;
+    const point = chooseRandomPreferredSafePoint(MULTIPLAYER_COVER_RADIUS + 12);
+    if (!isCoverSpawnPointAvailable(point, result)) {
+      continue;
+    }
+    const cover = createCoverState(point);
+    if (cover) {
+      result.push(cover);
+    }
+  }
+  return result;
+}
+
+function syncAttachedCoversFromPlayers() {
+  for (let i = 0; i < room.covers.length; i++) {
+    const cover = room.covers[i];
+    if (!cover || !cover.attached || cover.ownerPlayerId == null) {
+      continue;
+    }
+    const player = room.players[cover.ownerPlayerId];
+    if (!player || player.dead || player.disconnected) {
+      cover.attached = false;
+      cover.ownerPlayerId = null;
+      cover.attachOffsetX = 0;
+      cover.attachOffsetY = 0;
+      continue;
+    }
+    const playerPos = getPlayerRuntimePosition(player);
+    const pos = clampPointToBounds({
+      x: playerPos.x + (cover.attachOffsetX || 0),
+      y: playerPos.y + (cover.attachOffsetY || 0),
+    }, (cover.radius || MULTIPLAYER_COVER_RADIUS) + 6);
+    cover.x = pos.x;
+    cover.y = pos.y;
+  }
+}
+
+function tryToggleCoverByPlayer(player, frameCommands) {
+  if (!player || player.dead || player.disconnected) {
+    return false;
+  }
+  const attached = getAttachedCoverByPlayer(player);
+  if (attached) {
+    attached.attached = false;
+    attached.ownerPlayerId = null;
+    attached.attachOffsetX = 0;
+    attached.attachOffsetY = 0;
+    appendFrameCommand(frameCommands, buildCoverSyncCommand(attached));
+    return true;
+  }
+  const playerPos = getPlayerRuntimePosition(player);
+  let nearest = null;
+  let nearestLen = 0;
+  for (let i = 0; i < room.covers.length; i++) {
+    const cover = room.covers[i];
+    if (!cover || cover.attached || cover.hp <= 0) {
+      continue;
+    }
+    const len = Math.sqrt(distanceSqr(playerPos, cover));
+    if (len <= MULTIPLAYER_COVER_ATTACH_DISTANCE && (nearest == null || len < nearestLen)) {
+      nearest = cover;
+      nearestLen = len;
+    }
+  }
+  if (!nearest) {
+    return false;
+  }
+  let offsetX = nearest.x - playerPos.x;
+  let offsetY = nearest.y - playerPos.y;
+  let len = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+  if (!Number.isFinite(len) || len <= 5) {
+    const dir = getPlayerRuntimeDir(player);
+    offsetX = dir.x;
+    offsetY = dir.y;
+    len = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+  }
+  if (!Number.isFinite(len) || len <= 0.0001) {
+    offsetX = 1;
+    offsetY = 0;
+    len = 1;
+  }
+  const offsetDistance = clamp(len, MULTIPLAYER_COVER_ATTACH_MIN_OFFSET, MULTIPLAYER_COVER_ATTACH_MAX_OFFSET);
+  nearest.attachOffsetX = Number(((offsetX / len) * offsetDistance).toFixed(3));
+  nearest.attachOffsetY = Number(((offsetY / len) * offsetDistance).toFixed(3));
+  nearest.attached = true;
+  nearest.ownerPlayerId = player.playerId;
+  syncAttachedCoversFromPlayers();
+  appendFrameCommand(frameCommands, buildCoverSyncCommand(nearest));
+  return true;
 }
 
 function applySafeZoneDamageToPlayer(player, frameCommands) {
@@ -913,7 +1198,8 @@ function getPlayerRuntimeDir(player) {
 
 function chooseEnergySpawnPoint(minMargin = 520, avoidEggs = true) {
   if (room.energySpawnPoints.length > 0) {
-    const available = room.energySpawnPoints.filter((point) => {
+    const safeCandidates = filterPointsInsidePreferredSafeZone(room.energySpawnPoints, 42);
+    const available = safeCandidates.filter((point) => {
       for (let i = 0; i < room.energies.length; i++) {
         const energy = room.energies[i];
         if (energy && Math.sqrt(distanceSqr(energy, point)) < minMargin) {
@@ -930,10 +1216,10 @@ function chooseEnergySpawnPoint(minMargin = 520, avoidEggs = true) {
       }
       return true;
     });
-    const source = available.length > 0 ? available : room.energySpawnPoints;
+    const source = available.length > 0 ? available : safeCandidates;
     return source[Math.floor(Math.random() * source.length)] || null;
   }
-  return null;
+  return chooseRandomPreferredSafePoint(42);
 }
 
 function isTarPickupPointAvailable(point) {
@@ -984,10 +1270,11 @@ function isTarPickupPointAvailable(point) {
 
 function chooseTarPickupSpawnPoint() {
   const candidates = getSpecialEventSpawnSources();
+  const safeCandidates = filterPointsInsidePreferredSafeZone(candidates, TAR_PICKUP_RADIUS + 12);
   const preferred = [];
   const fallback = [];
-  for (let i = 0; i < candidates.length; i++) {
-    const point = clampPointToBounds(candidates[i], TAR_PICKUP_RADIUS + 12);
+  for (let i = 0; i < safeCandidates.length; i++) {
+    const point = clampPointToBounds(safeCandidates[i], TAR_PICKUP_RADIUS + 12);
     if (isTarPickupPointAvailable(point)) {
       preferred.push(point);
     } else {
@@ -998,10 +1285,7 @@ function chooseTarPickupSpawnPoint() {
   if (source.length > 0) {
     return pickOne(source);
   }
-  return clampPointToBounds({
-    x: Math.floor(Math.random() * 2800) - 1400,
-    y: Math.floor(Math.random() * 1800) - 900,
-  }, TAR_PICKUP_RADIUS + 12);
+  return chooseRandomPreferredSafePoint(TAR_PICKUP_RADIUS + 12);
 }
 
 function createTarPickup(point) {
@@ -1550,7 +1834,7 @@ function isSpecialEventPointAvailable(point, padding = 90) {
 }
 
 function chooseSpecialEventPoint(padding = 90) {
-  const points = getSpecialEventSpawnSources();
+  const points = filterPointsInsidePreferredSafeZone(getSpecialEventSpawnSources(), padding);
   if (points.length > 0) {
     const preferred = points.filter((point) => isSpecialEventPointAvailable(point, padding));
     const source = preferred.length > 0 ? preferred : points;
@@ -1559,15 +1843,12 @@ function chooseSpecialEventPoint(padding = 90) {
       return clampPointToBounds({ x: picked.x, y: picked.y }, padding);
     }
   }
-  return clampPointToBounds({
-    x: Math.floor(Math.random() * 2800) - 1400,
-    y: Math.floor(Math.random() * 1800) - 900,
-  }, padding);
+  return chooseRandomPreferredSafePoint(padding);
 }
 
 function choosePortalPair() {
   const entry = chooseSpecialEventPoint(SPECIAL_EVENT_PORTAL_RADIUS + 40);
-  const points = getSpecialEventSpawnSources();
+  const points = filterPointsInsidePreferredSafeZone(getSpecialEventSpawnSources(), SPECIAL_EVENT_PORTAL_RADIUS + 40);
   const candidates = [];
   for (let i = 0; i < points.length; i++) {
     const point = clampPointToBounds(points[i], SPECIAL_EVENT_PORTAL_RADIUS + 40);
@@ -1578,12 +1859,21 @@ function choosePortalPair() {
   }
   let exit = candidates.length > 0 ? pickOne(candidates) : null;
   if (!exit) {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = randomBetween(SPECIAL_EVENT_PORTAL_PAIR_MIN, SPECIAL_EVENT_PORTAL_PAIR_MAX);
-    exit = clampPointToBounds({
-      x: entry.x + Math.cos(angle) * distance,
-      y: entry.y + Math.sin(angle) * distance,
-    }, SPECIAL_EVENT_PORTAL_RADIUS + 40);
+    for (let i = 0; i < 10; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = randomBetween(SPECIAL_EVENT_PORTAL_PAIR_MIN, SPECIAL_EVENT_PORTAL_PAIR_MAX);
+      const point = clampPointToBounds({
+        x: entry.x + Math.cos(angle) * distance,
+        y: entry.y + Math.sin(angle) * distance,
+      }, SPECIAL_EVENT_PORTAL_RADIUS + 40);
+      if (isPointInsidePreferredSafeZone(point, SPECIAL_EVENT_PORTAL_RADIUS + 40)) {
+        exit = point;
+        break;
+      }
+    }
+  }
+  if (!exit) {
+    exit = chooseRandomPreferredSafePoint(SPECIAL_EVENT_PORTAL_RADIUS + 40);
   }
   return {
     entryPos: entry,
@@ -1932,7 +2222,7 @@ function isEggSpawnPointAvailable(point) {
 }
 
 function chooseEnergyEggSpawnPoint() {
-  const candidates = room.energySpawnPoints || [];
+  const candidates = filterPointsInsidePreferredSafeZone(room.energySpawnPoints || [], ENERGY_EGG_RADIUS + 8);
   const preferred = [];
   const fallback = [];
   for (let i = 0; i < candidates.length; i++) {
@@ -1950,10 +2240,7 @@ function chooseEnergyEggSpawnPoint() {
   if (source.length > 0) {
     return source[Math.floor(Math.random() * source.length)];
   }
-  return clampPointToBounds({
-    x: Math.floor(Math.random() * 2800) - 1400,
-    y: Math.floor(Math.random() * 1800) - 900,
-  }, ENERGY_EGG_RADIUS + 8);
+  return chooseRandomPreferredSafePoint(ENERGY_EGG_RADIUS + 8);
 }
 
 function spawnEnergyEggInFrame(frameCommands) {
@@ -2305,6 +2592,7 @@ function tick() {
       hit: false,
       throwTar: false,
       throwBlackHole: false,
+      toggleCover: false,
     };
 
     if (p.dead || p.disconnected) {
@@ -2377,6 +2665,9 @@ function tick() {
       if (src.throwBlackHole) {
         inputs.throwBlackHole = src.throwBlackHole;
       }
+      if (src.toggleCover) {
+        inputs.toggleCover = true;
+      }
       if (src.playerSnapshot) {
         p.lastSnapshot = sanitizePlayerSnapshot(src.playerSnapshot);
         if (p.lastSnapshot) {
@@ -2423,6 +2714,10 @@ function tick() {
     if (inputs.throwBlackHole) {
       tryThrowBlackHoleByPlayer(p, sanitizeThrowTarPayload(inputs.throwBlackHole), eventCommands);
     }
+    syncAttachedCoversFromPlayers();
+    if (inputs.toggleCover) {
+      tryToggleCoverByPlayer(p, eventCommands);
+    }
     applySafeZoneDamageToPlayer(p, eventCommands);
 
     p.lastInputs = {
@@ -2442,6 +2737,7 @@ function tick() {
   });
 
   updateEnergyEggs(frameCommands);
+  appendAllCoverSyncCommands(frameCommands);
   updateSpecialEvents(frameCommands);
   updateTarPickupSpawns(frameCommands);
   updateBlackHolePickupSpawns(frameCommands);
@@ -2578,6 +2874,7 @@ function startGame() {
     syncPlayerSpawnPosition(p);
   });
   room.bushes = buildInitialBushes();
+  room.covers = buildInitialCovers();
 
   for (let i = 0; i < Math.min(ENERGY_MAX_COUNT, 3); i++) {
     spawnEnergy();
@@ -2604,6 +2901,7 @@ function startGame() {
       blackHolePickups: room.blackHolePickups,
       blackHoleZones: room.blackHoleZones,
       bushes: room.bushes,
+      covers: room.covers,
       safeZone: room.safeZone,
       players: room.players.map((player) => ({
         playerId: player.playerId,
@@ -2785,6 +3083,8 @@ function resetRoom() {
   room.energySpawnPoints = [];
   room.bushSpawnPoints = [];
   room.bushes = [];
+  room.covers = [];
+  room.nextCoverId = 1;
   room.spawnCandidates = [];
   room.mapBounds = {
     halfWidth: 1400,
@@ -2803,6 +3103,11 @@ function resetRoom() {
   room.tarPickupSpawnCd = 0;
   room.tarSpills = [];
   room.nextTarSpillId = 1;
+  room.blackHolePickups = [];
+  room.nextBlackHolePickupId = 1;
+  room.blackHolePickupSpawnCd = 0;
+  room.blackHoleZones = [];
+  room.nextBlackHoleZoneId = 1;
   room.safeZone = createSafeZoneState(room.mapBounds);
   room.matchFlow = createMatchFlowState();
   console.log('[Room] Reset');

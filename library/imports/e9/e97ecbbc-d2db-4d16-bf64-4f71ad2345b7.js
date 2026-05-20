@@ -342,7 +342,19 @@ var Player = /** @class */ (function (_super) {
         }
     };
     Player.prototype._doCoverAction = function () {
-        if (this._inGame == false || !this._map || !this._map.tryToggleCoverTestAttachment) {
+        if (this._multiplayerMode && this._multiplayerRemote) {
+            return;
+        }
+        if (this._inGame == false || !this._map) {
+            return;
+        }
+        if (this._map.isMultiplayerMode && this._map.isMultiplayerMode()) {
+            yyp.eventCenter.emit("multiplayer-cover-action", {
+                playerId: this._multiplayerPlayerId,
+            });
+            return;
+        }
+        if (!this._map.tryToggleCoverTestAttachment) {
             return;
         }
         this._map.tryToggleCoverTestAttachment(this);
@@ -660,7 +672,9 @@ var Player = /** @class */ (function (_super) {
                 this._map.syncAttachedCoverTestCover(this);
             }
             if (this._map && this._map.refreshCoverTestButton) {
-                this._map.refreshCoverTestButton(this);
+                if (!this._multiplayerMode || !this._multiplayerRemote) {
+                    this._map.refreshCoverTestButton(this);
+                }
             }
             // 技能2(超级子弹)
             this._skill2Time -= dt;

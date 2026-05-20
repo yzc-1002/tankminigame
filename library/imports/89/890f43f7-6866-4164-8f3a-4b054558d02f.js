@@ -43,6 +43,7 @@ var MULTIPLAYER_MINIMAP_HEIGHT = 144;
 var MULTIPLAYER_MINIMAP_MARGIN_RIGHT = 18;
 var MULTIPLAYER_MINIMAP_MARGIN_TOP = 96;
 var MULTIPLAYER_MINIMAP_MARKER_UPDATE_INTERVAL = 0.016;
+var MULTIPLAYER_SERVER_URL = "ws://127.0.0.1:2567";
 var GameMain = /** @class */ (function (_super) {
     __extends(GameMain, _super);
     function GameMain() {
@@ -69,6 +70,7 @@ var GameMain = /** @class */ (function (_super) {
         _this._multiplayerHitQueue = [];
         _this._multiplayerBulletEventQueue = [];
         _this._multiplayerTarThrowRepeat = 0;
+        _this._multiplayerCoverToggleRepeat = 0;
         _this._multiplayerFireSeq = 1;
         _this._multiplayerJoyMoveHandler = null;
         _this._multiplayerJoyShootHandler = null;
@@ -129,6 +131,7 @@ var GameMain = /** @class */ (function (_super) {
         yyp.eventCenter.on("multiplayer-black-hole-pickup", this._onMultiplayerBlackHolePickup, this);
         yyp.eventCenter.on("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         yyp.eventCenter.on("multiplayer-throw-black-hole", this._onMultiplayerThrowBlackHole, this);
+        yyp.eventCenter.on("multiplayer-cover-action", this._onMultiplayerCoverAction, this);
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
     };
     //销毁事件
@@ -151,6 +154,7 @@ var GameMain = /** @class */ (function (_super) {
         yyp.eventCenter.off("multiplayer-black-hole-pickup", this._onMultiplayerBlackHolePickup, this);
         yyp.eventCenter.off("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         yyp.eventCenter.off("multiplayer-throw-black-hole", this._onMultiplayerThrowBlackHole, this);
+        yyp.eventCenter.off("multiplayer-cover-action", this._onMultiplayerCoverAction, this);
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
         this._destroyUpgradeChoicePanel();
@@ -1325,6 +1329,7 @@ var GameMain = /** @class */ (function (_super) {
             pickupBlackHoleId: null,
             throwTar: false,
             throwBlackHole: false,
+            toggleCover: false,
         };
     };
     GameMain.prototype._ensureMultiplayerInputs = function () {
@@ -1349,6 +1354,9 @@ var GameMain = /** @class */ (function (_super) {
         if (this._multiplayerInputs.throwBlackHole === undefined) {
             this._multiplayerInputs.throwBlackHole = false;
         }
+        if (this._multiplayerInputs.toggleCover === undefined) {
+            this._multiplayerInputs.toggleCover = false;
+        }
         return this._multiplayerInputs;
     };
     GameMain.prototype._clearMultiplayerOneShotInputs = function () {
@@ -1369,6 +1377,16 @@ var GameMain = /** @class */ (function (_super) {
         else {
             inputs.throwTar = false;
             inputs.throwBlackHole = false;
+        }
+        if (this._multiplayerCoverToggleRepeat > 0) {
+            this._multiplayerCoverToggleRepeat--;
+            if (this._multiplayerCoverToggleRepeat <= 0) {
+                this._multiplayerCoverToggleRepeat = 0;
+                inputs.toggleCover = false;
+            }
+        }
+        else {
+            inputs.toggleCover = false;
         }
     };
     GameMain.prototype._flushMultiplayerInputsNow = function () {
@@ -1408,6 +1426,7 @@ var GameMain = /** @class */ (function (_super) {
             pickupBlackHoleId: pickupBlackHoleId,
             throwTar: source.throwTar ? source.throwTar : false,
             throwBlackHole: source.throwBlackHole ? source.throwBlackHole : false,
+            toggleCover: !!source.toggleCover,
             playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
         };
     };
@@ -1515,6 +1534,15 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerTarThrowRepeat = 4;
         this._flushMultiplayerInputsNow();
     };
+    GameMain.prototype._onMultiplayerCoverAction = function () {
+        if (!this._multiplayerActive || this._multiplayerLocalDead) {
+            return;
+        }
+        var inputs = this._ensureMultiplayerInputs();
+        inputs.toggleCover = true;
+        this._multiplayerCoverToggleRepeat = 2;
+        this._flushMultiplayerInputsNow();
+    };
     GameMain.prototype._onMultiplayerBulletEvent = function (event) {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !event || !event.type || !event.bulletId) {
             return;
@@ -1577,6 +1605,7 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
+        this._multiplayerCoverToggleRepeat = 0;
         if (this._netManager) {
             this._netManager.onDisconnect = null;
             this._netManager.disconnect();
@@ -1597,12 +1626,13 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
+        this._multiplayerCoverToggleRepeat = 0;
         this._teardownMultiplayerInputLoop();
         this._hideMultiplayerAnnouncement();
         this._hideMultiplayerHud();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
-        this._showMultiplayerStatus("正在连接服务器 ws://172.16.50.45:2567 ...");
+        this._showMultiplayerStatus("正在连接服务器 " + MULTIPLAYER_SERVER_URL + " ...");
         this._netManager = new NetworkManager_1.NetworkManager();
         this._netManager.onCountdown = function (seconds) {
             _this._showMultiplayerStatus("游戏倒计时 " + seconds + " 秒");
@@ -1618,8 +1648,8 @@ var GameMain = /** @class */ (function (_super) {
                 _this._netManager.sendPlayerSetup(_this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone) {
-            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], safeZone || null);
+        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone) {
+            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null);
         };
         this._netManager.onGameEnded = function (payload) {
             _this._endMultiplayerMatch(payload);
@@ -1631,9 +1661,9 @@ var GameMain = /** @class */ (function (_super) {
             _this._hideMultiplayerAnnouncement();
             _this._hideMultiplayerHud();
         };
-        this._netManager.connect("ws://172.16.50.45:2567");
+        this._netManager.connect(MULTIPLAYER_SERVER_URL);
     };
-    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone) {
+    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone) {
         if (players === void 0) { players = []; }
         if (specialEvents === void 0) { specialEvents = []; }
         if (tarPickups === void 0) { tarPickups = []; }
@@ -1641,6 +1671,7 @@ var GameMain = /** @class */ (function (_super) {
         if (blackHolePickups === void 0) { blackHolePickups = []; }
         if (blackHoleZones === void 0) { blackHoleZones = []; }
         if (bushes === void 0) { bushes = []; }
+        if (covers === void 0) { covers = []; }
         if (safeZone === void 0) { safeZone = null; }
         this._hideMultiplayerStatus();
         this._hideMultiplayerAnnouncement();
@@ -1650,10 +1681,11 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
+        this._multiplayerCoverToggleRepeat = 0;
         this._multiplayerFireSeq = 1;
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
         var self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], safeZone || null, function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._scheduleMultiplayerMinimapRefresh();

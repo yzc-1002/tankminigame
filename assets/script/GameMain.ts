@@ -20,6 +20,7 @@ const MULTIPLAYER_MINIMAP_HEIGHT = 144;
 const MULTIPLAYER_MINIMAP_MARGIN_RIGHT = 18;
 const MULTIPLAYER_MINIMAP_MARGIN_TOP = 96;
 const MULTIPLAYER_MINIMAP_MARKER_UPDATE_INTERVAL = 0.016;
+const MULTIPLAYER_SERVER_URL = "ws://127.0.0.1:2567";
 
 @ccclass
 export default class GameMain extends BaseComponent {
@@ -55,6 +56,7 @@ export default class GameMain extends BaseComponent {
     _multiplayerHitQueue = [];
     _multiplayerBulletEventQueue = [];
     _multiplayerTarThrowRepeat = 0;
+    _multiplayerCoverToggleRepeat = 0;
     _multiplayerFireSeq = 1;
     _multiplayerJoyMoveHandler = null;
     _multiplayerJoyShootHandler = null;
@@ -121,6 +123,7 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.on("multiplayer-black-hole-pickup", this._onMultiplayerBlackHolePickup, this);
         yyp.eventCenter.on("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         yyp.eventCenter.on("multiplayer-throw-black-hole", this._onMultiplayerThrowBlackHole, this);
+        yyp.eventCenter.on("multiplayer-cover-action", this._onMultiplayerCoverAction, this);
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
     }
 
@@ -144,6 +147,7 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.off("multiplayer-black-hole-pickup", this._onMultiplayerBlackHolePickup, this);
         yyp.eventCenter.off("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         yyp.eventCenter.off("multiplayer-throw-black-hole", this._onMultiplayerThrowBlackHole, this);
+        yyp.eventCenter.off("multiplayer-cover-action", this._onMultiplayerCoverAction, this);
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
         this._destroyUpgradeChoicePanel();
@@ -1461,6 +1465,7 @@ export default class GameMain extends BaseComponent {
             pickupBlackHoleId: null,
             throwTar: false,
             throwBlackHole: false,
+            toggleCover: false,
         };
     }
 
@@ -1486,6 +1491,9 @@ export default class GameMain extends BaseComponent {
         if (this._multiplayerInputs.throwBlackHole === undefined) {
             this._multiplayerInputs.throwBlackHole = false;
         }
+        if (this._multiplayerInputs.toggleCover === undefined) {
+            this._multiplayerInputs.toggleCover = false;
+        }
         return this._multiplayerInputs;
     }
 
@@ -1507,6 +1515,16 @@ export default class GameMain extends BaseComponent {
         else{
             inputs.throwTar = false;
             inputs.throwBlackHole = false;
+        }
+        if (this._multiplayerCoverToggleRepeat > 0) {
+            this._multiplayerCoverToggleRepeat--;
+            if (this._multiplayerCoverToggleRepeat <= 0) {
+                this._multiplayerCoverToggleRepeat = 0;
+                inputs.toggleCover = false;
+            }
+        }
+        else{
+            inputs.toggleCover = false;
         }
     }
 
@@ -1548,6 +1566,7 @@ export default class GameMain extends BaseComponent {
             pickupBlackHoleId: pickupBlackHoleId,
             throwTar: source.throwTar ? source.throwTar : false,
             throwBlackHole: source.throwBlackHole ? source.throwBlackHole : false,
+            toggleCover: !!source.toggleCover,
             playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
         };
     }
@@ -1665,6 +1684,23 @@ export default class GameMain extends BaseComponent {
         this._flushMultiplayerInputsNow();
     }
 
+    _onMultiplayerCoverAction() {
+        if (!this._multiplayerActive || this._multiplayerLocalDead) {
+            return;
+        }
+        let mapScript = this._fire && this._fire._tiled ? this._fire._tiled.script : null;
+        if (mapScript && mapScript.isLocalMultiplayerCoverActionAvailable && !mapScript.isLocalMultiplayerCoverActionAvailable()) {
+            return;
+        }
+        if (mapScript && mapScript.notifyLocalMultiplayerCoverToggleRequested) {
+            mapScript.notifyLocalMultiplayerCoverToggleRequested();
+        }
+        let inputs = this._ensureMultiplayerInputs();
+        inputs.toggleCover = true;
+        this._multiplayerCoverToggleRepeat = 2;
+        this._flushMultiplayerInputsNow();
+    }
+
     _onMultiplayerBulletEvent(event) {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !event || !event.type || !event.bulletId) {
             return;
@@ -1733,6 +1769,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
+        this._multiplayerCoverToggleRepeat = 0;
         if (this._netManager) {
             this._netManager.onDisconnect = null;
             this._netManager.disconnect();
@@ -1753,12 +1790,13 @@ export default class GameMain extends BaseComponent {
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
+        this._multiplayerCoverToggleRepeat = 0;
         this._teardownMultiplayerInputLoop();
         this._hideMultiplayerAnnouncement();
         this._hideMultiplayerHud();
         this._resetGameBeforeTest();
         this._hideUpgradeChoicePanel(false);
-        this._showMultiplayerStatus("正在连接服务器 ws://172.16.50.45:2567 ...");
+        this._showMultiplayerStatus("正在连接服务器 " + MULTIPLAYER_SERVER_URL + " ...");
 
         this._netManager = new NetworkManager();
         this._netManager.onCountdown = (seconds) => {
@@ -1775,8 +1813,8 @@ export default class GameMain extends BaseComponent {
                 this._netManager.sendPlayerSetup(this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, safeZone) => {
-            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], safeZone || null);
+        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone) => {
+            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null);
         };
         this._netManager.onGameEnded = (payload) => {
             this._endMultiplayerMatch(payload);
@@ -1788,10 +1826,10 @@ export default class GameMain extends BaseComponent {
             this._hideMultiplayerAnnouncement();
             this._hideMultiplayerHud();
         };
-        this._netManager.connect("ws://172.16.50.45:2567");
+        this._netManager.connect(MULTIPLAYER_SERVER_URL);
     }
 
-    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = [], blackHolePickups = [], blackHoleZones = [], bushes = [], safeZone = null) {
+    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = [], blackHolePickups = [], blackHoleZones = [], bushes = [], covers = [], safeZone = null) {
         this._hideMultiplayerStatus();
         this._hideMultiplayerAnnouncement();
         this._hideMultiplayerHud();
@@ -1800,11 +1838,12 @@ export default class GameMain extends BaseComponent {
         this._multiplayerHitQueue = [];
         this._multiplayerBulletEventQueue = [];
         this._multiplayerTarThrowRepeat = 0;
+        this._multiplayerCoverToggleRepeat = 0;
         this._multiplayerFireSeq = 1;
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
 
         let self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], safeZone || null, function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._scheduleMultiplayerMinimapRefresh();
