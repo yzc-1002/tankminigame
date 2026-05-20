@@ -152,6 +152,7 @@ export class GameMap extends BaseComponent {
     _multiplayerPendingCoverToggleId = null;
     _multiplayerCoverTogglePendingFrames = 0;
     _multiplayerPendingCoverAction = null;
+    _multiplayerPendingInteraction = null;
     _localPlayerId = 0;       //本地玩家ID
     _multiplayerSpawnSlots = []; //多人出生槽位
     _levelId        = 1;        //当前关卡id
@@ -3067,6 +3068,13 @@ export class GameMap extends BaseComponent {
             egg.script.forceMature();
             egg.burstDone = true;
         }
+        egg.multiplayer = true;
+        egg.attached = !!eggData.attached;
+        egg.ownerPlayerId = eggData.ownerPlayerId == null ? null : eggData.ownerPlayerId;
+        egg.attachOffset = cc.v2(eggData.attachOffsetX || 0, eggData.attachOffsetY || 0);
+        egg.owner = egg.ownerPlayerId != null && this._multiplayerPlayers
+            ? this._multiplayerPlayers[egg.ownerPlayerId] || null
+            : null;
         this._multiplayerEnergyEggMap[eggData.id] = egg;
         return egg;
     }
@@ -3079,9 +3087,20 @@ export class GameMap extends BaseComponent {
         if (!egg || !egg.node || !cc.isValid(egg.node)) {
             return;
         }
+        egg.attached = !!payload.attached;
+        egg.ownerPlayerId = payload.ownerPlayerId == null ? null : payload.ownerPlayerId;
+        egg.attachOffset = cc.v2(payload.attachOffsetX || 0, payload.attachOffsetY || 0);
+        egg.owner = egg.ownerPlayerId != null && this._multiplayerPlayers
+            ? this._multiplayerPlayers[egg.ownerPlayerId] || null
+            : null;
         let nextPos = cc.v2(payload.x || 0, payload.y || 0);
+        if (egg.attached && egg.owner && cc.isValid(egg.owner)) {
+            nextPos = cc.v2(egg.owner.position).add(egg.attachOffset || cc.v2(0, 0));
+            nextPos = this.clampMapInnerPosition(nextPos, (egg.radius || 34) + 8);
+        }
         egg.node.setPosition(cc.v3(nextPos));
         egg.node.zIndex = this.judgezIndex(nextPos.y) + 1;
+        this._syncLocalMultiplayerInteractionPendingFromEnergyEgg(payload);
     }
 
     _matureMultiplayerEnergyEgg(payload) {
@@ -3121,6 +3140,7 @@ export class GameMap extends BaseComponent {
         if (eggId == null) {
             return;
         }
+        this._clearLocalMultiplayerCoverTogglePending(eggId, "energyEgg");
         let egg = this._multiplayerEnergyEggMap[eggId];
         delete this._multiplayerEnergyEggMap[eggId];
         if (!egg) {
@@ -4454,6 +4474,41 @@ export class GameMap extends BaseComponent {
         return nearest;
     }
 
+    _getAttachedMultiplayerEnergyEgg(player = null) {
+        let ownerPlayerId = player && player._multiplayerPlayerId != null ? player._multiplayerPlayerId : null;
+        if (ownerPlayerId == null) {
+            return null;
+        }
+        for (let id in this._multiplayerEnergyEggMap) {
+            let egg = this._multiplayerEnergyEggMap[id];
+            if (egg && egg.attached && egg.ownerPlayerId == ownerPlayerId) {
+                return egg;
+            }
+        }
+        return null;
+    }
+
+    _getNearestMultiplayerAttachableEnergyEgg(player) {
+        if (!player || !player.node || !cc.isValid(player.node)) {
+            return null;
+        }
+        let playerPos = cc.v2(player.node.position);
+        let nearest = null;
+        let nearestLen = 0;
+        for (let id in this._multiplayerEnergyEggMap) {
+            let egg = this._multiplayerEnergyEggMap[id];
+            if (!egg || !egg.node || !cc.isValid(egg.node) || egg.attached || egg.burstDone) {
+                continue;
+            }
+            let len = playerPos.sub(egg.node.position).mag();
+            if (len <= 110 && (nearest == null || len < nearestLen)) {
+                nearest = egg;
+                nearestLen = len;
+            }
+        }
+        return nearest;
+    }
+
     _isLocalMultiplayerCoverTogglePending() {
         return !!(this._multiplayerMode && this._multiplayerPendingCoverToggleId != null && this._multiplayerCoverTogglePendingFrames > 0);
     }
@@ -4480,7 +4535,88 @@ export class GameMap extends BaseComponent {
         if (!player) {
             return false;
         }
-        return !!(this._getAttachedMultiplayerCover(player) || this._getNearestMultiplayerAttachableCover(player));
+        return !!(
+            this._getAttachedMultiplayerCover(player) ||
+            this._getAttachedMultiplayerEnergyEgg(player) ||
+            this._getNearestMultiplayerAttachableCover(player) ||
+            this._getNearestMultiplayerAttachableEnergyEgg(player)
+        );
+    }
+
+    buildLocalMultiplayerInteractionAction(seq) {
+        if (!this._multiplayerMode || this._isLocalMultiplayerCoverTogglePending()) {
+            return null;
+        }
+        let player = this._getLocalMultiplayerPlayerScript();
+        if (!player) {
+            return null;
+        }
+        let actionSeq = Number.isFinite(seq) ? seq : 0;
+        let attachedCover = this._getAttachedMultiplayerCover(player);
+        if (attachedCover && attachedCover.coverId != null) {
+            this._setLocalMultiplayerInteractionPending("cover", attachedCover.coverId, "detach", actionSeq);
+            return {
+                coverAction: {
+                    seq: actionSeq,
+                    coverId: attachedCover.coverId,
+                    action: "detach",
+                },
+            };
+        }
+        let attachedEgg = this._getAttachedMultiplayerEnergyEgg(player);
+        if (attachedEgg && attachedEgg.eggId != null) {
+            this._setLocalMultiplayerInteractionPending("energyEgg", attachedEgg.eggId, "detach", actionSeq);
+            return {
+                energyEggAction: {
+                    seq: actionSeq,
+                    eggId: attachedEgg.eggId,
+                    action: "detach",
+                },
+            };
+        }
+
+        let nearestCover = this._getNearestMultiplayerAttachableCover(player);
+        let nearestEgg = this._getNearestMultiplayerAttachableEnergyEgg(player);
+        let targetType = null;
+        let target = null;
+        if (nearestCover && nearestEgg) {
+            let coverLen = cc.v2(player.node.position).sub(nearestCover.node.position).mag();
+            let eggLen = cc.v2(player.node.position).sub(nearestEgg.node.position).mag();
+            targetType = coverLen <= eggLen ? "cover" : "energyEgg";
+            target = targetType == "cover" ? nearestCover : nearestEgg;
+        }
+        else if (nearestCover) {
+            targetType = "cover";
+            target = nearestCover;
+        }
+        else if (nearestEgg) {
+            targetType = "energyEgg";
+            target = nearestEgg;
+        }
+        if (!target) {
+            return null;
+        }
+        if (targetType == "cover" && target.coverId != null) {
+            this._setLocalMultiplayerInteractionPending("cover", target.coverId, "attach", actionSeq);
+            return {
+                coverAction: {
+                    seq: actionSeq,
+                    coverId: target.coverId,
+                    action: "attach",
+                },
+            };
+        }
+        if (targetType == "energyEgg" && target.eggId != null) {
+            this._setLocalMultiplayerInteractionPending("energyEgg", target.eggId, "attach", actionSeq);
+            return {
+                energyEggAction: {
+                    seq: actionSeq,
+                    eggId: target.eggId,
+                    action: "attach",
+                },
+            };
+        }
+        return null;
     }
 
     buildLocalMultiplayerCoverAction(seq) {
@@ -4530,13 +4666,25 @@ export class GameMap extends BaseComponent {
     }
 
     _setLocalMultiplayerCoverTogglePending(coverId, action, seq) {
-        this._multiplayerPendingCoverToggleId = coverId;
+        this._setLocalMultiplayerInteractionPending("cover", coverId, action, seq);
+    }
+
+    _setLocalMultiplayerInteractionPending(type, targetId, action, seq) {
+        this._multiplayerPendingCoverToggleId = targetId;
         this._multiplayerCoverTogglePendingFrames = 20;
-        this._multiplayerPendingCoverAction = {
-            coverId: coverId,
-            action: action == "detach" ? "detach" : "attach",
+        let normalizedAction = action == "detach" ? "detach" : "attach";
+        this._multiplayerPendingInteraction = {
+            type: type == "energyEgg" ? "energyEgg" : "cover",
+            targetId: targetId,
+            action: normalizedAction,
             seq: Number.isFinite(seq) ? seq : 0,
-            expectedAttached: action == "attach",
+            expectedAttached: normalizedAction == "attach",
+        };
+        this._multiplayerPendingCoverAction = type == "energyEgg" ? null : {
+            coverId: targetId,
+            action: normalizedAction,
+            seq: Number.isFinite(seq) ? seq : 0,
+            expectedAttached: normalizedAction == "attach",
         };
         this._refreshLocalCoverInteractionUi();
     }
@@ -4550,11 +4698,15 @@ export class GameMap extends BaseComponent {
             this._multiplayerCoverTogglePendingFrames = 0;
             this._multiplayerPendingCoverToggleId = null;
             this._multiplayerPendingCoverAction = null;
+            this._multiplayerPendingInteraction = null;
         }
     }
 
-    _clearLocalMultiplayerCoverTogglePending(coverId = null) {
+    _clearLocalMultiplayerCoverTogglePending(coverId = null, type = null) {
         if (this._multiplayerPendingCoverToggleId == null) {
+            return;
+        }
+        if (type != null && this._multiplayerPendingInteraction && this._multiplayerPendingInteraction.type != type) {
             return;
         }
         if (coverId != null && this._multiplayerPendingCoverToggleId != coverId) {
@@ -4563,29 +4715,52 @@ export class GameMap extends BaseComponent {
         this._multiplayerPendingCoverToggleId = null;
         this._multiplayerCoverTogglePendingFrames = 0;
         this._multiplayerPendingCoverAction = null;
+        this._multiplayerPendingInteraction = null;
     }
 
     _syncLocalMultiplayerCoverTogglePendingFromCover(coverData) {
         if (!this._isLocalMultiplayerCoverTogglePending() || !coverData || coverData.id == null) {
             return;
         }
-        if (this._multiplayerPendingCoverToggleId != coverData.id) {
+        let pending = this._multiplayerPendingInteraction || this._multiplayerPendingCoverAction;
+        if (!pending || (pending.type && pending.type != "cover")) {
             return;
         }
-        let pending = this._multiplayerPendingCoverAction;
-        if (!pending) {
+        let pendingId = pending.targetId == null ? pending.coverId : pending.targetId;
+        if (pendingId != coverData.id) {
             return;
         }
         let attached = !!coverData.attached;
         let ownerPlayerId = coverData.ownerPlayerId == null ? null : coverData.ownerPlayerId;
         if (pending.expectedAttached) {
             if (attached || coverData.hp <= 0) {
-                this._clearLocalMultiplayerCoverTogglePending(coverData.id);
+                this._clearLocalMultiplayerCoverTogglePending(coverData.id, "cover");
             }
             return;
         }
         if (!attached || ownerPlayerId != this._localPlayerId || coverData.hp <= 0) {
-            this._clearLocalMultiplayerCoverTogglePending(coverData.id);
+            this._clearLocalMultiplayerCoverTogglePending(coverData.id, "cover");
+        }
+    }
+
+    _syncLocalMultiplayerInteractionPendingFromEnergyEgg(eggData) {
+        if (!this._isLocalMultiplayerCoverTogglePending() || !eggData || eggData.eggId == null) {
+            return;
+        }
+        let pending = this._multiplayerPendingInteraction;
+        if (!pending || pending.type != "energyEgg" || pending.targetId != eggData.eggId) {
+            return;
+        }
+        let attached = !!eggData.attached;
+        let ownerPlayerId = eggData.ownerPlayerId == null ? null : eggData.ownerPlayerId;
+        if (pending.expectedAttached) {
+            if (attached) {
+                this._clearLocalMultiplayerCoverTogglePending(eggData.eggId, "energyEgg");
+            }
+            return;
+        }
+        if (!attached || ownerPlayerId != this._localPlayerId) {
+            this._clearLocalMultiplayerCoverTogglePending(eggData.eggId, "energyEgg");
         }
     }
 
@@ -4635,9 +4810,15 @@ export class GameMap extends BaseComponent {
                 yyp.eventCenter.emit("cover-button-state",{visible:true, mode:"detach"});
                 return;
             }
+            let attachedEgg = this._getAttachedMultiplayerEnergyEgg(player);
+            if (attachedEgg) {
+                yyp.eventCenter.emit("cover-button-state",{visible:true, mode:"detach"});
+                return;
+            }
 
             let nearest = this._getNearestMultiplayerAttachableCover(player);
-            yyp.eventCenter.emit("cover-button-state",{visible:!!nearest, mode:"attach"});
+            let nearestEgg = this._getNearestMultiplayerAttachableEnergyEgg(player);
+            yyp.eventCenter.emit("cover-button-state",{visible:!!(nearest || nearestEgg), mode:"attach"});
             return;
         }
 
@@ -4769,6 +4950,29 @@ export class GameMap extends BaseComponent {
             pos = this.clampMapInnerPosition(pos, (cover.radius || 34) + 6);
             cover.node.setPosition(cc.v3(pos));
             cover.node.zIndex = this.judgezIndex(pos.y) + 1;
+        }
+    }
+
+    _syncAllAttachedMultiplayerEnergyEggs() {
+        if (!this._multiplayerMode) {
+            return;
+        }
+        for (let id in this._multiplayerEnergyEggMap) {
+            let egg = this._multiplayerEnergyEggMap[id];
+            if (!egg || !egg.attached || !egg.attachOffset || !egg.node || !cc.isValid(egg.node)) {
+                continue;
+            }
+            let owner = egg.ownerPlayerId != null && this._multiplayerPlayers
+                ? this._multiplayerPlayers[egg.ownerPlayerId]
+                : null;
+            if (!owner || !cc.isValid(owner)) {
+                continue;
+            }
+            egg.owner = owner;
+            let pos = cc.v2(owner.position).add(egg.attachOffset);
+            pos = this.clampMapInnerPosition(pos, (egg.radius || 34) + 8);
+            egg.node.setPosition(cc.v3(pos));
+            egg.node.zIndex = this.judgezIndex(pos.y) + 1;
         }
     }
 
@@ -6276,6 +6480,7 @@ export class GameMap extends BaseComponent {
         this._multiplayerPendingCoverToggleId = null;
         this._multiplayerCoverTogglePendingFrames = 0;
         this._multiplayerPendingCoverAction = null;
+        this._multiplayerPendingInteraction = null;
         this._localPlayerId = localPlayerId == null ? 0 : localPlayerId;
         this._multiplayerSpawnSlots = spawnSlots ? spawnSlots.slice() : [];
         let playerStates = Array.isArray(players) ? players : [];
@@ -6354,6 +6559,7 @@ export class GameMap extends BaseComponent {
         let commands = frameData && Array.isArray(frameData.commands) ? frameData.commands : [];
         this._applyMultiplayerFrameCommands(commands);
         this._syncAllAttachedMultiplayerCovers();
+        this._syncAllAttachedMultiplayerEnergyEggs();
         this._refreshMultiplayerBushVisibility();
         this._refreshLocalCoverInteractionUi();
 
@@ -6459,6 +6665,9 @@ export class GameMap extends BaseComponent {
             else if (command.type === "coverActionResult") {
                 this._applyMultiplayerCoverActionResult(command);
             }
+            else if (command.type === "energyEggActionResult") {
+                this._applyMultiplayerEnergyEggActionResult(command);
+            }
         }
     }
 
@@ -6471,7 +6680,21 @@ export class GameMap extends BaseComponent {
             return;
         }
         if (command.accepted !== true) {
-            this._clearLocalMultiplayerCoverTogglePending(command.coverId);
+            this._clearLocalMultiplayerCoverTogglePending(command.coverId, "cover");
+            this._refreshLocalCoverInteractionUi();
+        }
+    }
+
+    _applyMultiplayerEnergyEggActionResult(command) {
+        if (!this._isLocalMultiplayerCoverTogglePending() || !command || command.playerId != this._localPlayerId) {
+            return;
+        }
+        let pending = this._multiplayerPendingInteraction;
+        if (!pending || pending.type != "energyEgg" || pending.seq != command.seq || pending.targetId != command.eggId) {
+            return;
+        }
+        if (command.accepted !== true) {
+            this._clearLocalMultiplayerCoverTogglePending(command.eggId, "energyEgg");
             this._refreshLocalCoverInteractionUi();
         }
     }
@@ -6548,7 +6771,7 @@ export class GameMap extends BaseComponent {
         if (coverId == null) {
             return;
         }
-        this._clearLocalMultiplayerCoverTogglePending(coverId);
+        this._clearLocalMultiplayerCoverTogglePending(coverId, "cover");
         let cover = this._findMultiplayerCoverById(coverId);
         if (this._multiplayerCoverMap && this._multiplayerCoverMap[coverId]) {
             delete this._multiplayerCoverMap[coverId];

@@ -15,7 +15,9 @@ const ENERGY_VALUE = 12;
 const ENERGY_EGG_MIDGAME_SECONDS = 15;
 const ENERGY_EGG_MATURE_TIME = 10;
 const ENERGY_EGG_RADIUS = 34;
-const ENERGY_EGG_PUSH_MARGIN = 8;
+const ENERGY_EGG_ATTACH_DISTANCE = 110;
+const ENERGY_EGG_ATTACH_MIN_OFFSET = 60;
+const ENERGY_EGG_ATTACH_MAX_OFFSET = 84;
 const ENERGY_EGG_MAX_COUNT = 2;
 const ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MIN = 1;
 const ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MAX = 2;
@@ -461,6 +463,26 @@ function sanitizeCoverActionInput(action) {
   };
 }
 
+function sanitizeEnergyEggActionInput(action) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  if (action.eggId == null) {
+    return null;
+  }
+  const seq = Number(action.seq);
+  const eggId = Number(action.eggId);
+  const actionType = action.action === 'detach' ? 'detach' : 'attach';
+  if (!Number.isFinite(seq) || seq <= 0 || !Number.isFinite(eggId)) {
+    return null;
+  }
+  return {
+    seq: Math.floor(seq),
+    eggId: Math.floor(eggId),
+    action: actionType,
+  };
+}
+
 function createMatchFlowState() {
   return {
     openingAnnounced: false,
@@ -761,7 +783,7 @@ function updateMatchAnnouncements(frameCommands) {
     appendAnnouncement(frameCommands, {
       id: 'energyEgg',
       text: '能量蛋已刷新',
-      subText: '推动争夺，成熟后会爆出大量能量',
+      subText: '吸附携带，成熟后会爆出大量能量',
       style: 'event',
       duration: 2.6,
     });
@@ -1190,7 +1212,7 @@ function tryCoverActionByPlayer(player, action, frameCommands) {
     return true;
   }
 
-  if (cover.attached) {
+  if (cover.attached || getAttachedEnergyEggByPlayer(player)) {
     appendFrameCommand(frameCommands, buildCoverSyncCommand(cover));
     appendFrameCommand(frameCommands, buildCoverActionResultCommand(player, action, false));
     return false;
@@ -2290,6 +2312,10 @@ function createEnergyEgg(point) {
     remainTime: ENERGY_EGG_MATURE_TIME,
     mature: false,
     removed: false,
+    attached: false,
+    ownerPlayerId: null,
+    attachOffsetX: 0,
+    attachOffsetY: 0,
     energyCount: ENERGY_EGG_BURST_COUNT,
     energyScatterRadius: ENERGY_EGG_BURST_SCATTER_RADIUS,
   };
@@ -2369,6 +2395,10 @@ function spawnEnergyEggInFrame(frameCommands) {
       radius: egg.radius,
       remainTime: egg.remainTime,
       mature: false,
+      attached: !!egg.attached,
+      ownerPlayerId: egg.ownerPlayerId == null ? null : egg.ownerPlayerId,
+      attachOffsetX: Number.isFinite(egg.attachOffsetX) ? egg.attachOffsetX : 0,
+      attachOffsetY: Number.isFinite(egg.attachOffsetY) ? egg.attachOffsetY : 0,
       energyCount: egg.energyCount,
       energyScatterRadius: egg.energyScatterRadius,
     },
@@ -2376,81 +2406,156 @@ function spawnEnergyEggInFrame(frameCommands) {
   return egg;
 }
 
-function isEggBlockedByOtherEgg(currentEgg, nextPos) {
-  for (let i = 0; i < room.energyEggs.length; i++) {
-    const other = room.energyEggs[i];
-    if (!other || other.removed || other.id === currentEgg.id) {
-      continue;
-    }
-    const limit = currentEgg.radius + other.radius + ENERGY_EGG_PUSH_MARGIN;
-    if (Math.sqrt(distanceSqr(other, nextPos)) < limit) {
-      return true;
-    }
+function buildEnergyEggMoveCommand(egg) {
+  if (!egg) {
+    return null;
   }
-  return false;
-}
-
-function tryPushEnergyEggByPlayer(egg, player, frameCommands) {
-  if (!egg || egg.removed || !player || player.dead || player.disconnected || !player.lastSnapshot) {
-    return;
-  }
-  const snapshot = player.lastSnapshot;
-  if (snapshot.speed <= 0.25) {
-    return;
-  }
-  const playerPos = getPlayerRuntimePosition(player);
-  const offset = {
-    x: egg.x - playerPos.x,
-    y: egg.y - playerPos.y,
-  };
-  const offsetLen = Math.sqrt(offset.x * offset.x + offset.y * offset.y);
-  const playerRadius = snapshot.radius || PLAYER_DEFAULT_RADIUS;
-  const minDistance = playerRadius * 0.48 + egg.radius + 8;
-  if (offsetLen > minDistance) {
-    return;
-  }
-
-  const playerDir = getPlayerRuntimeDir(player);
-  let pushDir = offsetLen > 3
-    ? { x: offset.x / offsetLen, y: offset.y / offsetLen }
-    : playerDir;
-  const dot = pushDir.x * playerDir.x + pushDir.y * playerDir.y;
-  if (dot < -0.2) {
-    return;
-  }
-
-  const pushDistance = Math.max(1.6, snapshot.speed * (egg.mature ? 0.42 : 0.62));
-  const nextPos = clampPointToBounds({
-    x: egg.x + pushDir.x * pushDistance,
-    y: egg.y + pushDir.y * pushDistance,
-  }, egg.radius + 8);
-  if (isEggBlockedByOtherEgg(egg, nextPos)) {
-    return;
-  }
-  if (Math.abs(nextPos.x - egg.x) < 0.01 && Math.abs(nextPos.y - egg.y) < 0.01) {
-    return;
-  }
-
-  egg.x = nextPos.x;
-  egg.y = nextPos.y;
-  appendFrameCommand(frameCommands, {
+  return {
     type: 'energyEggMove',
     eggId: egg.id,
     x: egg.x,
     y: egg.y,
-  });
+    attached: !!egg.attached,
+    ownerPlayerId: egg.ownerPlayerId == null ? null : egg.ownerPlayerId,
+    attachOffsetX: Number.isFinite(egg.attachOffsetX) ? egg.attachOffsetX : 0,
+    attachOffsetY: Number.isFinite(egg.attachOffsetY) ? egg.attachOffsetY : 0,
+  };
 }
 
-function updateEnergyEggPushes(frameCommands) {
+function buildEnergyEggActionResultCommand(player, action, accepted) {
+  if (!player || !action) {
+    return null;
+  }
+  return {
+    type: 'energyEggActionResult',
+    playerId: player.playerId,
+    seq: action.seq,
+    eggId: action.eggId,
+    action: action.action,
+    accepted: !!accepted,
+  };
+}
+
+function getEnergyEggById(eggId) {
+  if (eggId == null) {
+    return null;
+  }
   for (let i = 0; i < room.energyEggs.length; i++) {
     const egg = room.energyEggs[i];
-    if (!egg || egg.removed) {
-      continue;
-    }
-    for (let j = 0; j < room.players.length; j++) {
-      tryPushEnergyEggByPlayer(egg, room.players[j], frameCommands);
+    if (egg && egg.id === eggId && !egg.removed) {
+      return egg;
     }
   }
+  return null;
+}
+
+function getAttachedEnergyEggByPlayer(player) {
+  if (!player) {
+    return null;
+  }
+  for (let i = 0; i < room.energyEggs.length; i++) {
+    const egg = room.energyEggs[i];
+    if (egg && !egg.removed && egg.attached && egg.ownerPlayerId === player.playerId) {
+      return egg;
+    }
+  }
+  return null;
+}
+
+function syncAttachedEnergyEggsFromPlayers(frameCommands = null) {
+  for (let i = 0; i < room.energyEggs.length; i++) {
+    const egg = room.energyEggs[i];
+    if (!egg || egg.removed || !egg.attached || egg.ownerPlayerId == null) {
+      continue;
+    }
+    const player = room.players[egg.ownerPlayerId];
+    if (!player || player.dead || player.disconnected) {
+      egg.attached = false;
+      egg.ownerPlayerId = null;
+      egg.attachOffsetX = 0;
+      egg.attachOffsetY = 0;
+      appendFrameCommand(frameCommands, buildEnergyEggMoveCommand(egg));
+      continue;
+    }
+    const pos = clampPointToBounds({
+      x: getPlayerRuntimePosition(player).x + (Number.isFinite(egg.attachOffsetX) ? egg.attachOffsetX : 0),
+      y: getPlayerRuntimePosition(player).y + (Number.isFinite(egg.attachOffsetY) ? egg.attachOffsetY : 0),
+    }, egg.radius + 8);
+    if (Math.abs(pos.x - egg.x) > 0.01 || Math.abs(pos.y - egg.y) > 0.01) {
+      egg.x = pos.x;
+      egg.y = pos.y;
+      appendFrameCommand(frameCommands, buildEnergyEggMoveCommand(egg));
+    }
+  }
+}
+
+function tryEnergyEggActionByPlayer(player, action, frameCommands) {
+  if (!player || player.dead || player.disconnected || !action) {
+    return false;
+  }
+  if (action.seq <= (player.lastEnergyEggActionSeq || 0)) {
+    return false;
+  }
+  player.lastEnergyEggActionSeq = action.seq;
+
+  const egg = getEnergyEggById(action.eggId);
+  if (!egg) {
+    appendFrameCommand(frameCommands, buildEnergyEggActionResultCommand(player, action, false));
+    return false;
+  }
+
+  if (action.action === 'detach') {
+    if (!egg.attached || egg.ownerPlayerId !== player.playerId) {
+      appendFrameCommand(frameCommands, buildEnergyEggMoveCommand(egg));
+      appendFrameCommand(frameCommands, buildEnergyEggActionResultCommand(player, action, false));
+      return false;
+    }
+    egg.attached = false;
+    egg.ownerPlayerId = null;
+    egg.attachOffsetX = 0;
+    egg.attachOffsetY = 0;
+    appendFrameCommand(frameCommands, buildEnergyEggMoveCommand(egg));
+    appendFrameCommand(frameCommands, buildEnergyEggActionResultCommand(player, action, true));
+    return true;
+  }
+
+  if (egg.attached || getAttachedEnergyEggByPlayer(player) || getAttachedCoverByPlayer(player)) {
+    appendFrameCommand(frameCommands, buildEnergyEggMoveCommand(egg));
+    appendFrameCommand(frameCommands, buildEnergyEggActionResultCommand(player, action, false));
+    return false;
+  }
+
+  const playerPos = getPlayerRuntimePosition(player);
+  const distance = Math.sqrt(distanceSqr(playerPos, egg));
+  if (!Number.isFinite(distance) || distance > ENERGY_EGG_ATTACH_DISTANCE) {
+    appendFrameCommand(frameCommands, buildEnergyEggMoveCommand(egg));
+    appendFrameCommand(frameCommands, buildEnergyEggActionResultCommand(player, action, false));
+    return false;
+  }
+
+  let offsetX = egg.x - playerPos.x;
+  let offsetY = egg.y - playerPos.y;
+  let len = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+  if (!Number.isFinite(len) || len <= 5) {
+    const dir = getPlayerRuntimeDir(player);
+    offsetX = dir.x;
+    offsetY = dir.y;
+    len = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+  }
+  if (!Number.isFinite(len) || len <= 0.0001) {
+    offsetX = 1;
+    offsetY = 0;
+    len = 1;
+  }
+  const offsetDistance = clamp(len, ENERGY_EGG_ATTACH_MIN_OFFSET, ENERGY_EGG_ATTACH_MAX_OFFSET);
+  egg.attachOffsetX = Number(((offsetX / len) * offsetDistance).toFixed(3));
+  egg.attachOffsetY = Number(((offsetY / len) * offsetDistance).toFixed(3));
+  egg.attached = true;
+  egg.ownerPlayerId = player.playerId;
+  syncAttachedEnergyEggsFromPlayers(frameCommands);
+  appendFrameCommand(frameCommands, buildEnergyEggMoveCommand(egg));
+  appendFrameCommand(frameCommands, buildEnergyEggActionResultCommand(player, action, true));
+  return true;
 }
 
 function burstEnergyEggInFrame(egg, frameCommands) {
@@ -2491,7 +2596,7 @@ function updateEnergyEggs(frameCommands) {
     spawnEnergyEggInFrame(frameCommands);
   }
 
-  updateEnergyEggPushes(frameCommands);
+  syncAttachedEnergyEggsFromPlayers(frameCommands);
 
   for (let i = 0; i < room.energyEggs.length; i++) {
     const egg = room.energyEggs[i];
@@ -2697,6 +2802,7 @@ function tick() {
       throwBlackHole: false,
       toggleCover: false,
       coverAction: null,
+      energyEggAction: null,
     };
 
     if (p.dead || p.disconnected) {
@@ -2776,6 +2882,10 @@ function tick() {
       if (coverAction && (!inputs.coverAction || coverAction.seq > inputs.coverAction.seq)) {
         inputs.coverAction = coverAction;
       }
+      const energyEggAction = sanitizeEnergyEggActionInput(src.energyEggAction);
+      if (energyEggAction && (!inputs.energyEggAction || energyEggAction.seq > inputs.energyEggAction.seq)) {
+        inputs.energyEggAction = energyEggAction;
+      }
       if (src.playerSnapshot) {
         p.lastSnapshot = sanitizePlayerSnapshot(src.playerSnapshot);
         if (p.lastSnapshot) {
@@ -2826,7 +2936,10 @@ function tick() {
     if (inputs.coverAction) {
       tryCoverActionByPlayer(p, inputs.coverAction, eventCommands);
     }
-    else if (inputs.toggleCover) {
+    if (inputs.energyEggAction) {
+      tryEnergyEggActionByPlayer(p, inputs.energyEggAction, eventCommands);
+    }
+    else if (!inputs.coverAction && inputs.toggleCover) {
       tryToggleCoverByPlayer(p, eventCommands);
     }
     applySafeZoneDamageToPlayer(p, eventCommands);
@@ -3073,6 +3186,7 @@ wss.on('connection', (ws) => {
   ws.dirY = PLAYER_DIR_FALLBACK.y;
   ws.lastSnapshot = null;
   ws.lastCoverActionSeq = 0;
+  ws.lastEnergyEggActionSeq = 0;
   ws.safeZoneDamageCd = SAFE_ZONE_DAMAGE_INTERVAL;
 
   ws.on('message', (data) => {

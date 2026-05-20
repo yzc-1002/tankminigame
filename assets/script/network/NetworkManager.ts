@@ -146,6 +146,11 @@ export class NetworkManager {
                 coverId: source.coverAction.coverId,
                 action: source.coverAction.action == "detach" ? "detach" : "attach",
             } : null,
+            energyEggAction: source.energyEggAction && Number.isFinite(source.energyEggAction.seq) && source.energyEggAction.eggId != null ? {
+                seq: source.energyEggAction.seq,
+                eggId: source.energyEggAction.eggId,
+                action: source.energyEggAction.action == "detach" ? "detach" : "attach",
+            } : null,
             playerSnapshot: snapshot ? {
                 x: snapshot.x,
                 y: snapshot.y,

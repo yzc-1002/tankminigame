@@ -1332,6 +1332,7 @@ var GameMain = /** @class */ (function (_super) {
             throwBlackHole: false,
             toggleCover: false,
             coverAction: null,
+            energyEggAction: null,
         };
     };
     GameMain.prototype._ensureMultiplayerInputs = function () {
@@ -1361,6 +1362,9 @@ var GameMain = /** @class */ (function (_super) {
         }
         if (this._multiplayerInputs.coverAction === undefined) {
             this._multiplayerInputs.coverAction = null;
+        }
+        if (this._multiplayerInputs.energyEggAction === undefined) {
+            this._multiplayerInputs.energyEggAction = null;
         }
         return this._multiplayerInputs;
     };
@@ -1394,6 +1398,7 @@ var GameMain = /** @class */ (function (_super) {
             inputs.toggleCover = false;
         }
         inputs.coverAction = null;
+        inputs.energyEggAction = null;
     };
     GameMain.prototype._flushMultiplayerInputsNow = function () {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !this._netManager || !this._netManager.connected) {
@@ -1434,6 +1439,7 @@ var GameMain = /** @class */ (function (_super) {
             throwBlackHole: source.throwBlackHole ? source.throwBlackHole : false,
             toggleCover: !!source.toggleCover,
             coverAction: source.coverAction ? source.coverAction : null,
+            energyEggAction: source.energyEggAction ? source.energyEggAction : null,
             playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
         };
     };
@@ -1549,19 +1555,24 @@ var GameMain = /** @class */ (function (_super) {
         if (mapScript && mapScript.isLocalMultiplayerCoverActionAvailable && !mapScript.isLocalMultiplayerCoverActionAvailable()) {
             return;
         }
-        var coverAction = null;
-        if (mapScript && mapScript.buildLocalMultiplayerCoverAction) {
-            coverAction = mapScript.buildLocalMultiplayerCoverAction(this._multiplayerCoverActionSeq++);
+        var actionPayload = null;
+        if (mapScript && mapScript.buildLocalMultiplayerInteractionAction) {
+            actionPayload = mapScript.buildLocalMultiplayerInteractionAction(this._multiplayerCoverActionSeq++);
+        }
+        else if (mapScript && mapScript.buildLocalMultiplayerCoverAction) {
+            var coverAction = mapScript.buildLocalMultiplayerCoverAction(this._multiplayerCoverActionSeq++);
+            actionPayload = coverAction ? { coverAction: coverAction } : null;
         }
         else if (mapScript && mapScript.notifyLocalMultiplayerCoverToggleRequested) {
             mapScript.notifyLocalMultiplayerCoverToggleRequested();
         }
-        if (!coverAction) {
+        if (!actionPayload) {
             return;
         }
         var inputs = this._ensureMultiplayerInputs();
         inputs.toggleCover = false;
-        inputs.coverAction = coverAction;
+        inputs.coverAction = actionPayload.coverAction || null;
+        inputs.energyEggAction = actionPayload.energyEggAction || null;
         this._multiplayerCoverToggleRepeat = 0;
         this._flushMultiplayerInputsNow();
     };

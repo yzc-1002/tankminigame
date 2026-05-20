@@ -1468,6 +1468,7 @@ export default class GameMain extends BaseComponent {
             throwBlackHole: false,
             toggleCover: false,
             coverAction: null,
+            energyEggAction: null,
         };
     }
 
@@ -1498,6 +1499,9 @@ export default class GameMain extends BaseComponent {
         }
         if (this._multiplayerInputs.coverAction === undefined) {
             this._multiplayerInputs.coverAction = null;
+        }
+        if (this._multiplayerInputs.energyEggAction === undefined) {
+            this._multiplayerInputs.energyEggAction = null;
         }
         return this._multiplayerInputs;
     }
@@ -1532,6 +1536,7 @@ export default class GameMain extends BaseComponent {
             inputs.toggleCover = false;
         }
         inputs.coverAction = null;
+        inputs.energyEggAction = null;
     }
 
     _flushMultiplayerInputsNow() {
@@ -1574,6 +1579,7 @@ export default class GameMain extends BaseComponent {
             throwBlackHole: source.throwBlackHole ? source.throwBlackHole : false,
             toggleCover: !!source.toggleCover,
             coverAction: source.coverAction ? source.coverAction : null,
+            energyEggAction: source.energyEggAction ? source.energyEggAction : null,
             playerSnapshot: this._buildLocalMultiplayerPlayerSnapshot(),
         };
     }
@@ -1699,19 +1705,24 @@ export default class GameMain extends BaseComponent {
         if (mapScript && mapScript.isLocalMultiplayerCoverActionAvailable && !mapScript.isLocalMultiplayerCoverActionAvailable()) {
             return;
         }
-        let coverAction = null;
-        if (mapScript && mapScript.buildLocalMultiplayerCoverAction) {
-            coverAction = mapScript.buildLocalMultiplayerCoverAction(this._multiplayerCoverActionSeq++);
+        let actionPayload = null;
+        if (mapScript && mapScript.buildLocalMultiplayerInteractionAction) {
+            actionPayload = mapScript.buildLocalMultiplayerInteractionAction(this._multiplayerCoverActionSeq++);
+        }
+        else if (mapScript && mapScript.buildLocalMultiplayerCoverAction) {
+            let coverAction = mapScript.buildLocalMultiplayerCoverAction(this._multiplayerCoverActionSeq++);
+            actionPayload = coverAction ? {coverAction: coverAction} : null;
         }
         else if (mapScript && mapScript.notifyLocalMultiplayerCoverToggleRequested) {
             mapScript.notifyLocalMultiplayerCoverToggleRequested();
         }
-        if (!coverAction) {
+        if (!actionPayload) {
             return;
         }
         let inputs = this._ensureMultiplayerInputs();
         inputs.toggleCover = false;
-        inputs.coverAction = coverAction;
+        inputs.coverAction = actionPayload.coverAction || null;
+        inputs.energyEggAction = actionPayload.energyEggAction || null;
         this._multiplayerCoverToggleRepeat = 0;
         this._flushMultiplayerInputsNow();
     }
