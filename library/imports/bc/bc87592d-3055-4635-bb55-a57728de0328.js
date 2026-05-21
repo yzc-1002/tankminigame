@@ -91,6 +91,7 @@ var JoyStick = /** @class */ (function (_super) {
         if (controlType == "skill" && this._skillTouchId == null) {
             this._skillTouchId = touchId;
             if (this._skillMode != "charge") {
+                // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
                 yyp.eventCenter.emit("oil-shell-trigger", { pressed: true });
                 this._updateOilSkillDrag(pos, true);
             }
@@ -158,6 +159,7 @@ var JoyStick = /** @class */ (function (_super) {
             this._skillTouchId = null;
             this._resetSkillButtonPosition();
             if (this._skillMode != "charge") {
+                // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
                 yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, release: true });
             }
             else if (this._skillMode == "charge") {
@@ -198,6 +200,7 @@ var JoyStick = /** @class */ (function (_super) {
         this._setSacrificeButtonPressed(false);
         this._setCoverButtonPressed(false);
         if (this._skillMode != "charge") {
+            // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
             yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, cancelled: true });
         }
         yyp.eventCenter.emit("joy-stick", { dir: this._moveDir, ratio: 0 });
@@ -368,7 +371,7 @@ var JoyStick = /** @class */ (function (_super) {
             }
         }
         var skillBtn = this._getCurrentSkillButton();
-        if (skillBtn) {
+        if (skillBtn && this._skillTouchId == null) {
             this._skillTouchPos = skillBtn.position.clone();
         }
         if (this._fire._chargeProgressBg) {

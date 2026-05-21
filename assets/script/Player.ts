@@ -2181,8 +2181,11 @@ export class Player extends Tank {
             }
         }
         if (state.activePickupType !== undefined) {
-            this._activePickupType = state.activePickupType || "";
-            this._refreshSkillButtonMode();
+            let nextActivePickupType = state.activePickupType || "";
+            if (nextActivePickupType != this._activePickupType) {
+                this._activePickupType = nextActivePickupType;
+                this._refreshSkillButtonMode();
+            }
         }
         if (state.freeBulletCount != null) {
             this._freeBulletCount = Math.max(0, Math.min(PLAYER_FREE_BULLET_MAX, state.freeBulletCount));
