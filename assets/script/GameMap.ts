@@ -49,6 +49,8 @@ const KILL_BADGE_TINTS = {
 const MULTIPLAYER_SAFE_ZONE_START_PADDING = 80;
 const MULTIPLAYER_SAFE_ZONE_FIXED_RADIUS_RATIO = 0.86;
 const MULTIPLAYER_SAFE_ZONE_MIN_RADIUS = 140;
+const MULTIPLAYER_SPAWN_EDGE_PADDING = 80;
+const MULTIPLAYER_SPAWN_SAFE_PADDING = 56;
 const MULTIPLAYER_BUSH_RADIUS = 94;
 const MULTIPLAYER_BUSH_SAFE_PADDING = MULTIPLAYER_BUSH_RADIUS + 12;
 const MULTIPLAYER_BUSH_MAP_PADDING = 120;
@@ -3583,7 +3585,7 @@ export class GameMap extends BaseComponent {
         return result;
     }
 
-    _getMultiplayerBushPreferredSafeRadius() {
+    _getMultiplayerPreferredSafeRadius() {
         if (!this._tmSize) {
             return 0;
         }
@@ -3599,6 +3601,10 @@ export class GameMap extends BaseComponent {
             Math.floor(startRadius * MULTIPLAYER_SAFE_ZONE_FIXED_RADIUS_RATIO)
         );
         return Math.min(startRadius, targetRadius);
+    }
+
+    _getMultiplayerBushPreferredSafeRadius() {
+        return this._getMultiplayerPreferredSafeRadius();
     }
 
     _normalizeMultiplayerBushSpawnPoint(rawPoint) {
@@ -6462,7 +6468,40 @@ export class GameMap extends BaseComponent {
         }
     }
     
+    _getMultiplayerCornerSpawnCandidates() {
+        let safeRadius = this._getMultiplayerPreferredSafeRadius();
+        let usableRadius = safeRadius - MULTIPLAYER_SPAWN_SAFE_PADDING;
+        if (!(usableRadius > 0)) {
+            return [];
+        }
+
+        let offset = Math.max(0, Math.floor(usableRadius / Math.sqrt(2)));
+        let corners = [
+            cc.v2(-offset, offset),
+            cc.v2(offset, offset),
+            cc.v2(-offset, -offset),
+            cc.v2(offset, -offset),
+        ];
+        let result = [];
+        let used = {};
+        for (let i = 0; i < corners.length; i++) {
+            let pos = this.clampMapInnerPosition(corners[i], MULTIPLAYER_SPAWN_EDGE_PADDING);
+            let key = Math.round(pos.x) + ":" + Math.round(pos.y);
+            if (used[key]) {
+                continue;
+            }
+            used[key] = true;
+            result.push(cc.v2(pos));
+        }
+        return result;
+    }
+
     _getMultiplayerSpawnCandidates() {
+        let cornerCandidates = this._getMultiplayerCornerSpawnCandidates();
+        if (cornerCandidates.length >= 4) {
+            return cornerCandidates;
+        }
+
         let result = [];
         if (this._playerBornPos) {
             result.push(cc.v2(this._playerBornPos));

@@ -159,7 +159,10 @@ export class OilPickup extends BaseComponent {
 
     setPickupType(type = "oil") {
         let nextType = "oil";
-        if (type == "blackHole" || type == "portal" || type == "speedDouble" || type == "damageDouble") {
+        if (type == "tar" || type == "oil") {
+            nextType = "oil";
+        }
+        else if (type == "blackHole" || type == "portal" || type == "speedDouble" || type == "damageDouble") {
             nextType = type;
         }
         this._pickupType = nextType;

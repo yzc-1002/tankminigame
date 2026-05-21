@@ -8,7 +8,7 @@ const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 4;
 const START_DELAY = 3;
 const MAX_PENDING_INPUTS = 10;
-const SPAWN_SLOT_COUNT = 8;
+const SPAWN_SLOT_COUNT = 4;
 const ENERGY_BORN_INTERVAL = 4;
 const ENERGY_MAX_COUNT = 6;
 const ENERGY_VALUE = 12;
@@ -339,11 +339,8 @@ function shuffle(array) {
 }
 
 function assignSpawnSlots(playerCount) {
-  const slots = [];
-  for (let i = 0; i < SPAWN_SLOT_COUNT; i++) {
-    slots.push(i);
-  }
-  return shuffle(slots).slice(0, playerCount);
+  const slots = [0, 1, 2, 3];
+  return shuffle(slots).slice(0, Math.min(playerCount, slots.length));
 }
 
 function clamp(value, min, max) {
@@ -1908,11 +1905,23 @@ function tryConsumeConfiguredPickup(player, pickupId, frameCommands) {
   if (!player || player.dead || player.disconnected || pickupId == null) {
     return false;
   }
-  if (getPlayerActivePickupType(player)) {
-    return false;
-  }
   const pickup = room.pickups.find((item) => item && item.id === pickupId && !item.removed);
   if (!pickup) {
+    return false;
+  }
+  const pickupType = normalizePickupType(pickup.pickupType);
+  if (!pickupType) {
+    return false;
+  }
+  if (pickupType === PICKUP_TYPE.TAR) {
+    if ((player.tarAmmoCount || 0) >= 1) {
+      return false;
+    }
+  } else if (pickupType === PICKUP_TYPE.BLACK_HOLE) {
+    if ((player.blackHoleAmmoCount || 0) >= 1) {
+      return false;
+    }
+  } else if (getPlayerActivePickupType(player)) {
     return false;
   }
   const playerPos = getPlayerRuntimePosition(player);
@@ -1922,11 +1931,17 @@ function tryConsumeConfiguredPickup(player, pickupId, frameCommands) {
   if (!removeConfiguredPickupInFrame(pickupId, frameCommands, 'pickup')) {
     return false;
   }
-  assignPlayerActivePickup(player, pickup.pickupType);
+  if (pickupType === PICKUP_TYPE.TAR) {
+    player.tarAmmoCount = 1;
+  } else if (pickupType === PICKUP_TYPE.BLACK_HOLE) {
+    player.blackHoleAmmoCount = 1;
+  } else {
+    assignPlayerActivePickup(player, pickupType);
+  }
   appendFrameCommand(frameCommands, {
     type: 'pickupActionResult',
     playerId: player.playerId,
-    pickupType: pickup.pickupType,
+    pickupType,
     accepted: true,
     action: 'pickup',
   });
@@ -2192,7 +2207,9 @@ function tryThrowTarByPlayer(player, throwTar, frameCommands) {
   if (!player || player.dead || player.disconnected || !throwTar) {
     return false;
   }
-  if ((player.tarAmmoCount || 0) <= 0) {
+  const hasTarAmmo = (player.tarAmmoCount || 0) > 0;
+  const hasActiveTarPickup = getPlayerActivePickupType(player) === PICKUP_TYPE.TAR;
+  if (!hasTarAmmo && !hasActiveTarPickup) {
     return false;
   }
   const playerPos = getPlayerRuntimePosition(player);
@@ -2214,6 +2231,9 @@ function tryThrowTarByPlayer(player, throwTar, frameCommands) {
     return false;
   }
   player.tarAmmoCount = 0;
+  if (hasActiveTarPickup) {
+    clearPlayerActivePickup(player);
+  }
   appendFrameCommand(frameCommands, {
     type: 'tarThrow',
     playerId: player.playerId,
@@ -2236,7 +2256,9 @@ function tryThrowBlackHoleByPlayer(player, throwPayload, frameCommands) {
   if (!player || player.dead || player.disconnected || !throwPayload) {
     return false;
   }
-  if ((player.blackHoleAmmoCount || 0) <= 0) {
+  const hasBlackHoleAmmo = (player.blackHoleAmmoCount || 0) > 0;
+  const hasActiveBlackHolePickup = getPlayerActivePickupType(player) === PICKUP_TYPE.BLACK_HOLE;
+  if (!hasBlackHoleAmmo && !hasActiveBlackHolePickup) {
     return false;
   }
   const playerPos = getPlayerRuntimePosition(player);
@@ -2258,6 +2280,9 @@ function tryThrowBlackHoleByPlayer(player, throwPayload, frameCommands) {
     return false;
   }
   player.blackHoleAmmoCount = 0;
+  if (hasActiveBlackHolePickup) {
+    clearPlayerActivePickup(player);
+  }
   appendFrameCommand(frameCommands, {
     type: 'blackHoleThrow',
     playerId: player.playerId,
@@ -3757,6 +3782,16 @@ function tick() {
         pendingFire = src.fire;
       }
 
+      if (src.playerSnapshot) {
+        p.lastSnapshot = sanitizePlayerSnapshot(src.playerSnapshot);
+        if (p.lastSnapshot) {
+          p.posX = p.lastSnapshot.x;
+          p.posY = p.lastSnapshot.y;
+          p.dirX = p.lastSnapshot.dirX;
+          p.dirY = p.lastSnapshot.dirY;
+        }
+      }
+
       if (src.hit) {
         inputs.hit = src.hit;
       }
@@ -3802,16 +3837,6 @@ function tick() {
       if (energyEggAction && (!inputs.energyEggAction || energyEggAction.seq > inputs.energyEggAction.seq)) {
         inputs.energyEggAction = energyEggAction;
       }
-      if (src.playerSnapshot) {
-        p.lastSnapshot = sanitizePlayerSnapshot(src.playerSnapshot);
-        if (p.lastSnapshot) {
-          p.posX = p.lastSnapshot.x;
-          p.posY = p.lastSnapshot.y;
-          p.dirX = p.lastSnapshot.dirX;
-          p.dirY = p.lastSnapshot.dirY;
-        }
-      }
-
       if (src.hit && src.hit.id) {
         const bullet = room.bullets[src.hit.id];
         const targetPlayer = room.players[src.hit.tgid];

@@ -1444,6 +1444,9 @@ var Player = /** @class */ (function (_super) {
         }
         var target = this._oilShellPreviewTarget || this._getOilShellThrowTarget();
         var activeThrowSkillType = this._activeThrowSkillType || this._activePickupType || (this._blackHoleShellCount > 0 && this._oilShellCount <= 0 ? "blackHole" : "oil");
+        if (activeThrowSkillType == "tar") {
+            activeThrowSkillType = "oil";
+        }
         var aimDir = cc.v2(this._oilShellAimDir || this._barrelDir || cc.v2(1, 0));
         if (aimDir.magSqr() > 0) {
             aimDir = aimDir.normalize();
@@ -1856,6 +1859,9 @@ var Player = /** @class */ (function (_super) {
         }
         if (state.activePickupType !== undefined) {
             var nextActivePickupType = state.activePickupType || "";
+            if (nextActivePickupType == "tar") {
+                nextActivePickupType = "oil";
+            }
             if (nextActivePickupType != this._activePickupType) {
                 this._activePickupType = nextActivePickupType;
                 this._refreshSkillButtonMode();

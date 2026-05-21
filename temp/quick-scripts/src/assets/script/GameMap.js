@@ -75,6 +75,8 @@ var KILL_BADGE_TINTS = {
 var MULTIPLAYER_SAFE_ZONE_START_PADDING = 80;
 var MULTIPLAYER_SAFE_ZONE_FIXED_RADIUS_RATIO = 0.86;
 var MULTIPLAYER_SAFE_ZONE_MIN_RADIUS = 140;
+var MULTIPLAYER_SPAWN_EDGE_PADDING = 80;
+var MULTIPLAYER_SPAWN_SAFE_PADDING = 56;
 var MULTIPLAYER_BUSH_RADIUS = 94;
 var MULTIPLAYER_BUSH_SAFE_PADDING = MULTIPLAYER_BUSH_RADIUS + 12;
 var MULTIPLAYER_BUSH_MAP_PADDING = 120;
@@ -3068,7 +3070,7 @@ var GameMap = /** @class */ (function (_super) {
         }
         return result;
     };
-    GameMap.prototype._getMultiplayerBushPreferredSafeRadius = function () {
+    GameMap.prototype._getMultiplayerPreferredSafeRadius = function () {
         if (!this._tmSize) {
             return 0;
         }
@@ -3078,6 +3080,9 @@ var GameMap = /** @class */ (function (_super) {
         var startRadius = Math.max(MULTIPLAYER_SAFE_ZONE_MIN_RADIUS, Math.floor(Math.max(0, startRadiusBase - MULTIPLAYER_SAFE_ZONE_START_PADDING)));
         var targetRadius = Math.max(MULTIPLAYER_SAFE_ZONE_MIN_RADIUS, Math.floor(startRadius * MULTIPLAYER_SAFE_ZONE_FIXED_RADIUS_RATIO));
         return Math.min(startRadius, targetRadius);
+    };
+    GameMap.prototype._getMultiplayerBushPreferredSafeRadius = function () {
+        return this._getMultiplayerPreferredSafeRadius();
     };
     GameMap.prototype._normalizeMultiplayerBushSpawnPoint = function (rawPoint) {
         if (!rawPoint) {
@@ -5588,7 +5593,37 @@ var GameMap = /** @class */ (function (_super) {
             }
         }
     };
+    GameMap.prototype._getMultiplayerCornerSpawnCandidates = function () {
+        var safeRadius = this._getMultiplayerPreferredSafeRadius();
+        var usableRadius = safeRadius - MULTIPLAYER_SPAWN_SAFE_PADDING;
+        if (!(usableRadius > 0)) {
+            return [];
+        }
+        var offset = Math.max(0, Math.floor(usableRadius / Math.sqrt(2)));
+        var corners = [
+            cc.v2(-offset, offset),
+            cc.v2(offset, offset),
+            cc.v2(-offset, -offset),
+            cc.v2(offset, -offset),
+        ];
+        var result = [];
+        var used = {};
+        for (var i = 0; i < corners.length; i++) {
+            var pos = this.clampMapInnerPosition(corners[i], MULTIPLAYER_SPAWN_EDGE_PADDING);
+            var key = Math.round(pos.x) + ":" + Math.round(pos.y);
+            if (used[key]) {
+                continue;
+            }
+            used[key] = true;
+            result.push(cc.v2(pos));
+        }
+        return result;
+    };
     GameMap.prototype._getMultiplayerSpawnCandidates = function () {
+        var cornerCandidates = this._getMultiplayerCornerSpawnCandidates();
+        if (cornerCandidates.length >= 4) {
+            return cornerCandidates;
+        }
         var result = [];
         if (this._playerBornPos) {
             result.push(cc.v2(this._playerBornPos));

@@ -1719,6 +1719,9 @@ export class Player extends Tank {
         }
         let target = this._oilShellPreviewTarget || this._getOilShellThrowTarget();
         let activeThrowSkillType = this._activeThrowSkillType || this._activePickupType || (this._blackHoleShellCount > 0 && this._oilShellCount <= 0 ? "blackHole" : "oil");
+        if (activeThrowSkillType == "tar") {
+            activeThrowSkillType = "oil";
+        }
         let aimDir = cc.v2(this._oilShellAimDir || this._barrelDir || cc.v2(1, 0));
         if (aimDir.magSqr() > 0) {
             aimDir = aimDir.normalize();
@@ -2182,6 +2185,9 @@ export class Player extends Tank {
         }
         if (state.activePickupType !== undefined) {
             let nextActivePickupType = state.activePickupType || "";
+            if (nextActivePickupType == "tar") {
+                nextActivePickupType = "oil";
+            }
             if (nextActivePickupType != this._activePickupType) {
                 this._activePickupType = nextActivePickupType;
                 this._refreshSkillButtonMode();
