@@ -78,6 +78,42 @@ export class OilPickup extends BaseComponent {
                 skillId: 5,
             };
         }
+        if (this._pickupType == "portal") {
+            return {
+                title: "传送",
+                tip: "拾取传送门",
+                outerColor: cc.color(34, 70, 132, 235),
+                ringColor: cc.color(90, 215, 255, 220),
+                coreColor: cc.color(255, 120, 220, 220),
+                labelColor: cc.color(230, 245, 255, 255),
+                tipColor: cc.color(200, 228, 255, 210),
+                skillId: 6,
+            };
+        }
+        if (this._pickupType == "speedDouble") {
+            return {
+                title: "加速",
+                tip: "拾取加速区",
+                outerColor: cc.color(24, 72, 160, 235),
+                ringColor: cc.color(110, 210, 255, 220),
+                coreColor: cc.color(40, 140, 255, 240),
+                labelColor: cc.color(228, 245, 255, 255),
+                tipColor: cc.color(200, 228, 255, 210),
+                skillId: 7,
+            };
+        }
+        if (this._pickupType == "damageDouble") {
+            return {
+                title: "增伤",
+                tip: "拾取增伤区",
+                outerColor: cc.color(122, 34, 30, 235),
+                ringColor: cc.color(255, 120, 95, 220),
+                coreColor: cc.color(255, 78, 48, 240),
+                labelColor: cc.color(255, 236, 228, 255),
+                tipColor: cc.color(255, 220, 210, 210),
+                skillId: 8,
+            };
+        }
         return {
             title: "焦油",
             tip: "拾取焦油弹",
@@ -122,7 +158,11 @@ export class OilPickup extends BaseComponent {
     }
 
     setPickupType(type = "oil") {
-        this._pickupType = type == "blackHole" ? "blackHole" : "oil";
+        let nextType = "oil";
+        if (type == "blackHole" || type == "portal" || type == "speedDouble" || type == "damageDouble") {
+            nextType = type;
+        }
+        this._pickupType = nextType;
         if (this.node && cc.isValid(this.node)) {
             this._buildView();
         }

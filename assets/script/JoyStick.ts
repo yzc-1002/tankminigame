@@ -67,7 +67,7 @@ export class JoyStick extends BaseComponent {
         let controlType = this._getControlType(pos);
         if (controlType == "skill" && this._skillTouchId == null) {
             this._skillTouchId = touchId;
-            if (this._skillMode == "oil" || this._skillMode == "blackHole") {
+            if (this._skillMode != "charge") {
                 yyp.eventCenter.emit("oil-shell-trigger", { pressed: true });
                 this._updateOilSkillDrag(pos, true);
             }
@@ -118,7 +118,7 @@ export class JoyStick extends BaseComponent {
         else if (touchId == this._shootTouchId) {
             this._updateShootStick(pos);
         }
-        else if (touchId == this._skillTouchId && (this._skillMode == "oil" || this._skillMode == "blackHole")) {
+        else if (touchId == this._skillTouchId && this._skillMode != "charge") {
             this._updateOilSkillDrag(pos, false);
         }
     }
@@ -138,7 +138,7 @@ export class JoyStick extends BaseComponent {
         else if (touchId == this._skillTouchId) {
             this._skillTouchId = null;
             this._resetSkillButtonPosition();
-            if (this._skillMode == "oil" || this._skillMode == "blackHole") {
+            if (this._skillMode != "charge") {
                 yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, release: true });
             }
             else if (this._skillMode == "charge") {
@@ -180,14 +180,14 @@ export class JoyStick extends BaseComponent {
         this._refreshChargeProgress(this._chargeProgressValue, this._chargeProgressColor);
         this._setSacrificeButtonPressed(false);
         this._setCoverButtonPressed(false);
-        if (this._skillMode == "oil" || this._skillMode == "blackHole") {
+        if (this._skillMode != "charge") {
             yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, cancelled: true });
         }
         yyp.eventCenter.emit("joy-stick",{dir:this._moveDir, ratio:0});
     }
 
     _getCurrentSkillButton() {
-        if ((this._skillMode == "oil" || this._skillMode == "blackHole") && this._fire._skilloilBtn) {
+        if (this._skillMode != "charge" && this._fire._skilloilBtn) {
             return this._fire._skilloilBtn;
         }
         return this._fire._skillBtn;
@@ -338,7 +338,10 @@ export class JoyStick extends BaseComponent {
     }
 
     _setSkillButtonMode(mode) {
-        let nextMode = mode == "oil" || mode == "blackHole" ? mode : "charge";
+        let nextMode = "charge";
+        if (mode == "oil" || mode == "blackHole" || mode == "portal" || mode == "speedDouble" || mode == "damageDouble") {
+            nextMode = mode;
+        }
         let prevMode = this._skillMode;
         this._skillMode = nextMode;
         if (prevMode != this._skillMode) {
@@ -349,10 +352,22 @@ export class JoyStick extends BaseComponent {
             this._fire._skillBtn.active = this._skillMode == "charge";
         }
         if (this._fire._skilloilBtn) {
-            this._fire._skilloilBtn.active = this._skillMode == "oil" || this._skillMode == "blackHole";
-            this._fire._skilloilBtn.color = this._skillMode == "blackHole"
-                ? cc.color(166, 120, 255, 255)
-                : cc.color(255, 255, 255, 255);
+            this._fire._skilloilBtn.active = this._skillMode != "charge";
+            if (this._skillMode == "blackHole") {
+                this._fire._skilloilBtn.color = cc.color(166, 120, 255, 255);
+            }
+            else if (this._skillMode == "portal") {
+                this._fire._skilloilBtn.color = cc.color(120, 220, 255, 255);
+            }
+            else if (this._skillMode == "speedDouble") {
+                this._fire._skilloilBtn.color = cc.color(110, 210, 255, 255);
+            }
+            else if (this._skillMode == "damageDouble") {
+                this._fire._skilloilBtn.color = cc.color(255, 140, 100, 255);
+            }
+            else{
+                this._fire._skilloilBtn.color = cc.color(255, 255, 255, 255);
+            }
         }
         let skillBtn = this._getCurrentSkillButton();
         if (skillBtn) {

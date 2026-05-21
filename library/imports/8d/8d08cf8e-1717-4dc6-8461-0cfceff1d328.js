@@ -52,6 +52,7 @@ var BLACK_HOLE_ZONE_DURATION = 8;
 var BLACK_HOLE_ZONE_RADIUS = 100;
 var BLACK_HOLE_ZONE_DESTROY_RADIUS = 14;
 var BLACK_HOLE_ZONE_GRAVITY = 160;
+var CONFIG_PICKUP_USE_DURATION = 20;
 var OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
 var COVER_TEST_FRAME_UUID = "f27215a4-32b0-4a3c-b87d-69a3dc03e37a";
 var ENERGY_EGG_FRAME_UUID = "5c9b12c3-9fd1-4472-b633-d31d7ce29bf2";
@@ -161,6 +162,8 @@ var GameMap = /** @class */ (function (_super) {
         _this._multiplayerTarSpillMap = {};
         _this._multiplayerBlackHolePickupMap = {};
         _this._multiplayerBlackHoleZoneMap = {};
+        _this._multiplayerPickupMap = {};
+        _this._multiplayerEnergyWellMap = {};
         _this._multiplayerSafeZone = null;
         _this._multiplayerSafeZoneNode = null;
         _this._multiplayerCoverMap = {};
@@ -2766,6 +2769,26 @@ var GameMap = /** @class */ (function (_super) {
         this._skills.push(pickup);
         return pickup;
     };
+    GameMap.prototype.spawnConfiguredPickupAt = function (pos, pickupType, pickupId, lifeTime) {
+        if (pickupType === void 0) { pickupType = "portal"; }
+        if (pickupId === void 0) { pickupId = null; }
+        if (lifeTime === void 0) { lifeTime = 60; }
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+        var pickup = new cc.Node("OilPickup");
+        pickup.parent = this._fire._tmLayerObstacle;
+        pickup.addComponent(OilPickup_1.OilPickup);
+        pickup.position = cc.v3(pos || this._getOilTestPickupPos());
+        pickup.zIndex = this.judgezIndex(pickup.y);
+        pickup.script.setPickupType(pickupType);
+        pickup.script.setInGame(lifeTime);
+        if (pickupId != null) {
+            pickup["__pickupId"] = pickupId;
+        }
+        this._skills.push(pickup);
+        return pickup;
+    };
     GameMap.prototype.createCoverTestEnemy = function () {
         if (!this._player || !cc.isValid(this._player)) {
             return null;
@@ -4552,6 +4575,12 @@ var GameMap = /** @class */ (function (_super) {
                         });
                         return;
                     }
+                    if (this._multiplayerMode && skill["__pickupId"] != null) {
+                        yyp.eventCenter.emit("multiplayer-pickup", {
+                            pickupId: skill["__pickupId"],
+                        });
+                        return;
+                    }
                     skill.script.emitSkill();
                     this._skills.splice(i, 1);
                     skill.destroy();
@@ -5632,7 +5661,7 @@ var GameMap = /** @class */ (function (_super) {
         }
         return player;
     };
-    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone, onReady) {
+    GameMap.prototype.startMultiplayerGame = function (playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone, pickups, energyWells, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
@@ -5652,6 +5681,8 @@ var GameMap = /** @class */ (function (_super) {
         this._multiplayerCoverMap = {};
         this._pendingTarThrowMap = {};
         this._pendingBlackHoleThrowMap = {};
+        this._multiplayerPickupMap = {};
+        this._multiplayerEnergyWellMap = {};
         this._multiplayerPendingCoverToggleId = null;
         this._multiplayerCoverTogglePendingFrames = 0;
         this._multiplayerPendingCoverAction = null;
@@ -5666,6 +5697,8 @@ var GameMap = /** @class */ (function (_super) {
         var initialBlackHoleZones = Array.isArray(blackHoleZones) ? blackHoleZones : [];
         var initialBushes = Array.isArray(bushes) ? bushes : [];
         var initialCovers = Array.isArray(covers) ? covers : [];
+        var initialPickups = Array.isArray(pickups) ? pickups : [];
+        var initialEnergyWells = Array.isArray(energyWells) ? energyWells : [];
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData_1.LocalizedData.getIntItem("_level1_", 1);
         this._clearAllTestNodes();
@@ -5710,6 +5743,12 @@ var GameMap = /** @class */ (function (_super) {
             }
             for (var i = 0; i < initialBlackHoleZones.length; i++) {
                 self._spawnMultiplayerBlackHoleZone(initialBlackHoleZones[i]);
+            }
+            for (var i = 0; i < initialPickups.length; i++) {
+                self._spawnMultiplayerPickup(initialPickups[i]);
+            }
+            for (var i = 0; i < initialEnergyWells.length; i++) {
+                self._spawnMultiplayerEnergyWell(initialEnergyWells[i]);
             }
             self._initMultiplayerCovers(initialCovers);
             self._applyMultiplayerSafeZoneState(safeZone || null);
@@ -5770,6 +5809,9 @@ var GameMap = /** @class */ (function (_super) {
             else if (command.type === "energyConsume") {
                 this.onMultiplayerEnergyRemove(command.energyId);
             }
+            else if (command.type === "energyRemove") {
+                this.onMultiplayerEnergyRemove(command.energyId);
+            }
             else if (command.type === "playerUpgrade") {
                 this.onMultiplayerPlayerUpgrade(command);
             }
@@ -5790,6 +5832,26 @@ var GameMap = /** @class */ (function (_super) {
             }
             else if (command.type === "specialEventRemove") {
                 this._applyMultiplayerSpecialEventRemove(command.eventId, command.eventType);
+            }
+            else if (command.type === "pickupSpawn") {
+                this._spawnMultiplayerPickup(command.pickup);
+            }
+            else if (command.type === "pickupRemove") {
+                this._removeMultiplayerPickup(command.pickupId);
+            }
+            else if (command.type === "pickupUse") {
+                this._playMultiplayerPickupUse(command);
+            }
+            else if (command.type === "pickupActionResult") {
+            }
+            else if (command.type === "energyWellSpawn") {
+                this._spawnMultiplayerEnergyWell(command.well);
+            }
+            else if (command.type === "energyWellBurst") {
+                this._applyMultiplayerEnergyWellBurst(command);
+            }
+            else if (command.type === "energyWellRemove") {
+                this._removeMultiplayerEnergyWell(command.wellId);
             }
             else if (command.type === "tarPickupSpawn") {
                 this._spawnMultiplayerTarPickup(command.pickup);
@@ -6182,6 +6244,92 @@ var GameMap = /** @class */ (function (_super) {
             pickup.destroy();
         }
     };
+    GameMap.prototype._spawnMultiplayerPickup = function (pickupData) {
+        if (!this._multiplayerMode || !pickupData || pickupData.id == null) {
+            return;
+        }
+        if (this._multiplayerPickupMap[pickupData.id] && cc.isValid(this._multiplayerPickupMap[pickupData.id])) {
+            return;
+        }
+        var pickup = this.spawnConfiguredPickupAt(cc.v2(pickupData.x || 0, pickupData.y || 0), pickupData.pickupType || "portal", pickupData.id, pickupData.remainTime == null ? 60 : pickupData.remainTime);
+        if (pickup) {
+            this._multiplayerPickupMap[pickupData.id] = pickup;
+        }
+    };
+    GameMap.prototype._removeMultiplayerPickup = function (pickupId) {
+        if (pickupId == null) {
+            return;
+        }
+        var pickup = this._multiplayerPickupMap[pickupId];
+        delete this._multiplayerPickupMap[pickupId];
+        if (!pickup) {
+            return;
+        }
+        for (var i = this._skills.length - 1; i >= 0; i--) {
+            if (this._skills[i] === pickup) {
+                this._skills.splice(i, 1);
+                break;
+            }
+        }
+        if (cc.isValid(pickup)) {
+            pickup.destroy();
+        }
+    };
+    GameMap.prototype._spawnMultiplayerEnergyWell = function (wellData) {
+        if (!this._multiplayerMode || !wellData || wellData.id == null) {
+            return;
+        }
+        if (this._multiplayerEnergyWellMap[wellData.id] && cc.isValid(this._multiplayerEnergyWellMap[wellData.id])) {
+            return;
+        }
+        var root = new cc.Node("_energyWell");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(wellData.x || 0, wellData.y || 0));
+        root.zIndex = 5600;
+        var graphics = root.addComponent(cc.Graphics);
+        var radius = wellData.radius == null ? 46 : wellData.radius;
+        graphics.fillColor = cc.color(40, 180, 120, 80);
+        graphics.circle(0, 0, radius);
+        graphics.fill();
+        graphics.lineWidth = 5;
+        graphics.strokeColor = cc.color(110, 255, 190, 255);
+        graphics.circle(0, 0, radius - 4);
+        graphics.stroke();
+        root.runAction(cc.repeatForever(cc.sequence(cc.scaleTo(0.4, 1.05), cc.scaleTo(0.4, 0.98))));
+        this._multiplayerEnergyWellMap[wellData.id] = root;
+    };
+    GameMap.prototype._applyMultiplayerEnergyWellBurst = function (command) {
+        if (!command || !Array.isArray(command.energies)) {
+            return;
+        }
+        for (var i = 0; i < command.energies.length; i++) {
+            this.onMultiplayerEnergySpawn(command.energies[i]);
+        }
+    };
+    GameMap.prototype._removeMultiplayerEnergyWell = function (wellId) {
+        if (wellId == null) {
+            return;
+        }
+        var node = this._multiplayerEnergyWellMap[wellId];
+        delete this._multiplayerEnergyWellMap[wellId];
+        if (node && cc.isValid(node)) {
+            node.destroy();
+        }
+    };
+    GameMap.prototype._playMultiplayerPickupUse = function (command) {
+        if (!command) {
+            return;
+        }
+        if (command.pickupType == "portal") {
+            this._spawnPortalWarpFx(cc.v2(command.x || 0, command.y || 0), cc.color(110, 255, 245, 255));
+        }
+        else if (command.pickupType == "speedDouble") {
+            this.spawnSpeedDoubleFx(cc.v2(command.x || 0, command.y || 0));
+        }
+        else if (command.pickupType == "damageDouble") {
+            this.spawnDamageDoubleFx(cc.v2(command.x || 0, command.y || 0));
+        }
+    };
     GameMap.prototype._removeMultiplayerTarSpill = function (spillId) {
         if (spillId == null) {
             return;
@@ -6401,6 +6549,12 @@ var GameMap = /** @class */ (function (_super) {
         else if (eventData.type === "blackHole") {
             this._applyMultiplayerBlackHoleEvent(eventData);
         }
+        else if (eventData.type === "centrifugal") {
+            this._applyMultiplayerCentrifugalEvent(eventData);
+        }
+        else if (eventData.type === "spreadBullet") {
+            this._applyMultiplayerSpreadBulletEvent(eventData);
+        }
     };
     GameMap.prototype._applyMultiplayerSpecialEventRemove = function (eventId, eventType) {
         if (eventType === void 0) { eventType = ""; }
@@ -6610,17 +6764,60 @@ var GameMap = /** @class */ (function (_super) {
         this._blackHoleAreaData = areaData;
         this._multiplayerBlackHoleAreas.push(areaData);
     };
+    GameMap.prototype._applyMultiplayerCentrifugalEvent = function (eventData) {
+        if (!eventData.center) {
+            return;
+        }
+        this._centrifugalRingTestMode = true;
+        var center = this.clampMapInnerPosition(cc.v2(eventData.center), 120);
+        var radius = eventData.radius == null ? 86 : eventData.radius;
+        this._createCentrifugalRingNode(center, radius, cc.color(255, 170, 96, 255));
+        this._centrifugalRingData = {
+            center: center,
+            radius: radius,
+            triggerRadius: eventData.triggerRadius == null ? radius - 10 : eventData.triggerRadius,
+            orbitRadius: eventData.orbitRadius == null ? radius + 10 : eventData.orbitRadius,
+            rotateAngle: eventData.rotateAngle == null ? Math.PI * 0.5 : eventData.rotateAngle,
+            angularSpeed: eventData.angularSpeed == null ? Math.PI * 4.2 : eventData.angularSpeed,
+            speedBoost: eventData.speedBoost == null ? 1.85 : eventData.speedBoost,
+            damageBoost: eventData.damageBoost == null ? 1.7 : eventData.damageBoost,
+            directionSign: eventData.directionSign == null ? -1 : eventData.directionSign,
+            color: cc.color(255, 165, 90, 255),
+            eventId: eventData.id,
+        };
+    };
+    GameMap.prototype._applyMultiplayerSpreadBulletEvent = function (eventData) {
+        if (!eventData.center) {
+            return;
+        }
+        this._spreadBulletTestMode = true;
+        var center = this.clampMapInnerPosition(cc.v2(eventData.center), 100);
+        var radius = eventData.radius == null ? 60 : eventData.radius;
+        this._createSpreadBulletAreaNode(center, radius, cc.color(30, 230, 100, 255));
+        this._spreadBulletAreaData = {
+            center: center,
+            radius: radius,
+            spreadCount: eventData.spreadCount == null ? 2 : eventData.spreadCount,
+            spreadAngle: eventData.spreadAngle == null ? 20 : eventData.spreadAngle,
+            _splitTriggered: false,
+            eventId: eventData.id,
+        };
+    };
     GameMap.prototype._rebuildMultiplayerSpecialEventViews = function () {
         if (!this._multiplayerMode) {
             return;
         }
         this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._damageDoubleTestMode = false;
         this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
         this._blackHoleTestMode = false;
         this._clearPortalTestNodes();
+        this._clearCentrifugalRingTestNodes();
         this._clearDamageDoubleTestNodes();
         this._clearSpeedDoubleTestNodes();
+        this._clearSpreadBulletTestNodes();
         var zoneIds = Object.keys(this._multiplayerBlackHoleZoneMap || {});
         for (var i = 0; i < zoneIds.length; i++) {
             var zoneId = zoneIds[i];
@@ -6648,6 +6845,12 @@ var GameMap = /** @class */ (function (_super) {
             }
             else if (eventData.type === "blackHole") {
                 this._applyMultiplayerBlackHoleEvent(eventData);
+            }
+            else if (eventData.type === "centrifugal") {
+                this._applyMultiplayerCentrifugalEvent(eventData);
+            }
+            else if (eventData.type === "spreadBullet") {
+                this._applyMultiplayerSpreadBulletEvent(eventData);
             }
         }
     };

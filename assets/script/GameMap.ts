@@ -26,6 +26,7 @@ const BLACK_HOLE_ZONE_DURATION = 8;
 const BLACK_HOLE_ZONE_RADIUS = 100;
 const BLACK_HOLE_ZONE_DESTROY_RADIUS = 14;
 const BLACK_HOLE_ZONE_GRAVITY = 160;
+const CONFIG_PICKUP_USE_DURATION = 20;
 const OIL_SPILL_FRAME_UUID = "53a52397-be71-4b1e-bd93-96c5b9a7f2ce";
 const COVER_TEST_FRAME_UUID = "f27215a4-32b0-4a3c-b87d-69a3dc03e37a";
 const ENERGY_EGG_FRAME_UUID = "5c9b12c3-9fd1-4472-b633-d31d7ce29bf2";
@@ -158,6 +159,8 @@ export class GameMap extends BaseComponent {
     _multiplayerTarSpillMap = {};
     _multiplayerBlackHolePickupMap = {};
     _multiplayerBlackHoleZoneMap = {};
+    _multiplayerPickupMap = {};
+    _multiplayerEnergyWellMap = {};
     _multiplayerSafeZone = null;
     _multiplayerSafeZoneNode = null;
     _multiplayerCoverMap = {};
@@ -3256,6 +3259,24 @@ export class GameMap extends BaseComponent {
         return pickup;
     }
 
+    spawnConfiguredPickupAt(pos, pickupType = "portal", pickupId = null, lifeTime = 60) {
+        if (!this._fire._tmLayerObstacle) {
+            return null;
+        }
+        let pickup = new cc.Node("OilPickup");
+        pickup.parent = this._fire._tmLayerObstacle;
+        pickup.addComponent(OilPickup);
+        pickup.position = cc.v3(pos || this._getOilTestPickupPos());
+        pickup.zIndex = this.judgezIndex(pickup.y);
+        pickup.script.setPickupType(pickupType);
+        pickup.script.setInGame(lifeTime);
+        if (pickupId != null) {
+            pickup["__pickupId"] = pickupId;
+        }
+        this._skills.push(pickup);
+        return pickup;
+    }
+
     createCoverTestEnemy() {
         if (!this._player || !cc.isValid(this._player)) {
             return null;
@@ -5268,6 +5289,12 @@ export class GameMap extends BaseComponent {
                         });
                         return;
                     }
+                    if (this._multiplayerMode && skill["__pickupId"] != null) {
+                        yyp.eventCenter.emit("multiplayer-pickup", {
+                            pickupId: skill["__pickupId"],
+                        });
+                        return;
+                    }
                     skill.script.emitSkill();
                     this._skills.splice(i,1);
                     skill.destroy();
@@ -6513,7 +6540,7 @@ export class GameMap extends BaseComponent {
         return player;
     }
 
-    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone, onReady) {
+    startMultiplayerGame(playerCount, localPlayerId, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone, pickups, energyWells, onReady) {
         this._multiplayerMode = true;
         this._multiplayerPlayers = [];
         this._multiplayerBullets = {};
@@ -6533,6 +6560,8 @@ export class GameMap extends BaseComponent {
         this._multiplayerCoverMap = {};
         this._pendingTarThrowMap = {};
         this._pendingBlackHoleThrowMap = {};
+        this._multiplayerPickupMap = {};
+        this._multiplayerEnergyWellMap = {};
         this._multiplayerPendingCoverToggleId = null;
         this._multiplayerCoverTogglePendingFrames = 0;
         this._multiplayerPendingCoverAction = null;
@@ -6547,6 +6576,8 @@ export class GameMap extends BaseComponent {
         let initialBlackHoleZones = Array.isArray(blackHoleZones) ? blackHoleZones : [];
         let initialBushes = Array.isArray(bushes) ? bushes : [];
         let initialCovers = Array.isArray(covers) ? covers : [];
+        let initialPickups = Array.isArray(pickups) ? pickups : [];
+        let initialEnergyWells = Array.isArray(energyWells) ? energyWells : [];
 
         this._levelConfig = yyp.config.Level[0];
         this._levelId = LocalizedData.getIntItem("_level1_",1);
@@ -6596,6 +6627,12 @@ export class GameMap extends BaseComponent {
                 }
                 for (let i = 0; i < initialBlackHoleZones.length; i++) {
                     self._spawnMultiplayerBlackHoleZone(initialBlackHoleZones[i]);
+                }
+                for (let i = 0; i < initialPickups.length; i++) {
+                    self._spawnMultiplayerPickup(initialPickups[i]);
+                }
+                for (let i = 0; i < initialEnergyWells.length; i++) {
+                    self._spawnMultiplayerEnergyWell(initialEnergyWells[i]);
                 }
                 self._initMultiplayerCovers(initialCovers);
                 self._applyMultiplayerSafeZoneState(safeZone || null);
@@ -6658,6 +6695,9 @@ export class GameMap extends BaseComponent {
             else if (command.type === "energyConsume") {
                 this.onMultiplayerEnergyRemove(command.energyId);
             }
+            else if (command.type === "energyRemove") {
+                this.onMultiplayerEnergyRemove(command.energyId);
+            }
             else if (command.type === "playerUpgrade") {
                 this.onMultiplayerPlayerUpgrade(command);
             }
@@ -6678,6 +6718,26 @@ export class GameMap extends BaseComponent {
             }
             else if (command.type === "specialEventRemove") {
                 this._applyMultiplayerSpecialEventRemove(command.eventId, command.eventType);
+            }
+            else if (command.type === "pickupSpawn") {
+                this._spawnMultiplayerPickup(command.pickup);
+            }
+            else if (command.type === "pickupRemove") {
+                this._removeMultiplayerPickup(command.pickupId);
+            }
+            else if (command.type === "pickupUse") {
+                this._playMultiplayerPickupUse(command);
+            }
+            else if (command.type === "pickupActionResult") {
+            }
+            else if (command.type === "energyWellSpawn") {
+                this._spawnMultiplayerEnergyWell(command.well);
+            }
+            else if (command.type === "energyWellBurst") {
+                this._applyMultiplayerEnergyWellBurst(command);
+            }
+            else if (command.type === "energyWellRemove") {
+                this._removeMultiplayerEnergyWell(command.wellId);
             }
             else if (command.type === "tarPickupSpawn") {
                 this._spawnMultiplayerTarPickup(command.pickup);
@@ -7101,6 +7161,106 @@ export class GameMap extends BaseComponent {
         }
     }
 
+    _spawnMultiplayerPickup(pickupData) {
+        if (!this._multiplayerMode || !pickupData || pickupData.id == null) {
+            return;
+        }
+        if (this._multiplayerPickupMap[pickupData.id] && cc.isValid(this._multiplayerPickupMap[pickupData.id])) {
+            return;
+        }
+        let pickup = this.spawnConfiguredPickupAt(
+            cc.v2(pickupData.x || 0, pickupData.y || 0),
+            pickupData.pickupType || "portal",
+            pickupData.id,
+            pickupData.remainTime == null ? 60 : pickupData.remainTime
+        );
+        if (pickup) {
+            this._multiplayerPickupMap[pickupData.id] = pickup;
+        }
+    }
+
+    _removeMultiplayerPickup(pickupId) {
+        if (pickupId == null) {
+            return;
+        }
+        let pickup = this._multiplayerPickupMap[pickupId];
+        delete this._multiplayerPickupMap[pickupId];
+        if (!pickup) {
+            return;
+        }
+        for (let i = this._skills.length - 1; i >= 0; i--) {
+            if (this._skills[i] === pickup) {
+                this._skills.splice(i, 1);
+                break;
+            }
+        }
+        if (cc.isValid(pickup)) {
+            pickup.destroy();
+        }
+    }
+
+    _spawnMultiplayerEnergyWell(wellData) {
+        if (!this._multiplayerMode || !wellData || wellData.id == null) {
+            return;
+        }
+        if (this._multiplayerEnergyWellMap[wellData.id] && cc.isValid(this._multiplayerEnergyWellMap[wellData.id])) {
+            return;
+        }
+        let root = new cc.Node("_energyWell");
+        root.parent = this._fire._tmLayerObstacle;
+        root.setPosition(cc.v3(wellData.x || 0, wellData.y || 0));
+        root.zIndex = 5600;
+        let graphics = root.addComponent(cc.Graphics);
+        let radius = wellData.radius == null ? 46 : wellData.radius;
+        graphics.fillColor = cc.color(40, 180, 120, 80);
+        graphics.circle(0, 0, radius);
+        graphics.fill();
+        graphics.lineWidth = 5;
+        graphics.strokeColor = cc.color(110, 255, 190, 255);
+        graphics.circle(0, 0, radius - 4);
+        graphics.stroke();
+        root.runAction(cc.repeatForever(cc.sequence(
+            cc.scaleTo(0.4, 1.05),
+            cc.scaleTo(0.4, 0.98)
+        )));
+        this._multiplayerEnergyWellMap[wellData.id] = root;
+    }
+
+    _applyMultiplayerEnergyWellBurst(command) {
+        if (!command || !Array.isArray(command.energies)) {
+            return;
+        }
+        for (let i = 0; i < command.energies.length; i++) {
+            this.onMultiplayerEnergySpawn(command.energies[i]);
+        }
+    }
+
+    _removeMultiplayerEnergyWell(wellId) {
+        if (wellId == null) {
+            return;
+        }
+        let node = this._multiplayerEnergyWellMap[wellId];
+        delete this._multiplayerEnergyWellMap[wellId];
+        if (node && cc.isValid(node)) {
+            node.destroy();
+        }
+    }
+
+    _playMultiplayerPickupUse(command) {
+        if (!command) {
+            return;
+        }
+        if (command.pickupType == "portal") {
+            this._spawnPortalWarpFx(cc.v2(command.x || 0, command.y || 0), cc.color(110, 255, 245, 255));
+        }
+        else if (command.pickupType == "speedDouble") {
+            this.spawnSpeedDoubleFx(cc.v2(command.x || 0, command.y || 0));
+        }
+        else if (command.pickupType == "damageDouble") {
+            this.spawnDamageDoubleFx(cc.v2(command.x || 0, command.y || 0));
+        }
+    }
+
     _removeMultiplayerTarSpill(spillId) {
         if (spillId == null) {
             return;
@@ -7338,6 +7498,12 @@ export class GameMap extends BaseComponent {
         else if (eventData.type === "blackHole") {
             this._applyMultiplayerBlackHoleEvent(eventData);
         }
+        else if (eventData.type === "centrifugal") {
+            this._applyMultiplayerCentrifugalEvent(eventData);
+        }
+        else if (eventData.type === "spreadBullet") {
+            this._applyMultiplayerSpreadBulletEvent(eventData);
+        }
     }
 
     _applyMultiplayerSpecialEventRemove(eventId, eventType = "") {
@@ -7562,17 +7728,62 @@ export class GameMap extends BaseComponent {
         this._multiplayerBlackHoleAreas.push(areaData);
     }
 
+    _applyMultiplayerCentrifugalEvent(eventData) {
+        if (!eventData.center) {
+            return;
+        }
+        this._centrifugalRingTestMode = true;
+        let center = this.clampMapInnerPosition(cc.v2(eventData.center), 120);
+        let radius = eventData.radius == null ? 86 : eventData.radius;
+        this._createCentrifugalRingNode(center, radius, cc.color(255, 170, 96, 255));
+        this._centrifugalRingData = {
+            center: center,
+            radius: radius,
+            triggerRadius: eventData.triggerRadius == null ? radius - 10 : eventData.triggerRadius,
+            orbitRadius: eventData.orbitRadius == null ? radius + 10 : eventData.orbitRadius,
+            rotateAngle: eventData.rotateAngle == null ? Math.PI * 0.5 : eventData.rotateAngle,
+            angularSpeed: eventData.angularSpeed == null ? Math.PI * 4.2 : eventData.angularSpeed,
+            speedBoost: eventData.speedBoost == null ? 1.85 : eventData.speedBoost,
+            damageBoost: eventData.damageBoost == null ? 1.7 : eventData.damageBoost,
+            directionSign: eventData.directionSign == null ? -1 : eventData.directionSign,
+            color: cc.color(255, 165, 90, 255),
+            eventId: eventData.id,
+        };
+    }
+
+    _applyMultiplayerSpreadBulletEvent(eventData) {
+        if (!eventData.center) {
+            return;
+        }
+        this._spreadBulletTestMode = true;
+        let center = this.clampMapInnerPosition(cc.v2(eventData.center), 100);
+        let radius = eventData.radius == null ? 60 : eventData.radius;
+        this._createSpreadBulletAreaNode(center, radius, cc.color(30, 230, 100, 255));
+        this._spreadBulletAreaData = {
+            center: center,
+            radius: radius,
+            spreadCount: eventData.spreadCount == null ? 2 : eventData.spreadCount,
+            spreadAngle: eventData.spreadAngle == null ? 20 : eventData.spreadAngle,
+            _splitTriggered: false,
+            eventId: eventData.id,
+        };
+    }
+
     _rebuildMultiplayerSpecialEventViews() {
         if (!this._multiplayerMode) {
             return;
         }
         this._portalTestMode = false;
+        this._centrifugalRingTestMode = false;
         this._damageDoubleTestMode = false;
         this._speedDoubleTestMode = false;
+        this._spreadBulletTestMode = false;
         this._blackHoleTestMode = false;
         this._clearPortalTestNodes();
+        this._clearCentrifugalRingTestNodes();
         this._clearDamageDoubleTestNodes();
         this._clearSpeedDoubleTestNodes();
+        this._clearSpreadBulletTestNodes();
         let zoneIds = Object.keys(this._multiplayerBlackHoleZoneMap || {});
         for (let i = 0; i < zoneIds.length; i++) {
             let zoneId = zoneIds[i];
@@ -7600,6 +7811,12 @@ export class GameMap extends BaseComponent {
             }
             else if (eventData.type === "blackHole") {
                 this._applyMultiplayerBlackHoleEvent(eventData);
+            }
+            else if (eventData.type === "centrifugal") {
+                this._applyMultiplayerCentrifugalEvent(eventData);
+            }
+            else if (eventData.type === "spreadBullet") {
+                this._applyMultiplayerSpreadBulletEvent(eventData);
             }
         }
     }

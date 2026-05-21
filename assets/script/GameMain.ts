@@ -122,8 +122,10 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.on("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
         yyp.eventCenter.on("multiplayer-tar-pickup", this._onMultiplayerTarPickup, this);
         yyp.eventCenter.on("multiplayer-black-hole-pickup", this._onMultiplayerBlackHolePickup, this);
+        yyp.eventCenter.on("multiplayer-pickup", this._onMultiplayerPickup, this);
         yyp.eventCenter.on("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         yyp.eventCenter.on("multiplayer-throw-black-hole", this._onMultiplayerThrowBlackHole, this);
+        yyp.eventCenter.on("multiplayer-use-pickup", this._onMultiplayerUsePickup, this);
         yyp.eventCenter.on("multiplayer-cover-action", this._onMultiplayerCoverAction, this);
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
     }
@@ -146,8 +148,10 @@ export default class GameMain extends BaseComponent {
         yyp.eventCenter.off("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
         yyp.eventCenter.off("multiplayer-tar-pickup", this._onMultiplayerTarPickup, this);
         yyp.eventCenter.off("multiplayer-black-hole-pickup", this._onMultiplayerBlackHolePickup, this);
+        yyp.eventCenter.off("multiplayer-pickup", this._onMultiplayerPickup, this);
         yyp.eventCenter.off("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         yyp.eventCenter.off("multiplayer-throw-black-hole", this._onMultiplayerThrowBlackHole, this);
+        yyp.eventCenter.off("multiplayer-use-pickup", this._onMultiplayerUsePickup, this);
         yyp.eventCenter.off("multiplayer-cover-action", this._onMultiplayerCoverAction, this);
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
@@ -1469,8 +1473,10 @@ export default class GameMain extends BaseComponent {
             pickupEnergyId: null,
             pickupTarId: null,
             pickupBlackHoleId: null,
+            pickupId: null,
             throwTar: false,
             throwBlackHole: false,
+            usePickup: false,
             toggleCover: false,
             coverAction: null,
             energyEggAction: null,
@@ -1490,6 +1496,9 @@ export default class GameMain extends BaseComponent {
         if (this._multiplayerInputs.pickupBlackHoleId === undefined) {
             this._multiplayerInputs.pickupBlackHoleId = null;
         }
+        if (this._multiplayerInputs.pickupId === undefined) {
+            this._multiplayerInputs.pickupId = null;
+        }
         if (this._multiplayerInputs.aim === undefined) {
             this._multiplayerInputs.aim = null;
         }
@@ -1498,6 +1507,9 @@ export default class GameMain extends BaseComponent {
         }
         if (this._multiplayerInputs.throwBlackHole === undefined) {
             this._multiplayerInputs.throwBlackHole = false;
+        }
+        if (this._multiplayerInputs.usePickup === undefined) {
+            this._multiplayerInputs.usePickup = false;
         }
         if (this._multiplayerInputs.toggleCover === undefined) {
             this._multiplayerInputs.toggleCover = false;
@@ -1518,6 +1530,7 @@ export default class GameMain extends BaseComponent {
         inputs.pickupEnergyId = null;
         inputs.pickupTarId = null;
         inputs.pickupBlackHoleId = null;
+        inputs.pickupId = null;
         if (this._multiplayerTarThrowRepeat > 0) {
             this._multiplayerTarThrowRepeat--;
             if (this._multiplayerTarThrowRepeat <= 0) {
@@ -1530,6 +1543,7 @@ export default class GameMain extends BaseComponent {
             inputs.throwTar = false;
             inputs.throwBlackHole = false;
         }
+        inputs.usePickup = false;
         if (this._multiplayerCoverToggleRepeat > 0) {
             this._multiplayerCoverToggleRepeat--;
             if (this._multiplayerCoverToggleRepeat <= 0) {
@@ -1561,6 +1575,7 @@ export default class GameMain extends BaseComponent {
         let pickupEnergyId = source.pickupEnergyId == null ? null : source.pickupEnergyId;
         let pickupTarId = source.pickupTarId == null ? null : source.pickupTarId;
         let pickupBlackHoleId = source.pickupBlackHoleId == null ? null : source.pickupBlackHoleId;
+        let pickupId = source.pickupId == null ? null : source.pickupId;
         let aim = null;
         if (source.aim && Number.isFinite(source.aim.x) && Number.isFinite(source.aim.y)) {
             aim = {
@@ -1580,8 +1595,10 @@ export default class GameMain extends BaseComponent {
             pickupEnergyId: pickupEnergyId,
             pickupTarId: pickupTarId,
             pickupBlackHoleId: pickupBlackHoleId,
+            pickupId: pickupId,
             throwTar: source.throwTar ? source.throwTar : false,
             throwBlackHole: source.throwBlackHole ? source.throwBlackHole : false,
+            usePickup: source.usePickup ? source.usePickup : false,
             toggleCover: !!source.toggleCover,
             coverAction: source.coverAction ? source.coverAction : null,
             energyEggAction: source.energyEggAction ? source.energyEggAction : null,
@@ -1674,6 +1691,14 @@ export default class GameMain extends BaseComponent {
         inputs.pickupBlackHoleId = event.pickupId;
     }
 
+    _onMultiplayerPickup(event) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event || event.pickupId == null) {
+            return;
+        }
+        let inputs = this._ensureMultiplayerInputs();
+        inputs.pickupId = event.pickupId;
+    }
+
     _onMultiplayerThrowTar(event) {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !event) {
             return;
@@ -1699,6 +1724,21 @@ export default class GameMain extends BaseComponent {
             ratio: event.ratio,
         };
         this._multiplayerTarThrowRepeat = 4;
+        this._flushMultiplayerInputsNow();
+    }
+
+    _onMultiplayerUsePickup(event) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event || !event.pickupType) {
+            return;
+        }
+        let inputs = this._ensureMultiplayerInputs();
+        inputs.usePickup = {
+            pickupType: event.pickupType,
+            dirX: event.dirX,
+            dirY: event.dirY,
+            ratio: event.ratio,
+        };
+        this._multiplayerTarThrowRepeat = 0;
         this._flushMultiplayerInputsNow();
     }
 
@@ -1846,8 +1886,8 @@ export default class GameMain extends BaseComponent {
                 this._netManager.sendPlayerSetup(this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone) => {
-            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null);
+        this._netManager.onGameStart = (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone, pickups, energyWells) => {
+            this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, pickups || [], energyWells || []);
         };
         this._netManager.onGameEnded = (payload) => {
             this._endMultiplayerMatch(payload);
@@ -1862,7 +1902,7 @@ export default class GameMain extends BaseComponent {
         this._netManager.connect(MULTIPLAYER_SERVER_URL);
     }
 
-    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = [], blackHolePickups = [], blackHoleZones = [], bushes = [], covers = [], safeZone = null) {
+    _startMultiplayerMatch(playerId, playerCount, spawnSlots, energies, players = [], specialEvents = [], tarPickups = [], tarSpills = [], blackHolePickups = [], blackHoleZones = [], bushes = [], covers = [], safeZone = null, pickups = [], energyWells = []) {
         this._hideMultiplayerStatus();
         this._hideMultiplayerAnnouncement();
         this._hideMultiplayerHud();
@@ -1877,7 +1917,7 @@ export default class GameMain extends BaseComponent {
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
 
         let self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, pickups || [], energyWells || [], function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._scheduleMultiplayerMinimapRefresh();

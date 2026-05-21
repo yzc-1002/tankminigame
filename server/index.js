@@ -13,7 +13,7 @@ const ENERGY_BORN_INTERVAL = 4;
 const ENERGY_MAX_COUNT = 6;
 const ENERGY_VALUE = 12;
 const ENERGY_EGG_MIDGAME_SECONDS = 15;
-const ENERGY_EGG_MATURE_TIME = 10;
+const ENERGY_EGG_MATURE_TIME = 20;
 const ENERGY_EGG_RADIUS = 34;
 const ENERGY_EGG_ATTACH_DISTANCE = 110;
 const ENERGY_EGG_ATTACH_MIN_OFFSET = 60;
@@ -47,7 +47,7 @@ const PLAYER_BOUNCE_DAMAGE_MULTIPLIER = 2;
 const SPECIAL_EVENT_START_DELAY = 8;
 const SPECIAL_EVENT_RESPAWN_MIN = 12;
 const SPECIAL_EVENT_RESPAWN_MAX = 20;
-const SPECIAL_EVENT_DURATION = 120;
+const SPECIAL_EVENT_DURATION = 60;
 const SPECIAL_EVENT_MIN_PLAYER_DISTANCE = 180;
 const SPECIAL_EVENT_MIN_ENERGY_DISTANCE = 170;
 const SPECIAL_EVENT_MIN_EGG_DISTANCE = 220;
@@ -65,7 +65,7 @@ const TAR_PICKUP_RESPAWN_MAX = 16;
 const TAR_PICKUP_RADIUS = 42;
 const TAR_PICKUP_TOUCH_RADIUS = 92;
 const TAR_PICKUP_LIFETIME = 120;
-const TAR_SPILL_DURATION = 10;
+const TAR_SPILL_DURATION = 20;
 const TAR_SPILL_RADIUS = 120;
 const TAR_SPILL_SLOW_FACTOR = 0.52;
 const BLACK_HOLE_PICKUP_MAX_COUNT = 1;
@@ -75,10 +75,31 @@ const BLACK_HOLE_PICKUP_RESPAWN_MAX = 20;
 const BLACK_HOLE_PICKUP_RADIUS = 42;
 const BLACK_HOLE_PICKUP_TOUCH_RADIUS = 92;
 const BLACK_HOLE_PICKUP_LIFETIME = 120;
-const BLACK_HOLE_ZONE_DURATION = 8;
+const BLACK_HOLE_ZONE_DURATION = 20;
 const BLACK_HOLE_ZONE_RADIUS = 100;
 const BLACK_HOLE_ZONE_DESTROY_RADIUS = 14;
 const BLACK_HOLE_ZONE_GRAVITY = 160;
+const CONFIG_PICKUP_LIFETIME = 60;
+const CONFIG_SMALL_ENERGY_LIFETIME = 60;
+const ENERGY_WELL_BURST_INTERVAL = 10;
+const ENERGY_WELL_BURST_COUNT = 5;
+const ENERGY_WELL_BURST_SMALL_ENERGY_COUNT = 5;
+const ENERGY_WELL_RADIUS = 46;
+const CONFIG_PICKUP_TOUCH_RADIUS = 92;
+const CONFIG_PICKUP_USE_DURATION = 20;
+const CONFIG_PICKUP_MAX_COUNT = 1;
+const SERVER_CHILD_BULLET_SPEED_SCALE = 1.05;
+const SERVER_CHILD_BULLET_DAMAGE_SCALE = 0.8;
+const SERVER_CHILD_BULLET_GUNSHOT_SCALE = 0.55;
+const SERVER_CHILD_BULLET_GUNSHOT_MIN = 90;
+const SPECIAL_EVENT_CENTRIFUGAL_RADIUS = 86;
+const SPECIAL_EVENT_SPREAD_BULLET_RADIUS = 60;
+const SPECIAL_EVENT_CENTRIFUGAL_DAMAGE_MULTIPLIER = 1.7;
+const SPECIAL_EVENT_CENTRIFUGAL_SPEED_MULTIPLIER = 1.85;
+const SPECIAL_EVENT_CENTRIFUGAL_ROTATE_ANGLE = Math.PI * 0.5;
+const SPECIAL_EVENT_CENTRIFUGAL_ANGULAR_SPEED = Math.PI * 4.2;
+const SPECIAL_EVENT_SPREAD_BULLET_COUNT = 2;
+const SPECIAL_EVENT_SPREAD_BULLET_ANGLE = 20;
 const SAFE_ZONE_START_PADDING = 80;
 const SAFE_ZONE_FIXED_RADIUS_RATIO = 0.86;
 const SAFE_ZONE_MIN_RADIUS = 140;
@@ -111,6 +132,87 @@ const ROOM_STATE = {
   ENDED: 'ended',
 };
 
+const PICKUP_TYPE = {
+  TAR: 'tar',
+  BLACK_HOLE: 'blackHole',
+  PORTAL: 'portal',
+  SPEED_DOUBLE: 'speedDouble',
+  DAMAGE_DOUBLE: 'damageDouble',
+};
+
+const SPECIAL_EVENT_TYPES = [
+  'portal',
+  'damageDouble',
+  'speedDouble',
+  'blackHole',
+  'centrifugal',
+  'spreadBullet',
+];
+
+const RESOURCE_WAVE_CONFIG = [
+  {
+    time: 0,
+    resources: [
+      { position: { x: -320, y: 180 }, resourceType: 'energyEgg' },
+      { position: { x: 260, y: 140 }, resourceType: 'energyWell' },
+      { position: { x: 0, y: -220 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.TAR },
+    ],
+    specialZones: [
+      { specialType: 'speedDouble', x: -120, y: 0 },
+      { specialType: 'portal', entryX: -520, entryY: -60, exitX: 520, exitY: 60 },
+    ],
+  },
+  {
+    time: 60,
+    resources: [
+      { position: { x: -480, y: 240 }, resourceType: 'smallEnergy', count: 5 },
+      { position: { x: 360, y: -180 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.BLACK_HOLE },
+      { position: { x: 0, y: 320 }, resourceType: 'energyEgg' },
+    ],
+    specialZones: [
+      { specialType: 'damageDouble', x: 240, y: 40 },
+      { specialType: 'centrifugal', x: -260, y: -120 },
+    ],
+  },
+  {
+    time: 120,
+    resources: [
+      { position: { x: -120, y: -260 }, resourceType: 'energyWell' },
+      { position: { x: 420, y: 220 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.PORTAL },
+      { position: { x: 0, y: 0 }, resourceType: 'smallEnergy', count: 8 },
+    ],
+    specialZones: [
+      { specialType: 'spreadBullet', x: 40, y: 260 },
+      { specialType: 'blackHole', x: -420, y: 60 },
+    ],
+  },
+  {
+    time: 180,
+    resources: [
+      { position: { x: 520, y: -80 }, resourceType: 'energyEgg' },
+      { position: { x: -360, y: 260 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.SPEED_DOUBLE },
+      { position: { x: -100, y: 100 }, resourceType: 'smallEnergy', count: 6 },
+    ],
+    specialZones: [
+      { specialType: 'portal', entryX: -540, entryY: -280, exitX: 540, exitY: 280 },
+      { specialType: 'damageDouble', x: 0, y: -80 },
+    ],
+  },
+  {
+    time: 240,
+    resources: [
+      { position: { x: 0, y: 280 }, resourceType: 'energyWell' },
+      { position: { x: -460, y: -180 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.DAMAGE_DOUBLE },
+      { position: { x: 380, y: -60 }, resourceType: 'smallEnergy', count: 10 },
+    ],
+    specialZones: [
+      { specialType: 'centrifugal', x: -40, y: 60 },
+      { specialType: 'speedDouble', x: 320, y: -260 },
+      { specialType: 'blackHole', x: -320, y: 260 },
+    ],
+  },
+];
+
 // ---------- Room (single room) ----------
 const room = {
   id: 'room1',
@@ -142,6 +244,10 @@ const room = {
   nextSpecialEventId: 1,
   specialEventSpawnCd: 0,
   activeSpecialEvents: [],
+  pickups: [],
+  nextPickupId: 1,
+  energyWells: [],
+  nextEnergyWellId: 1,
   tarPickups: [],
   nextTarPickupId: 1,
   tarPickupSpawnCd: 0,
@@ -152,10 +258,12 @@ const room = {
   blackHolePickupSpawnCd: 0,
   blackHoleZones: [],
   nextBlackHoleZoneId: 1,
+  nextServerBulletId: 1,
   covers: [],
   nextCoverId: 1,
   safeZone: null,
   matchFlow: null,
+  waveState: null,
 };
 
 function isSocketOpen(ws) {
@@ -277,6 +385,7 @@ function createPlayerState(setup = {}) {
     bulletBounceCount: 0,
     tarAmmoCount: 0,
     blackHoleAmmoCount: 0,
+    activePickupType: '',
     freeBulletCount: PLAYER_FREE_BULLET_MAX,
     stopFireTime: 0,
     freeBulletRecoverTime: 0,
@@ -302,6 +411,7 @@ function applyPlayerSetup(player, setup = {}) {
   player.bulletBounceCount = getPlayerBulletBounceCount(player);
   player.tarAmmoCount = state.tarAmmoCount;
   player.blackHoleAmmoCount = state.blackHoleAmmoCount;
+  player.activePickupType = state.activePickupType || '';
   player.freeBulletCount = state.freeBulletCount;
   player.stopFireTime = state.stopFireTime;
   player.freeBulletRecoverTime = state.freeBulletRecoverTime;
@@ -327,6 +437,7 @@ function resetPlayerRuntimeState(player) {
   player.bulletBounceCount = getPlayerBulletBounceCount(player);
   player.tarAmmoCount = state.tarAmmoCount;
   player.blackHoleAmmoCount = state.blackHoleAmmoCount;
+  player.activePickupType = state.activePickupType || '';
   player.freeBulletCount = state.freeBulletCount;
   player.stopFireTime = state.stopFireTime;
   player.freeBulletRecoverTime = state.freeBulletRecoverTime;
@@ -704,6 +815,129 @@ function appendAnnouncement(frameCommands, payload) {
     style: payload.style || 'info',
     duration: Number.isFinite(payload.duration) ? payload.duration : 2.2,
   });
+}
+
+function logWaveSkip(reason, extra = {}) {
+  console.warn('[WaveConfig]', reason, extra);
+}
+
+function getWaveState() {
+  if (!room.waveState) {
+    room.waveState = {
+      nextWaveIndex: 0,
+      triggered: {},
+    };
+  }
+  return room.waveState;
+}
+
+function clonePoint(point) {
+  if (!point) {
+    return null;
+  }
+  return {
+    x: Number(point.x) || 0,
+    y: Number(point.y) || 0,
+  };
+}
+
+function getPreferredSafeRadiusWithPadding(padding = 0) {
+  const zone = getPreferredSpawnSafeZone();
+  if (!zone) {
+    return null;
+  }
+  return Math.max(0, zone.radius - Math.max(0, padding));
+}
+
+function projectPointToPreferredSafeZone(point, padding = 0) {
+  if (!point) {
+    return null;
+  }
+  const zone = getPreferredSpawnSafeZone();
+  const clamped = clampPointToBounds(point, padding);
+  if (!zone) {
+    return clamped;
+  }
+  const allowRadius = getPreferredSafeRadiusWithPadding(padding);
+  if (!Number.isFinite(allowRadius) || allowRadius <= 0) {
+    return null;
+  }
+  const dx = clamped.x - zone.centerX;
+  const dy = clamped.y - zone.centerY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist <= allowRadius) {
+    return clamped;
+  }
+  if (dist <= 0.0001) {
+    return clampPointToBounds({ x: zone.centerX + allowRadius, y: zone.centerY }, padding);
+  }
+  return clampPointToBounds({
+    x: zone.centerX + (dx / dist) * allowRadius,
+    y: zone.centerY + (dy / dist) * allowRadius,
+  }, padding);
+}
+
+function resolveConfiguredSpawnPoint(rawPoint, padding = 0, label = 'point', validator = null) {
+  if (!rawPoint) {
+    logWaveSkip('missing point config', { label });
+    return null;
+  }
+  const x = Number(rawPoint.x);
+  const y = Number(rawPoint.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    logWaveSkip('invalid point config', { label, point: rawPoint });
+    return null;
+  }
+  const source = { x, y };
+  const inside = isPointInsidePreferredSafeZone(source, padding);
+  const point = inside ? clampPointToBounds(source, padding) : projectPointToPreferredSafeZone(source, padding);
+  if (!point) {
+    logWaveSkip('safe zone projection failed', { label, point: source, padding });
+    return null;
+  }
+  if (validator && !validator(point)) {
+    if (inside) {
+      const projected = projectPointToPreferredSafeZone(source, padding);
+      if (projected && validator(projected)) {
+        return projected;
+      }
+    }
+    const sources = filterPointsInsidePreferredSafeZone(getSpecialEventSpawnSources(), padding);
+    for (let i = 0; i < sources.length; i++) {
+      const candidate = clampPointToBounds(sources[i], padding);
+      if (validator(candidate)) {
+        return candidate;
+      }
+    }
+    for (let i = 0; i < 24; i++) {
+      const candidate = chooseRandomPreferredSafePoint(padding);
+      if (validator(candidate)) {
+        return candidate;
+      }
+    }
+    logWaveSkip('no legal safe point after projection', { label, point: source, padding });
+    return null;
+  }
+  return point;
+}
+
+function normalizePickupType(type) {
+  if (type === PICKUP_TYPE.TAR || type === 'oil') {
+    return PICKUP_TYPE.TAR;
+  }
+  if (type === PICKUP_TYPE.BLACK_HOLE) {
+    return PICKUP_TYPE.BLACK_HOLE;
+  }
+  if (type === PICKUP_TYPE.PORTAL) {
+    return PICKUP_TYPE.PORTAL;
+  }
+  if (type === PICKUP_TYPE.SPEED_DOUBLE) {
+    return PICKUP_TYPE.SPEED_DOUBLE;
+  }
+  if (type === PICKUP_TYPE.DAMAGE_DOUBLE) {
+    return PICKUP_TYPE.DAMAGE_DOUBLE;
+  }
+  return '';
 }
 
 function buildHudStateCommand() {
@@ -1457,6 +1691,95 @@ function createBlackHolePickup(point) {
   };
 }
 
+function createConfiguredPickup(point, pickupType) {
+  const normalizedType = normalizePickupType(pickupType);
+  if (!point || !normalizedType) {
+    return null;
+  }
+  const pos = clampPointToBounds(point, 46);
+  return {
+    id: room.nextPickupId++,
+    x: pos.x,
+    y: pos.y,
+    radius: 42,
+    touchRadius: CONFIG_PICKUP_TOUCH_RADIUS,
+    pickupType: normalizedType,
+    remainTime: CONFIG_PICKUP_LIFETIME,
+    removed: false,
+  };
+}
+
+function buildConfiguredPickupPayload(pickup) {
+  if (!pickup) {
+    return null;
+  }
+  return {
+    id: pickup.id,
+    x: pickup.x,
+    y: pickup.y,
+    radius: pickup.radius,
+    touchRadius: pickup.touchRadius,
+    pickupType: pickup.pickupType,
+    remainTime: pickup.remainTime,
+  };
+}
+
+function spawnConfiguredPickupInFrame(frameCommands, point, pickupType) {
+  const normalizedType = normalizePickupType(pickupType);
+  if (!normalizedType) {
+    return null;
+  }
+  const aliveCount = room.pickups.filter((pickup) => pickup && !pickup.removed).length;
+  if (aliveCount >= CONFIG_PICKUP_MAX_COUNT * 8) {
+    return null;
+  }
+  const pickup = createConfiguredPickup(point, normalizedType);
+  if (!pickup) {
+    return null;
+  }
+  room.pickups.push(pickup);
+  appendFrameCommand(frameCommands, {
+    type: 'pickupSpawn',
+    pickup: buildConfiguredPickupPayload(pickup),
+  });
+  return pickup;
+}
+
+function removeConfiguredPickupInFrame(pickupId, frameCommands, reason = 'pickup') {
+  const index = room.pickups.findIndex((item) => item && item.id === pickupId && !item.removed);
+  if (index < 0) {
+    return null;
+  }
+  const pickup = room.pickups[index];
+  pickup.removed = true;
+  room.pickups.splice(index, 1);
+  appendFrameCommand(frameCommands, {
+    type: 'pickupRemove',
+    pickupId,
+    pickupType: pickup.pickupType,
+    reason,
+  });
+  return pickup;
+}
+
+function getPlayerActivePickupType(player) {
+  return player && player.activePickupType ? normalizePickupType(player.activePickupType) : '';
+}
+
+function clearPlayerActivePickup(player) {
+  if (!player) {
+    return;
+  }
+  player.activePickupType = '';
+}
+
+function assignPlayerActivePickup(player, pickupType) {
+  if (!player) {
+    return;
+  }
+  player.activePickupType = normalizePickupType(pickupType);
+}
+
 function spawnTarPickupInFrame(frameCommands) {
   const aliveCount = room.tarPickups.filter((pickup) => pickup && !pickup.removed).length;
   if (aliveCount >= TAR_PICKUP_MAX_COUNT) {
@@ -1581,6 +1904,79 @@ function tryConsumeBlackHolePickup(player, pickupId, frameCommands) {
   return true;
 }
 
+function tryConsumeConfiguredPickup(player, pickupId, frameCommands) {
+  if (!player || player.dead || player.disconnected || pickupId == null) {
+    return false;
+  }
+  if (getPlayerActivePickupType(player)) {
+    return false;
+  }
+  const pickup = room.pickups.find((item) => item && item.id === pickupId && !item.removed);
+  if (!pickup) {
+    return false;
+  }
+  const playerPos = getPlayerRuntimePosition(player);
+  if (Math.sqrt(distanceSqr(playerPos, pickup)) > (pickup.touchRadius || CONFIG_PICKUP_TOUCH_RADIUS)) {
+    return false;
+  }
+  if (!removeConfiguredPickupInFrame(pickupId, frameCommands, 'pickup')) {
+    return false;
+  }
+  assignPlayerActivePickup(player, pickup.pickupType);
+  appendFrameCommand(frameCommands, {
+    type: 'pickupActionResult',
+    playerId: player.playerId,
+    pickupType: pickup.pickupType,
+    accepted: true,
+    action: 'pickup',
+  });
+  return true;
+}
+
+function tryUseConfiguredPickupByPlayer(player, payload, frameCommands) {
+  if (!player || player.dead || player.disconnected || !payload) {
+    return false;
+  }
+  const activePickupType = getPlayerActivePickupType(player);
+  if (!activePickupType || activePickupType !== payload.pickupType) {
+    return false;
+  }
+  const playerPos = getPlayerRuntimePosition(player);
+  const point = resolveConfiguredSpawnPoint({
+    x: playerPos.x + payload.dirX * (140 + 260 * payload.ratio),
+    y: playerPos.y + payload.dirY * (140 + 260 * payload.ratio),
+  }, 90, 'usePickup');
+  if (!point) {
+    return false;
+  }
+  const pickupEvent = buildPickupUseEventPayload(activePickupType, point);
+  if (!pickupEvent) {
+    return false;
+  }
+  pickupEvent.remainTime = pickupEvent.duration;
+  room.activeSpecialEvents.push(pickupEvent);
+  clearPlayerActivePickup(player);
+  appendFrameCommand(frameCommands, {
+    type: 'pickupUse',
+    playerId: player.playerId,
+    pickupType: activePickupType,
+    x: point.x,
+    y: point.y,
+  });
+  appendFrameCommand(frameCommands, {
+    type: 'specialEventSpawn',
+    event: pickupEvent,
+  });
+  appendFrameCommand(frameCommands, {
+    type: 'pickupActionResult',
+    playerId: player.playerId,
+    pickupType: activePickupType,
+    accepted: true,
+    action: 'use',
+  });
+  return true;
+}
+
 function sanitizeThrowTarPayload(payload) {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -1596,6 +1992,29 @@ function sanitizeThrowTarPayload(payload) {
     return null;
   }
   return {
+    dirX: dirX / len,
+    dirY: dirY / len,
+    ratio: Number.isFinite(ratio) ? clamp(ratio, 0, 1) : 1,
+  };
+}
+
+function sanitizeUsePickupPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const pickupType = normalizePickupType(payload.pickupType);
+  const dirX = Number(payload.dirX);
+  const dirY = Number(payload.dirY);
+  const ratio = Number(payload.ratio);
+  if (!pickupType || !Number.isFinite(dirX) || !Number.isFinite(dirY)) {
+    return null;
+  }
+  const len = Math.sqrt(dirX * dirX + dirY * dirY);
+  if (len <= 0.0001) {
+    return null;
+  }
+  return {
+    pickupType,
     dirX: dirX / len,
     dirY: dirY / len,
     ratio: Number.isFinite(ratio) ? clamp(ratio, 0, 1) : 1,
@@ -1635,6 +2054,69 @@ function createBlackHoleZone(point) {
     remainTime: BLACK_HOLE_ZONE_DURATION,
     removed: false,
   };
+}
+
+function createEnergyWell(point) {
+  if (!point) {
+    return null;
+  }
+  const pos = clampPointToBounds(point, ENERGY_WELL_RADIUS + 16);
+  return {
+    id: room.nextEnergyWellId++,
+    x: pos.x,
+    y: pos.y,
+    radius: ENERGY_WELL_RADIUS,
+    burstInterval: ENERGY_WELL_BURST_INTERVAL,
+    burstCountTotal: ENERGY_WELL_BURST_COUNT,
+    burstCountDone: 0,
+    nextBurstDelay: ENERGY_WELL_BURST_INTERVAL,
+    removed: false,
+  };
+}
+
+function buildEnergyWellPayload(well) {
+  if (!well) {
+    return null;
+  }
+  return {
+    id: well.id,
+    x: well.x,
+    y: well.y,
+    radius: well.radius,
+    burstInterval: well.burstInterval,
+    burstCountTotal: well.burstCountTotal,
+    burstCountDone: well.burstCountDone,
+    nextBurstDelay: well.nextBurstDelay,
+  };
+}
+
+function spawnEnergyWellInFrame(frameCommands, point) {
+  const well = createEnergyWell(point);
+  if (!well) {
+    return null;
+  }
+  room.energyWells.push(well);
+  appendFrameCommand(frameCommands, {
+    type: 'energyWellSpawn',
+    well: buildEnergyWellPayload(well),
+  });
+  return well;
+}
+
+function removeEnergyWellInFrame(wellId, frameCommands, reason = 'complete') {
+  const index = room.energyWells.findIndex((item) => item && item.id === wellId && !item.removed);
+  if (index < 0) {
+    return null;
+  }
+  const well = room.energyWells[index];
+  well.removed = true;
+  room.energyWells.splice(index, 1);
+  appendFrameCommand(frameCommands, {
+    type: 'energyWellRemove',
+    wellId,
+    reason,
+  });
+  return well;
 }
 
 function spawnTarSpillInFrame(spill, player, frameCommands) {
@@ -2054,6 +2536,33 @@ function buildSpecialEventPayload(eventType) {
       speedMultiplier: 3,
     };
   }
+  if (eventType === 'centrifugal') {
+    return {
+      id,
+      type: eventType,
+      duration: SPECIAL_EVENT_DURATION,
+      center: chooseSpecialEventPoint(SPECIAL_EVENT_CENTRIFUGAL_RADIUS + 40),
+      radius: SPECIAL_EVENT_CENTRIFUGAL_RADIUS,
+      triggerRadius: SPECIAL_EVENT_CENTRIFUGAL_RADIUS - 10,
+      orbitRadius: SPECIAL_EVENT_CENTRIFUGAL_RADIUS + 10,
+      rotateAngle: SPECIAL_EVENT_CENTRIFUGAL_ROTATE_ANGLE,
+      angularSpeed: SPECIAL_EVENT_CENTRIFUGAL_ANGULAR_SPEED,
+      speedBoost: SPECIAL_EVENT_CENTRIFUGAL_SPEED_MULTIPLIER,
+      damageBoost: SPECIAL_EVENT_CENTRIFUGAL_DAMAGE_MULTIPLIER,
+      directionSign: -1,
+    };
+  }
+  if (eventType === 'spreadBullet') {
+    return {
+      id,
+      type: eventType,
+      duration: SPECIAL_EVENT_DURATION,
+      center: chooseSpecialEventPoint(SPECIAL_EVENT_SPREAD_BULLET_RADIUS + 40),
+      radius: SPECIAL_EVENT_SPREAD_BULLET_RADIUS,
+      spreadCount: SPECIAL_EVENT_SPREAD_BULLET_COUNT,
+      spreadAngle: SPECIAL_EVENT_SPREAD_BULLET_ANGLE,
+    };
+  }
   return {
     id,
     type: 'blackHole',
@@ -2069,7 +2578,7 @@ function spawnSpecialEventInFrame(frameCommands, maxActiveCount = 1, preferredTy
   if (room.activeSpecialEvents.length >= maxActiveCount) {
     return null;
   }
-  const eventTypes = ['portal', 'damageDouble', 'speedDouble'];
+  const eventTypes = ['portal', 'damageDouble', 'speedDouble', 'blackHole', 'centrifugal', 'spreadBullet'];
   const eventType = preferredType && eventTypes.indexOf(preferredType) >= 0
     ? preferredType
     : pickOne(eventTypes);
@@ -2120,6 +2629,13 @@ function applyBulletEventToServerState(player, bulletEvent) {
   bullet.eventStates[stateKey] = true;
   if (eventType === 'damageDouble') {
     bullet.damage *= 2;
+  } else if (eventType === 'speedDouble') {
+    bullet.speedScale = (bullet.speedScale || 1) * 3;
+  } else if (eventType === 'centrifugal') {
+    bullet.damage *= SPECIAL_EVENT_CENTRIFUGAL_DAMAGE_MULTIPLIER;
+    bullet.speedScale = (bullet.speedScale || 1) * SPECIAL_EVENT_CENTRIFUGAL_SPEED_MULTIPLIER;
+  } else if (eventType === 'spreadBullet') {
+    bullet.splitTriggered = true;
   } else if (eventType === 'blackHole') {
     bullet.destroyed = true;
   } else if (eventType === 'bounce') {
@@ -2150,43 +2666,12 @@ function updateSpecialEvents(frameCommands) {
       removeSpecialEventInFrame(eventData.id, frameCommands, 'timeout');
     }
   }
-  if (room.activeSpecialEvents.length > 0) {
-    return;
-  }
-  if (room.elapsedSeconds < SPECIAL_EVENT_START_DELAY) {
-    return;
-  }
-  if (room.specialEventSpawnCd > 0) {
-    room.specialEventSpawnCd -= TICK_INTERVAL / 1000;
-    return;
-  }
-  spawnSpecialEventInFrame(frameCommands);
 }
 
 function spawnInitialMatchPickups() {
-  const total = Math.max(0, MULTIPLAYER_INITIAL_PICKUP_COUNT);
-  for (let i = 0; i < total; i++) {
-    if (i % 2 === 0) {
-      const pickup = createTarPickup(chooseTarPickupSpawnPoint());
-      if (pickup) {
-        room.tarPickups.push(pickup);
-      }
-    } else {
-      const pickup = createBlackHolePickup(chooseTarPickupSpawnPoint());
-      if (pickup) {
-        room.blackHolePickups.push(pickup);
-      }
-    }
-  }
 }
 
 function spawnInitialSpecialEvents() {
-  const initialTypes = ['portal', 'damageDouble', 'speedDouble'];
-  const total = Math.max(0, MULTIPLAYER_INITIAL_SPECIAL_EVENT_COUNT);
-  for (let i = 0; i < total; i++) {
-    const preferredType = initialTypes[i % initialTypes.length];
-    spawnSpecialEventInFrame(null, total, preferredType);
-  }
 }
 
 function buildPlayerStateCommand(player) {
@@ -2206,6 +2691,7 @@ function buildPlayerStateCommand(player) {
     bulletBounceCount: clamp(Math.round(player.bulletBounceCount || 0), 0, PLAYER_BOUNCE_MAX_COUNT),
     tarAmmoCount: player.tarAmmoCount || 0,
     blackHoleAmmoCount: player.blackHoleAmmoCount || 0,
+    activePickupType: getPlayerActivePickupType(player),
     freeBulletCount: clamp(Math.round(player.freeBulletCount || 0), 0, PLAYER_FREE_BULLET_MAX),
     stopFireTime: Math.max(0, player.stopFireTime || 0),
     freeBulletRecoverTime: Math.max(0, player.freeBulletRecoverTime || 0),
@@ -2215,6 +2701,400 @@ function buildPlayerStateCommand(player) {
     dead: !!player.dead,
     disconnected: !!player.disconnected,
   };
+}
+
+function buildPickupUseEventPayload(pickupType, point) {
+  const normalizedType = normalizePickupType(pickupType);
+  if (!normalizedType || !point) {
+    return null;
+  }
+  if (normalizedType === PICKUP_TYPE.PORTAL) {
+    const exit = resolveConfiguredSpawnPoint({
+      x: point.x + 220,
+      y: point.y,
+    }, SPECIAL_EVENT_PORTAL_RADIUS + 40, 'pickupPortalExit');
+    if (!exit) {
+      return null;
+    }
+    return {
+      id: `pickup_portal_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      type: 'portal',
+      duration: CONFIG_PICKUP_USE_DURATION,
+      radius: SPECIAL_EVENT_PORTAL_RADIUS,
+      entryPos: clonePoint(point),
+      exitPos: clonePoint(exit),
+      source: 'pickup',
+    };
+  }
+  if (normalizedType === PICKUP_TYPE.SPEED_DOUBLE) {
+    return {
+      id: `pickup_speed_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      type: 'speedDouble',
+      duration: CONFIG_PICKUP_USE_DURATION,
+      radius: SPECIAL_EVENT_SPEED_RADIUS,
+      center: clonePoint(point),
+      speedMultiplier: 3,
+      source: 'pickup',
+    };
+  }
+  if (normalizedType === PICKUP_TYPE.DAMAGE_DOUBLE) {
+    return {
+      id: `pickup_damage_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      type: 'damageDouble',
+      duration: CONFIG_PICKUP_USE_DURATION,
+      radius: SPECIAL_EVENT_DAMAGE_RADIUS,
+      center: clonePoint(point),
+      damageMultiplier: 2,
+      scaleMultiplier: 1.5,
+      source: 'pickup',
+    };
+  }
+  return null;
+}
+
+function buildSpecialEventFromConfig(item) {
+  if (!item || !item.specialType) {
+    return null;
+  }
+  const eventType = SPECIAL_EVENT_TYPES.indexOf(item.specialType) >= 0 ? item.specialType : '';
+  if (!eventType) {
+    logWaveSkip('unknown special type', item);
+    return null;
+  }
+  const id = `evt_${room.nextSpecialEventId++}`;
+  const duration = Number.isFinite(Number(item.duration)) ? Math.max(1, Number(item.duration)) : SPECIAL_EVENT_DURATION;
+  if (eventType === 'portal') {
+    const entryPos = resolveConfiguredSpawnPoint({
+      x: item.entryX,
+      y: item.entryY,
+    }, SPECIAL_EVENT_PORTAL_RADIUS + 40, 'portalEntry');
+    const exitPos = resolveConfiguredSpawnPoint({
+      x: item.exitX,
+      y: item.exitY,
+    }, SPECIAL_EVENT_PORTAL_RADIUS + 40, 'portalExit');
+    if (!entryPos || !exitPos) {
+      return null;
+    }
+    return {
+      id,
+      type: 'portal',
+      duration,
+      remainTime: duration,
+      radius: SPECIAL_EVENT_PORTAL_RADIUS,
+      entryPos,
+      exitPos,
+      source: 'wave',
+    };
+  }
+  const center = resolveConfiguredSpawnPoint({
+    x: item.x,
+    y: item.y,
+  }, eventType === 'blackHole' ? SPECIAL_EVENT_BLACK_HOLE_RADIUS + 40 : 100, `special:${eventType}`);
+  if (!center) {
+    return null;
+  }
+  if (eventType === 'damageDouble') {
+    return {
+      id,
+      type: eventType,
+      duration,
+      remainTime: duration,
+      center,
+      radius: SPECIAL_EVENT_DAMAGE_RADIUS,
+      damageMultiplier: 2,
+      scaleMultiplier: 1.5,
+      source: 'wave',
+    };
+  }
+  if (eventType === 'speedDouble') {
+    return {
+      id,
+      type: eventType,
+      duration,
+      remainTime: duration,
+      center,
+      radius: SPECIAL_EVENT_SPEED_RADIUS,
+      speedMultiplier: 3,
+      source: 'wave',
+    };
+  }
+  if (eventType === 'centrifugal') {
+    return {
+      id,
+      type: eventType,
+      duration,
+      remainTime: duration,
+      center,
+      radius: SPECIAL_EVENT_CENTRIFUGAL_RADIUS,
+      triggerRadius: SPECIAL_EVENT_CENTRIFUGAL_RADIUS - 10,
+      orbitRadius: SPECIAL_EVENT_CENTRIFUGAL_RADIUS + 10,
+      rotateAngle: SPECIAL_EVENT_CENTRIFUGAL_ROTATE_ANGLE,
+      angularSpeed: SPECIAL_EVENT_CENTRIFUGAL_ANGULAR_SPEED,
+      speedBoost: SPECIAL_EVENT_CENTRIFUGAL_SPEED_MULTIPLIER,
+      damageBoost: SPECIAL_EVENT_CENTRIFUGAL_DAMAGE_MULTIPLIER,
+      directionSign: -1,
+      source: 'wave',
+    };
+  }
+  if (eventType === 'spreadBullet') {
+    return {
+      id,
+      type: eventType,
+      duration,
+      remainTime: duration,
+      center,
+      radius: SPECIAL_EVENT_SPREAD_BULLET_RADIUS,
+      spreadCount: SPECIAL_EVENT_SPREAD_BULLET_COUNT,
+      spreadAngle: SPECIAL_EVENT_SPREAD_BULLET_ANGLE,
+      source: 'wave',
+    };
+  }
+  return {
+    id,
+    type: 'blackHole',
+    duration,
+    remainTime: duration,
+    center,
+    radius: SPECIAL_EVENT_BLACK_HOLE_RADIUS,
+    destroyRadius: SPECIAL_EVENT_BLACK_HOLE_DESTROY_RADIUS,
+    gravityStrength: BLACK_HOLE_ZONE_GRAVITY,
+    source: 'wave',
+  };
+}
+
+function spawnConfiguredSpecialEventInFrame(frameCommands, item) {
+  const eventData = buildSpecialEventFromConfig(item);
+  if (!eventData) {
+    return null;
+  }
+  room.activeSpecialEvents.push(eventData);
+  appendFrameCommand(frameCommands, {
+    type: 'specialEventSpawn',
+    event: eventData,
+  });
+  return eventData;
+}
+
+function spawnConfiguredSmallEnergyInFrame(frameCommands, point, count) {
+  const total = Math.max(1, Math.floor(Number(count) || 1));
+  const created = [];
+  for (let i = 0; i < total; i++) {
+    const angle = Math.PI * 2 * i / total;
+    const offsetDistance = total <= 1 ? 0 : 28 + (i % 3) * 16;
+    const resolved = resolveConfiguredSpawnPoint({
+      x: point.x + Math.cos(angle) * offsetDistance,
+      y: point.y + Math.sin(angle) * offsetDistance,
+    }, 42, 'smallEnergy');
+    if (!resolved) {
+      continue;
+    }
+    const energy = createEnergyAtPosition(resolved.x, resolved.y, ENERGY_VALUE);
+    energy.lifeTime = CONFIG_SMALL_ENERGY_LIFETIME;
+    energy.spawnType = 'smallEnergy';
+    created.push(energy);
+    appendFrameCommand(frameCommands, {
+      type: 'energySpawn',
+      energy,
+    });
+  }
+  return created;
+}
+
+function spawnConfiguredEnergyEggInFrame(frameCommands, point) {
+  const egg = createEnergyEgg(point);
+  if (!egg) {
+    return null;
+  }
+  room.energyEggs.push(egg);
+  room.energyEggMidgameSpawned += 1;
+  appendFrameCommand(frameCommands, {
+    type: 'energyEggSpawn',
+    egg: {
+      id: egg.id,
+      x: egg.x,
+      y: egg.y,
+      radius: egg.radius,
+      remainTime: egg.remainTime,
+      mature: false,
+      attached: false,
+      ownerPlayerId: null,
+      attachOffsetX: 0,
+      attachOffsetY: 0,
+      energyCount: egg.energyCount,
+      energyScatterRadius: egg.energyScatterRadius,
+    },
+  });
+  appendAnnouncement(frameCommands, {
+    id: `energyEgg_${egg.id}`,
+    text: '能量蛋已刷新',
+    subText: '小地图 marker 接口已预留，当前先使用公告提示',
+    style: 'info',
+    duration: 2.2,
+  });
+  appendFrameCommand(frameCommands, {
+    type: 'resourceMarkerHint',
+    markerType: 'energyEgg',
+    targetId: egg.id,
+    x: egg.x,
+    y: egg.y,
+  });
+  return egg;
+}
+
+function spawnConfiguredResourceInFrame(frameCommands, item) {
+  if (!item || !item.resourceType) {
+    return null;
+  }
+  const resourceType = item.resourceType;
+  const point = resolveConfiguredSpawnPoint(item.position, resourceType === 'energyWell' ? ENERGY_WELL_RADIUS + 16 : 46, resourceType);
+  if (!point) {
+    return null;
+  }
+  if (resourceType === 'energyEgg') {
+    return spawnConfiguredEnergyEggInFrame(frameCommands, point);
+  }
+  if (resourceType === 'energyWell') {
+    const well = spawnEnergyWellInFrame(frameCommands, point);
+    if (well) {
+      appendAnnouncement(frameCommands, {
+        id: `energyWell_${well.id}`,
+        text: '能量井已刷新',
+        subText: '小地图 marker 接口已预留，当前先使用公告提示',
+        style: 'info',
+        duration: 2.2,
+      });
+      appendFrameCommand(frameCommands, {
+        type: 'resourceMarkerHint',
+        markerType: 'energyWell',
+        targetId: well.id,
+        x: well.x,
+        y: well.y,
+      });
+    }
+    return well;
+  }
+  if (resourceType === 'smallEnergy') {
+    return spawnConfiguredSmallEnergyInFrame(frameCommands, point, item.count);
+  }
+  if (resourceType === 'pickup') {
+    return spawnConfiguredPickupInFrame(frameCommands, point, item.pickupType);
+  }
+  logWaveSkip('unknown resource type', item);
+  return null;
+}
+
+function triggerConfiguredWave(frameCommands, waveIndex, waveConfig) {
+  if (!waveConfig) {
+    return;
+  }
+  const resources = Array.isArray(waveConfig.resources) ? waveConfig.resources : [];
+  const specialZones = Array.isArray(waveConfig.specialZones) ? waveConfig.specialZones : [];
+  for (let i = 0; i < resources.length; i++) {
+    spawnConfiguredResourceInFrame(frameCommands, resources[i]);
+  }
+  for (let i = 0; i < specialZones.length; i++) {
+    spawnConfiguredSpecialEventInFrame(frameCommands, specialZones[i]);
+  }
+  appendAnnouncement(frameCommands, {
+    id: `wave_${waveIndex}`,
+    text: `第 ${waveIndex + 1} 波资源刷新`,
+    subText: `时间点 ${waveConfig.time}s`,
+    style: 'info',
+    duration: 2.4,
+  });
+}
+
+function updateConfiguredWaveSpawns(frameCommands) {
+  const state = getWaveState();
+  while (state.nextWaveIndex < RESOURCE_WAVE_CONFIG.length) {
+    const wave = RESOURCE_WAVE_CONFIG[state.nextWaveIndex];
+    if (!wave || room.elapsedSeconds + 0.0001 < wave.time) {
+      break;
+    }
+    if (!state.triggered[state.nextWaveIndex]) {
+      state.triggered[state.nextWaveIndex] = true;
+      triggerConfiguredWave(frameCommands, state.nextWaveIndex, wave);
+    }
+    state.nextWaveIndex++;
+  }
+}
+
+function updateConfiguredPickups(frameCommands) {
+  for (let i = room.pickups.length - 1; i >= 0; i--) {
+    const pickup = room.pickups[i];
+    if (!pickup || pickup.removed) {
+      room.pickups.splice(i, 1);
+      continue;
+    }
+    pickup.remainTime -= TICK_INTERVAL / 1000;
+    if (pickup.remainTime <= 0) {
+      removeConfiguredPickupInFrame(pickup.id, frameCommands, 'timeout');
+    }
+  }
+}
+
+function updateConfiguredEnergyWells(frameCommands) {
+  for (let i = room.energyWells.length - 1; i >= 0; i--) {
+    const well = room.energyWells[i];
+    if (!well || well.removed) {
+      room.energyWells.splice(i, 1);
+      continue;
+    }
+    well.nextBurstDelay -= TICK_INTERVAL / 1000;
+    if (well.nextBurstDelay > 0) {
+      continue;
+    }
+    const burstEnergies = [];
+    for (let energyIndex = 0; energyIndex < ENERGY_WELL_BURST_SMALL_ENERGY_COUNT; energyIndex++) {
+      const angle = (Math.PI * 2 * energyIndex) / ENERGY_WELL_BURST_SMALL_ENERGY_COUNT + Math.random() * 0.24;
+      const landing = resolveConfiguredSpawnPoint({
+        x: well.x + Math.cos(angle) * (well.radius + 28 + Math.random() * 54),
+        y: well.y + Math.sin(angle) * (well.radius + 28 + Math.random() * 54),
+      }, 42, 'energyWellBurst');
+      if (!landing) {
+        continue;
+      }
+      const energy = createEnergyAtPosition(landing.x, landing.y, ENERGY_VALUE);
+      energy.lifeTime = CONFIG_SMALL_ENERGY_LIFETIME;
+      energy.spawnType = 'smallEnergy';
+      burstEnergies.push(energy);
+    }
+    well.burstCountDone += 1;
+    well.nextBurstDelay = ENERGY_WELL_BURST_INTERVAL;
+    appendFrameCommand(frameCommands, {
+      type: 'energyWellBurst',
+      wellId: well.id,
+      burstIndex: well.burstCountDone,
+      energies: burstEnergies,
+    });
+    if (well.burstCountDone >= well.burstCountTotal) {
+      removeEnergyWellInFrame(well.id, frameCommands, 'complete');
+    }
+  }
+}
+
+function updateTimedEnergies(frameCommands) {
+  for (let i = room.energies.length - 1; i >= 0; i--) {
+    const energy = room.energies[i];
+    if (!energy) {
+      room.energies.splice(i, 1);
+      continue;
+    }
+    if (!Number.isFinite(energy.lifeTime) || energy.lifeTime <= 0) {
+      continue;
+    }
+    energy.lifeTime -= TICK_INTERVAL / 1000;
+    if (energy.lifeTime <= 0) {
+      const removed = removeEnergyById(energy.id);
+      if (removed) {
+        appendFrameCommand(frameCommands, {
+          type: 'energyRemove',
+          energyId: removed.id,
+          reason: 'timeout',
+        });
+      }
+    }
+  }
 }
 
 function tickPlayerFireState(player) {
@@ -2631,10 +3511,6 @@ function burstEnergyEggInFrame(egg, frameCommands) {
 }
 
 function updateEnergyEggs(frameCommands) {
-  if (room.elapsedSeconds >= ENERGY_EGG_MIDGAME_SECONDS && room.energyEggMidgameSpawned < room.energyEggMidgamePlan) {
-    spawnEnergyEggInFrame(frameCommands);
-  }
-
   syncAttachedEnergyEggsFromPlayers(frameCommands);
 
   for (let i = 0; i < room.energyEggs.length; i++) {
@@ -2664,6 +3540,13 @@ function removeEnergyById(energyId) {
 
 function removeEnergyInFrame(energyId, frameCommands) {
   const energy = removeEnergyById(energyId);
+  if (energy) {
+    appendFrameCommand(frameCommands, {
+      type: 'energyRemove',
+      energyId,
+      reason: 'consume',
+    });
+  }
   return energy;
 }
 
@@ -2736,20 +3619,20 @@ function tryConsumeEnergy(player, energyId, frameCommands) {
 }
 
 function updateEnergySpawns(frameCommands) {
-  room.energySpawnCd += TICK_INTERVAL / 1000;
-  if (room.energySpawnCd < ENERGY_BORN_INTERVAL) {
-    return;
-  }
-  room.energySpawnCd = 0;
-  spawnEnergyInFrame(frameCommands);
 }
 
 function initMatchEnergyEggPlan() {
-  room.energyEggMidgamePlan = ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MIN;
-  if (ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MAX > ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MIN) {
-    room.energyEggMidgamePlan += Math.floor(Math.random() * (ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MAX - ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MIN + 1));
+  let count = 0;
+  for (let i = 0; i < RESOURCE_WAVE_CONFIG.length; i++) {
+    const wave = RESOURCE_WAVE_CONFIG[i];
+    const resources = Array.isArray(wave && wave.resources) ? wave.resources : [];
+    for (let j = 0; j < resources.length; j++) {
+      if (resources[j] && resources[j].resourceType === 'energyEgg') {
+        count++;
+      }
+    }
   }
-  room.energyEggMidgamePlan = clamp(room.energyEggMidgamePlan, ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MIN, ENERGY_EGG_MIDGAME_SPAWN_TOTAL_MAX);
+  room.energyEggMidgamePlan = count;
   room.energyEggMidgameSpawned = 0;
 }
 
@@ -2809,6 +3692,7 @@ function tick() {
   room.elapsedSeconds += TICK_INTERVAL / 1000;
   updateSafeZoneState(frameCommands);
   updateEnergySpawns(frameCommands);
+  updateConfiguredWaveSpawns(frameCommands);
 
   room.players.forEach((p) => {
     let inputs = {
@@ -2819,8 +3703,10 @@ function tick() {
       aim: null,
       fire: false,
       hit: false,
+      pickupId: null,
       throwTar: false,
       throwBlackHole: false,
+      usePickup: false,
       toggleCover: false,
       coverAction: null,
       energyEggAction: null,
@@ -2893,11 +3779,17 @@ function tick() {
       if (src.pickupBlackHoleId != null) {
         tryConsumeBlackHolePickup(p, src.pickupBlackHoleId, eventCommands);
       }
+      if (src.pickupId != null) {
+        inputs.pickupId = src.pickupId;
+      }
       if (src.throwTar) {
         inputs.throwTar = src.throwTar;
       }
       if (src.throwBlackHole) {
         inputs.throwBlackHole = src.throwBlackHole;
+      }
+      if (src.usePickup) {
+        inputs.usePickup = src.usePickup;
       }
       if (src.toggleCover) {
         inputs.toggleCover = true;
@@ -2960,6 +3852,12 @@ function tick() {
     if (inputs.throwBlackHole) {
       tryThrowBlackHoleByPlayer(p, sanitizeThrowTarPayload(inputs.throwBlackHole), eventCommands);
     }
+    if (inputs.pickupId != null) {
+      tryConsumeConfiguredPickup(p, inputs.pickupId, eventCommands);
+    }
+    if (inputs.usePickup) {
+      tryUseConfiguredPickupByPlayer(p, sanitizeUsePickupPayload(inputs.usePickup), eventCommands);
+    }
     syncAttachedCoversFromPlayers();
     if (inputs.coverAction) {
       tryCoverActionByPlayer(p, inputs.coverAction, eventCommands);
@@ -2989,6 +3887,9 @@ function tick() {
   });
 
   updateEnergyEggs(frameCommands);
+  updateConfiguredEnergyWells(frameCommands);
+  updateConfiguredPickups(frameCommands);
+  updateTimedEnergies(frameCommands);
   appendAllCoverSyncCommands(frameCommands);
   updateSpecialEvents(frameCommands);
   updateTarPickupSpawns(frameCommands);
@@ -3101,6 +4002,10 @@ function startGame() {
   room.nextSpecialEventId = 1;
   room.specialEventSpawnCd = 0;
   room.activeSpecialEvents = [];
+  room.pickups = [];
+  room.nextPickupId = 1;
+  room.energyWells = [];
+  room.nextEnergyWellId = 1;
   room.tarPickups = [];
   room.nextTarPickupId = 1;
   room.tarPickupSpawnCd = 0;
@@ -3111,8 +4016,13 @@ function startGame() {
   room.blackHolePickupSpawnCd = 0;
   room.blackHoleZones = [];
   room.nextBlackHoleZoneId = 1;
+  room.nextServerBulletId = 1;
   room.safeZone = createSafeZoneState(room.mapBounds);
   room.matchFlow = createMatchFlowState();
+  room.waveState = {
+    nextWaveIndex: 0,
+    triggered: {},
+  };
   initMatchEnergyEggPlan();
 
   room.players.forEach((p, index) => {
@@ -3128,11 +4038,8 @@ function startGame() {
   room.bushes = buildInitialBushes();
   room.covers = buildInitialCovers();
 
-  for (let i = 0; i < Math.min(ENERGY_MAX_COUNT, 3); i++) {
-    spawnEnergy();
-  }
-  spawnInitialMatchPickups();
-  spawnInitialSpecialEvents();
+  const initialFrameCommands = [];
+  updateConfiguredWaveSpawns(initialFrameCommands);
 
   broadcastRoomState({ spawnSlots: room.spawnSlots });
   room.players.forEach((p) => {
@@ -3147,7 +4054,9 @@ function startGame() {
       playerCount: room.players.length,
       spawnSlots: room.spawnSlots,
       energies: room.energies,
+      energyWells: room.energyWells,
       specialEvents: room.activeSpecialEvents.slice(),
+      pickups: room.pickups.slice(),
       tarPickups: room.tarPickups,
       tarSpills: room.tarSpills,
       blackHolePickups: room.blackHolePickups,
@@ -3168,6 +4077,7 @@ function startGame() {
         energyNeedExp: player.energyNeedExp,
         tarAmmoCount: player.tarAmmoCount || 0,
         blackHoleAmmoCount: player.blackHoleAmmoCount || 0,
+        activePickupType: getPlayerActivePickupType(player),
         freeBulletCount: clamp(Math.round(player.freeBulletCount || 0), 0, PLAYER_FREE_BULLET_MAX),
         stopFireTime: Math.max(0, player.stopFireTime || 0),
         freeBulletRecoverTime: Math.max(0, player.freeBulletRecoverTime || 0),
@@ -3352,6 +4262,10 @@ function resetRoom() {
   room.nextSpecialEventId = 1;
   room.specialEventSpawnCd = 0;
   room.activeSpecialEvents = [];
+  room.pickups = [];
+  room.nextPickupId = 1;
+  room.energyWells = [];
+  room.nextEnergyWellId = 1;
   room.tarPickups = [];
   room.nextTarPickupId = 1;
   room.tarPickupSpawnCd = 0;
@@ -3362,8 +4276,13 @@ function resetRoom() {
   room.blackHolePickupSpawnCd = 0;
   room.blackHoleZones = [];
   room.nextBlackHoleZoneId = 1;
+  room.nextServerBulletId = 1;
   room.safeZone = createSafeZoneState(room.mapBounds);
   room.matchFlow = createMatchFlowState();
+  room.waveState = {
+    nextWaveIndex: 0,
+    triggered: {},
+  };
   console.log('[Room] Reset');
 }
 

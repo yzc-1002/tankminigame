@@ -130,8 +130,10 @@ var GameMain = /** @class */ (function (_super) {
         yyp.eventCenter.on("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
         yyp.eventCenter.on("multiplayer-tar-pickup", this._onMultiplayerTarPickup, this);
         yyp.eventCenter.on("multiplayer-black-hole-pickup", this._onMultiplayerBlackHolePickup, this);
+        yyp.eventCenter.on("multiplayer-pickup", this._onMultiplayerPickup, this);
         yyp.eventCenter.on("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         yyp.eventCenter.on("multiplayer-throw-black-hole", this._onMultiplayerThrowBlackHole, this);
+        yyp.eventCenter.on("multiplayer-use-pickup", this._onMultiplayerUsePickup, this);
         yyp.eventCenter.on("multiplayer-cover-action", this._onMultiplayerCoverAction, this);
         this._fire._lyStart.on(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
     };
@@ -153,8 +155,10 @@ var GameMain = /** @class */ (function (_super) {
         yyp.eventCenter.off("multiplayer-energy-pickup", this._onMultiplayerEnergyPickup, this);
         yyp.eventCenter.off("multiplayer-tar-pickup", this._onMultiplayerTarPickup, this);
         yyp.eventCenter.off("multiplayer-black-hole-pickup", this._onMultiplayerBlackHolePickup, this);
+        yyp.eventCenter.off("multiplayer-pickup", this._onMultiplayerPickup, this);
         yyp.eventCenter.off("multiplayer-throw-tar", this._onMultiplayerThrowTar, this);
         yyp.eventCenter.off("multiplayer-throw-black-hole", this._onMultiplayerThrowBlackHole, this);
+        yyp.eventCenter.off("multiplayer-use-pickup", this._onMultiplayerUsePickup, this);
         yyp.eventCenter.off("multiplayer-cover-action", this._onMultiplayerCoverAction, this);
         this._fire._lyStart.off(cc.Node.EventType.TOUCH_END, this._onStartClick, this);
         this._destroyTestPanel();
@@ -1333,8 +1337,10 @@ var GameMain = /** @class */ (function (_super) {
             pickupEnergyId: null,
             pickupTarId: null,
             pickupBlackHoleId: null,
+            pickupId: null,
             throwTar: false,
             throwBlackHole: false,
+            usePickup: false,
             toggleCover: false,
             coverAction: null,
             energyEggAction: null,
@@ -1353,6 +1359,9 @@ var GameMain = /** @class */ (function (_super) {
         if (this._multiplayerInputs.pickupBlackHoleId === undefined) {
             this._multiplayerInputs.pickupBlackHoleId = null;
         }
+        if (this._multiplayerInputs.pickupId === undefined) {
+            this._multiplayerInputs.pickupId = null;
+        }
         if (this._multiplayerInputs.aim === undefined) {
             this._multiplayerInputs.aim = null;
         }
@@ -1361,6 +1370,9 @@ var GameMain = /** @class */ (function (_super) {
         }
         if (this._multiplayerInputs.throwBlackHole === undefined) {
             this._multiplayerInputs.throwBlackHole = false;
+        }
+        if (this._multiplayerInputs.usePickup === undefined) {
+            this._multiplayerInputs.usePickup = false;
         }
         if (this._multiplayerInputs.toggleCover === undefined) {
             this._multiplayerInputs.toggleCover = false;
@@ -1380,6 +1392,7 @@ var GameMain = /** @class */ (function (_super) {
         inputs.pickupEnergyId = null;
         inputs.pickupTarId = null;
         inputs.pickupBlackHoleId = null;
+        inputs.pickupId = null;
         if (this._multiplayerTarThrowRepeat > 0) {
             this._multiplayerTarThrowRepeat--;
             if (this._multiplayerTarThrowRepeat <= 0) {
@@ -1392,6 +1405,7 @@ var GameMain = /** @class */ (function (_super) {
             inputs.throwTar = false;
             inputs.throwBlackHole = false;
         }
+        inputs.usePickup = false;
         if (this._multiplayerCoverToggleRepeat > 0) {
             this._multiplayerCoverToggleRepeat--;
             if (this._multiplayerCoverToggleRepeat <= 0) {
@@ -1421,6 +1435,7 @@ var GameMain = /** @class */ (function (_super) {
         var pickupEnergyId = source.pickupEnergyId == null ? null : source.pickupEnergyId;
         var pickupTarId = source.pickupTarId == null ? null : source.pickupTarId;
         var pickupBlackHoleId = source.pickupBlackHoleId == null ? null : source.pickupBlackHoleId;
+        var pickupId = source.pickupId == null ? null : source.pickupId;
         var aim = null;
         if (source.aim && Number.isFinite(source.aim.x) && Number.isFinite(source.aim.y)) {
             aim = {
@@ -1440,8 +1455,10 @@ var GameMain = /** @class */ (function (_super) {
             pickupEnergyId: pickupEnergyId,
             pickupTarId: pickupTarId,
             pickupBlackHoleId: pickupBlackHoleId,
+            pickupId: pickupId,
             throwTar: source.throwTar ? source.throwTar : false,
             throwBlackHole: source.throwBlackHole ? source.throwBlackHole : false,
+            usePickup: source.usePickup ? source.usePickup : false,
             toggleCover: !!source.toggleCover,
             coverAction: source.coverAction ? source.coverAction : null,
             energyEggAction: source.energyEggAction ? source.energyEggAction : null,
@@ -1526,6 +1543,13 @@ var GameMain = /** @class */ (function (_super) {
         var inputs = this._ensureMultiplayerInputs();
         inputs.pickupBlackHoleId = event.pickupId;
     };
+    GameMain.prototype._onMultiplayerPickup = function (event) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event || event.pickupId == null) {
+            return;
+        }
+        var inputs = this._ensureMultiplayerInputs();
+        inputs.pickupId = event.pickupId;
+    };
     GameMain.prototype._onMultiplayerThrowTar = function (event) {
         if (!this._multiplayerActive || this._multiplayerLocalDead || !event) {
             return;
@@ -1550,6 +1574,20 @@ var GameMain = /** @class */ (function (_super) {
             ratio: event.ratio,
         };
         this._multiplayerTarThrowRepeat = 4;
+        this._flushMultiplayerInputsNow();
+    };
+    GameMain.prototype._onMultiplayerUsePickup = function (event) {
+        if (!this._multiplayerActive || this._multiplayerLocalDead || !event || !event.pickupType) {
+            return;
+        }
+        var inputs = this._ensureMultiplayerInputs();
+        inputs.usePickup = {
+            pickupType: event.pickupType,
+            dirX: event.dirX,
+            dirY: event.dirY,
+            ratio: event.ratio,
+        };
+        this._multiplayerTarThrowRepeat = 0;
         this._flushMultiplayerInputsNow();
     };
     GameMain.prototype._onMultiplayerCoverAction = function () {
@@ -1688,8 +1726,8 @@ var GameMain = /** @class */ (function (_super) {
                 _this._netManager.sendPlayerSetup(_this._buildMultiplayerPlayerSetup());
             }
         };
-        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone) {
-            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null);
+        this._netManager.onGameStart = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone, pickups, energyWells) {
+            _this._startMultiplayerMatch(playerId, playerCount || 2, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, pickups || [], energyWells || []);
         };
         this._netManager.onGameEnded = function (payload) {
             _this._endMultiplayerMatch(payload);
@@ -1703,7 +1741,7 @@ var GameMain = /** @class */ (function (_super) {
         };
         this._netManager.connect(MULTIPLAYER_SERVER_URL);
     };
-    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone) {
+    GameMain.prototype._startMultiplayerMatch = function (playerId, playerCount, spawnSlots, energies, players, specialEvents, tarPickups, tarSpills, blackHolePickups, blackHoleZones, bushes, covers, safeZone, pickups, energyWells) {
         if (players === void 0) { players = []; }
         if (specialEvents === void 0) { specialEvents = []; }
         if (tarPickups === void 0) { tarPickups = []; }
@@ -1713,6 +1751,8 @@ var GameMain = /** @class */ (function (_super) {
         if (bushes === void 0) { bushes = []; }
         if (covers === void 0) { covers = []; }
         if (safeZone === void 0) { safeZone = null; }
+        if (pickups === void 0) { pickups = []; }
+        if (energyWells === void 0) { energyWells = []; }
         this._hideMultiplayerStatus();
         this._hideMultiplayerAnnouncement();
         this._hideMultiplayerHud();
@@ -1726,7 +1766,7 @@ var GameMain = /** @class */ (function (_super) {
         this._multiplayerCoverActionSeq = 1;
         this._multiplayerInputs = this._createDefaultMultiplayerInputs();
         var self = this;
-        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, function () {
+        this._fire._tiled.script.startMultiplayerGame(playerCount || 2, playerId, spawnSlots || [], energies || [], players || [], specialEvents || [], tarPickups || [], tarSpills || [], blackHolePickups || [], blackHoleZones || [], bushes || [], covers || [], safeZone || null, pickups || [], energyWells || [], function () {
             self._fire._joystick.active = true;
             self._fire._ui.active = true;
             self._scheduleMultiplayerMinimapRefresh();

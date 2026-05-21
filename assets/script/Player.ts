@@ -62,6 +62,7 @@ export class Player extends Tank {
     _chargeEffectNode = null;
     _oilShellCount = 0;
     _blackHoleShellCount = 0;
+    _activePickupType = "";
     _oilShellPreviewing = false;
     _oilShellPreviewTarget = null;
     _oilShellAimDir = cc.v2(1, 0);
@@ -119,6 +120,7 @@ export class Player extends Tank {
         this._chargeCannonReady = false;
         this._oilShellCount = 0;
         this._blackHoleShellCount = 0;
+        this._activePickupType = "";
         this._oilShellPreviewing = false;
         this._oilShellPreviewTarget = null;
         this._oilShellAimDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
@@ -313,7 +315,7 @@ export class Player extends Tank {
         if (this._inGame == false) {
             return;
         }
-        if (this._oilShellCount <= 0 && this._blackHoleShellCount <= 0) {
+        if (this._oilShellCount <= 0 && this._blackHoleShellCount <= 0 && !this._activePickupType) {
             this._refreshSkillButtonMode();
             return;
         }
@@ -379,6 +381,15 @@ export class Player extends Tank {
             }
             else if (skillId == 5) {
                 this._gainBlackHoleShell();
+            }
+            else if (skillId == 6) {
+                this._gainConfiguredPickup("portal");
+            }
+            else if (skillId == 7) {
+                this._gainConfiguredPickup("speedDouble");
+            }
+            else if (skillId == 8) {
+                this._gainConfiguredPickup("damageDouble");
             }
         }
     }
@@ -1657,6 +1668,17 @@ export class Player extends Tank {
         this._showBlackHolePickupFeedback();
     }
 
+    _gainConfiguredPickup(type) {
+        if (!type) {
+            return;
+        }
+        if (this._chargeCannonCharging) {
+            this._resetChargeCannon();
+        }
+        this._activePickupType = type;
+        this._refreshSkillButtonMode();
+    }
+
     _fireOilShell() {
         let wipeLen = this._getBarrelMuzzleDistance(8);
         Bullet.createBulletEx(OIL_SHELL_BULLET_TYPE, this.node.position, this._barrelDir, wipeLen, this._config.AttackRadius * 1.8, 0, this._camp, this.node.parent, this._map, 10);
@@ -1670,10 +1692,10 @@ export class Player extends Tank {
     }
 
     _startOilShellPreview() {
-        if ((this._oilShellCount <= 0 && this._blackHoleShellCount <= 0) || !this._map) {
+        if ((this._oilShellCount <= 0 && this._blackHoleShellCount <= 0 && !this._activePickupType) || !this._map) {
             return;
         }
-        this._activeThrowSkillType = this._oilShellCount > 0 ? "oil" : "blackHole";
+        this._activeThrowSkillType = this._activePickupType || (this._oilShellCount > 0 ? "oil" : "blackHole");
         this._oilShellPreviewing = true;
         let defaultDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
         this._oilShellAimDir = defaultDir;
@@ -1696,7 +1718,7 @@ export class Player extends Tank {
             return;
         }
         let target = this._oilShellPreviewTarget || this._getOilShellThrowTarget();
-        let activeThrowSkillType = this._activeThrowSkillType || (this._blackHoleShellCount > 0 && this._oilShellCount <= 0 ? "blackHole" : "oil");
+        let activeThrowSkillType = this._activeThrowSkillType || this._activePickupType || (this._blackHoleShellCount > 0 && this._oilShellCount <= 0 ? "blackHole" : "oil");
         let aimDir = cc.v2(this._oilShellAimDir || this._barrelDir || cc.v2(1, 0));
         if (aimDir.magSqr() > 0) {
             aimDir = aimDir.normalize();
@@ -1710,16 +1732,29 @@ export class Player extends Tank {
             return;
         }
         if (this._multiplayerMode && !this._multiplayerRemote) {
-            let throwEventName = activeThrowSkillType == "blackHole" ? "multiplayer-throw-black-hole" : "multiplayer-throw-tar";
-            yyp.eventCenter.emit(throwEventName, {
-                dirX: Number(aimDir.x.toFixed(4)),
-                dirY: Number(aimDir.y.toFixed(4)),
-                ratio: Number(aimRatio.toFixed(4)),
-            });
+            if (activeThrowSkillType == "blackHole" || activeThrowSkillType == "oil") {
+                let throwEventName = activeThrowSkillType == "blackHole" ? "multiplayer-throw-black-hole" : "multiplayer-throw-tar";
+                yyp.eventCenter.emit(throwEventName, {
+                    dirX: Number(aimDir.x.toFixed(4)),
+                    dirY: Number(aimDir.y.toFixed(4)),
+                    ratio: Number(aimRatio.toFixed(4)),
+                });
+            }
+            else{
+                yyp.eventCenter.emit("multiplayer-use-pickup", {
+                    pickupType: activeThrowSkillType,
+                    dirX: Number(aimDir.x.toFixed(4)),
+                    dirY: Number(aimDir.y.toFixed(4)),
+                    ratio: Number(aimRatio.toFixed(4)),
+                });
+            }
             return;
         }
         if (activeThrowSkillType == "blackHole") {
             this._throwBlackHoleShellAt(target);
+        }
+        else if (activeThrowSkillType == "portal" || activeThrowSkillType == "speedDouble" || activeThrowSkillType == "damageDouble") {
+            this._useConfiguredPickupAt(target, activeThrowSkillType);
         }
         else{
             this._throwOilShellAt(target);
@@ -1813,6 +1848,14 @@ export class Player extends Tank {
         MusicManager.playEffect("shoot");
     }
 
+    _useConfiguredPickupAt(target, pickupType) {
+        if (!target || !pickupType || this._activePickupType != pickupType) {
+            return;
+        }
+        this._activePickupType = "";
+        this._refreshSkillButtonMode();
+    }
+
     _refreshSkillButtonMode() {
         if (this._multiplayerMode && this._multiplayerRemote) {
             return;
@@ -1823,6 +1866,9 @@ export class Player extends Tank {
         }
         else if (this._blackHoleShellCount > 0) {
             mode = "blackHole";
+        }
+        else if (this._activePickupType) {
+            mode = this._activePickupType;
         }
         yyp.eventCenter.emit("skill-button-mode", {mode: mode});
     }
@@ -2134,6 +2180,10 @@ export class Player extends Tank {
                 this._refreshSkillButtonMode();
             }
         }
+        if (state.activePickupType !== undefined) {
+            this._activePickupType = state.activePickupType || "";
+            this._refreshSkillButtonMode();
+        }
         if (state.freeBulletCount != null) {
             this._freeBulletCount = Math.max(0, Math.min(PLAYER_FREE_BULLET_MAX, state.freeBulletCount));
         }
@@ -2440,6 +2490,7 @@ export class Player extends Tank {
         this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
         this._oilShellCount = 0;
+        this._activePickupType = "";
         this._cancelOilShellPreview();
         this._refreshSkillButtonMode();
         super.doDeath();

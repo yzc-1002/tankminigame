@@ -83,6 +83,7 @@ var Player = /** @class */ (function (_super) {
         _this._chargeEffectNode = null;
         _this._oilShellCount = 0;
         _this._blackHoleShellCount = 0;
+        _this._activePickupType = "";
         _this._oilShellPreviewing = false;
         _this._oilShellPreviewTarget = null;
         _this._oilShellAimDir = cc.v2(1, 0);
@@ -137,6 +138,7 @@ var Player = /** @class */ (function (_super) {
         this._chargeCannonReady = false;
         this._oilShellCount = 0;
         this._blackHoleShellCount = 0;
+        this._activePickupType = "";
         this._oilShellPreviewing = false;
         this._oilShellPreviewTarget = null;
         this._oilShellAimDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
@@ -322,7 +324,7 @@ var Player = /** @class */ (function (_super) {
         if (this._inGame == false) {
             return;
         }
-        if (this._oilShellCount <= 0 && this._blackHoleShellCount <= 0) {
+        if (this._oilShellCount <= 0 && this._blackHoleShellCount <= 0 && !this._activePickupType) {
             this._refreshSkillButtonMode();
             return;
         }
@@ -386,6 +388,15 @@ var Player = /** @class */ (function (_super) {
             }
             else if (skillId == 5) {
                 this._gainBlackHoleShell();
+            }
+            else if (skillId == 6) {
+                this._gainConfiguredPickup("portal");
+            }
+            else if (skillId == 7) {
+                this._gainConfiguredPickup("speedDouble");
+            }
+            else if (skillId == 8) {
+                this._gainConfiguredPickup("damageDouble");
             }
         }
     };
@@ -1386,6 +1397,16 @@ var Player = /** @class */ (function (_super) {
         this._refreshSkillButtonMode();
         this._showBlackHolePickupFeedback();
     };
+    Player.prototype._gainConfiguredPickup = function (type) {
+        if (!type) {
+            return;
+        }
+        if (this._chargeCannonCharging) {
+            this._resetChargeCannon();
+        }
+        this._activePickupType = type;
+        this._refreshSkillButtonMode();
+    };
     Player.prototype._fireOilShell = function () {
         var wipeLen = this._getBarrelMuzzleDistance(8);
         BulletE_1.Bullet.createBulletEx(OIL_SHELL_BULLET_TYPE, this.node.position, this._barrelDir, wipeLen, this._config.AttackRadius * 1.8, 0, this._camp, this.node.parent, this._map, 10);
@@ -1398,10 +1419,10 @@ var Player = /** @class */ (function (_super) {
         MusicManager_1.MusicManager.playEffect("shoot");
     };
     Player.prototype._startOilShellPreview = function () {
-        if ((this._oilShellCount <= 0 && this._blackHoleShellCount <= 0) || !this._map) {
+        if ((this._oilShellCount <= 0 && this._blackHoleShellCount <= 0 && !this._activePickupType) || !this._map) {
             return;
         }
-        this._activeThrowSkillType = this._oilShellCount > 0 ? "oil" : "blackHole";
+        this._activeThrowSkillType = this._activePickupType || (this._oilShellCount > 0 ? "oil" : "blackHole");
         this._oilShellPreviewing = true;
         var defaultDir = this._barrelDir && this._barrelDir.magSqr() > 0 ? cc.v2(this._barrelDir).normalize() : cc.v2(1, 0);
         this._oilShellAimDir = defaultDir;
@@ -1422,7 +1443,7 @@ var Player = /** @class */ (function (_super) {
             return;
         }
         var target = this._oilShellPreviewTarget || this._getOilShellThrowTarget();
-        var activeThrowSkillType = this._activeThrowSkillType || (this._blackHoleShellCount > 0 && this._oilShellCount <= 0 ? "blackHole" : "oil");
+        var activeThrowSkillType = this._activeThrowSkillType || this._activePickupType || (this._blackHoleShellCount > 0 && this._oilShellCount <= 0 ? "blackHole" : "oil");
         var aimDir = cc.v2(this._oilShellAimDir || this._barrelDir || cc.v2(1, 0));
         if (aimDir.magSqr() > 0) {
             aimDir = aimDir.normalize();
@@ -1436,16 +1457,29 @@ var Player = /** @class */ (function (_super) {
             return;
         }
         if (this._multiplayerMode && !this._multiplayerRemote) {
-            var throwEventName = activeThrowSkillType == "blackHole" ? "multiplayer-throw-black-hole" : "multiplayer-throw-tar";
-            yyp.eventCenter.emit(throwEventName, {
-                dirX: Number(aimDir.x.toFixed(4)),
-                dirY: Number(aimDir.y.toFixed(4)),
-                ratio: Number(aimRatio.toFixed(4)),
-            });
+            if (activeThrowSkillType == "blackHole" || activeThrowSkillType == "oil") {
+                var throwEventName = activeThrowSkillType == "blackHole" ? "multiplayer-throw-black-hole" : "multiplayer-throw-tar";
+                yyp.eventCenter.emit(throwEventName, {
+                    dirX: Number(aimDir.x.toFixed(4)),
+                    dirY: Number(aimDir.y.toFixed(4)),
+                    ratio: Number(aimRatio.toFixed(4)),
+                });
+            }
+            else {
+                yyp.eventCenter.emit("multiplayer-use-pickup", {
+                    pickupType: activeThrowSkillType,
+                    dirX: Number(aimDir.x.toFixed(4)),
+                    dirY: Number(aimDir.y.toFixed(4)),
+                    ratio: Number(aimRatio.toFixed(4)),
+                });
+            }
             return;
         }
         if (activeThrowSkillType == "blackHole") {
             this._throwBlackHoleShellAt(target);
+        }
+        else if (activeThrowSkillType == "portal" || activeThrowSkillType == "speedDouble" || activeThrowSkillType == "damageDouble") {
+            this._useConfiguredPickupAt(target, activeThrowSkillType);
         }
         else {
             this._throwOilShellAt(target);
@@ -1535,6 +1569,13 @@ var Player = /** @class */ (function (_super) {
         }
         MusicManager_1.MusicManager.playEffect("shoot");
     };
+    Player.prototype._useConfiguredPickupAt = function (target, pickupType) {
+        if (!target || !pickupType || this._activePickupType != pickupType) {
+            return;
+        }
+        this._activePickupType = "";
+        this._refreshSkillButtonMode();
+    };
     Player.prototype._refreshSkillButtonMode = function () {
         if (this._multiplayerMode && this._multiplayerRemote) {
             return;
@@ -1545,6 +1586,9 @@ var Player = /** @class */ (function (_super) {
         }
         else if (this._blackHoleShellCount > 0) {
             mode = "blackHole";
+        }
+        else if (this._activePickupType) {
+            mode = this._activePickupType;
         }
         yyp.eventCenter.emit("skill-button-mode", { mode: mode });
     };
@@ -1810,6 +1854,10 @@ var Player = /** @class */ (function (_super) {
                 this._refreshSkillButtonMode();
             }
         }
+        if (state.activePickupType !== undefined) {
+            this._activePickupType = state.activePickupType || "";
+            this._refreshSkillButtonMode();
+        }
         if (state.freeBulletCount != null) {
             this._freeBulletCount = Math.max(0, Math.min(PLAYER_FREE_BULLET_MAX, state.freeBulletCount));
         }
@@ -2066,6 +2114,7 @@ var Player = /** @class */ (function (_super) {
         this._stopLowHpPlayerFeedback();
         this._stopMoveEffect();
         this._oilShellCount = 0;
+        this._activePickupType = "";
         this._cancelOilShellPreview();
         this._refreshSkillButtonMode();
         _super.prototype.doDeath.call(this);
