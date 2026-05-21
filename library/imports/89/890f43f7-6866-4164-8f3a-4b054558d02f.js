@@ -43,7 +43,7 @@ var MULTIPLAYER_MINIMAP_HEIGHT = 144;
 var MULTIPLAYER_MINIMAP_MARGIN_RIGHT = 18;
 var MULTIPLAYER_MINIMAP_MARGIN_TOP = 96;
 var MULTIPLAYER_MINIMAP_MARKER_UPDATE_INTERVAL = 0.016;
-var MULTIPLAYER_SERVER_URL = "ws://127.0.0.1:2567";
+var MULTIPLAYER_SERVER_URL = "ws://172.16.50.45:2567";
 var GameMain = /** @class */ (function (_super) {
     __extends(GameMain, _super);
     function GameMain() {

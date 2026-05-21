@@ -100,11 +100,11 @@ export class JoyStick extends BaseComponent {
             return;
         }
 
-        if (this._moveTouchId == null) {
+        if (this._isLeftHalfControlArea(pos) && this._moveTouchId == null) {
             this._moveTouchId = touchId;
             this._updateMoveStick(pos, true);
         }
-        else if (this._shootTouchId == null) {
+        else if (!this._isLeftHalfControlArea(pos) && this._shootTouchId == null) {
             this._shootTouchId = touchId;
             this._pressShootButton(pos);
         }
@@ -217,9 +217,11 @@ export class JoyStick extends BaseComponent {
             }
         }
 
-        let moveDistance = pos.sub(this._fire._sprBg.position).mag();
-        let shootDistance = pos.sub(this._fire._sprBg02.position).mag();
-        return moveDistance <= shootDistance ? "move" : "shoot";
+        return this._isLeftHalfControlArea(pos) ? "move" : "shoot";
+    }
+
+    _isLeftHalfControlArea(pos) {
+        return pos.x <= 0;
     }
 
     _updateMoveStick(pos, isStart) {

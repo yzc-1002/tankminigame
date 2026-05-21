@@ -121,11 +121,11 @@ var JoyStick = /** @class */ (function (_super) {
             this._pressShootButton(pos);
             return;
         }
-        if (this._moveTouchId == null) {
+        if (this._isLeftHalfControlArea(pos) && this._moveTouchId == null) {
             this._moveTouchId = touchId;
             this._updateMoveStick(pos, true);
         }
-        else if (this._shootTouchId == null) {
+        else if (!this._isLeftHalfControlArea(pos) && this._shootTouchId == null) {
             this._shootTouchId = touchId;
             this._pressShootButton(pos);
         }
@@ -231,9 +231,10 @@ var JoyStick = /** @class */ (function (_super) {
                 return "skill";
             }
         }
-        var moveDistance = pos.sub(this._fire._sprBg.position).mag();
-        var shootDistance = pos.sub(this._fire._sprBg02.position).mag();
-        return moveDistance <= shootDistance ? "move" : "shoot";
+        return this._isLeftHalfControlArea(pos) ? "move" : "shoot";
+    };
+    JoyStick.prototype._isLeftHalfControlArea = function (pos) {
+        return pos.x <= 0;
     };
     JoyStick.prototype._updateMoveStick = function (pos, isStart) {
         this._fire._sprJoystick.setPosition(pos);
