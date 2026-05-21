@@ -45,6 +45,20 @@ const KILL_BADGE_TINTS = {
     4: [255, 215, 0],
     5: [186, 102, 255]
 };
+const MULTIPLAYER_SAFE_ZONE_START_PADDING = 80;
+const MULTIPLAYER_SAFE_ZONE_FIXED_RADIUS_RATIO = 0.86;
+const MULTIPLAYER_SAFE_ZONE_MIN_RADIUS = 140;
+const MULTIPLAYER_BUSH_RADIUS = 94;
+const MULTIPLAYER_BUSH_SAFE_PADDING = MULTIPLAYER_BUSH_RADIUS + 12;
+const MULTIPLAYER_BUSH_MAP_PADDING = 120;
+// 多人草丛默认布点，当前是东南西北中五个方位，后续可直接改这里的 x/y。
+const MULTIPLAYER_BUSH_LAYOUT_POINTS = [
+    { name: "east", x: 560, y: 0 },
+    { name: "south", x: 0, y: -560 },
+    { name: "west", x: -560, y: 0 },
+    { name: "north", x: 0, y: 560 },
+    { name: "center", x: 0, y: 0 },
+];
 
 //私有函数,请使用'_'开头
 //请修改'NewClass' => 自己的类名
@@ -3548,25 +3562,67 @@ export class GameMap extends BaseComponent {
         return result;
     }
 
-    getMultiplayerBushSpawnPoints(limit = 24) {
-        let candidates = this._getMultiplayerSpawnCandidates();
-        if (!candidates || candidates.length <= 0) {
-            return [];
+    _getMultiplayerBushPreferredSafeRadius() {
+        if (!this._tmSize) {
+            return 0;
         }
+        let halfWidth = Math.max(0, this._tmSize.width / 2);
+        let halfHeight = Math.max(0, this._tmSize.height / 2);
+        let startRadiusBase = Math.min(halfWidth, halfHeight);
+        let startRadius = Math.max(
+            MULTIPLAYER_SAFE_ZONE_MIN_RADIUS,
+            Math.floor(Math.max(0, startRadiusBase - MULTIPLAYER_SAFE_ZONE_START_PADDING))
+        );
+        let targetRadius = Math.max(
+            MULTIPLAYER_SAFE_ZONE_MIN_RADIUS,
+            Math.floor(startRadius * MULTIPLAYER_SAFE_ZONE_FIXED_RADIUS_RATIO)
+        );
+        return Math.min(startRadius, targetRadius);
+    }
+
+    _normalizeMultiplayerBushSpawnPoint(rawPoint) {
+        if (!rawPoint) {
+            return null;
+        }
+        let x = Number(rawPoint.x);
+        let y = Number(rawPoint.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return null;
+        }
+
+        let pos = this.clampMapInnerPosition(cc.v2(x, y), MULTIPLAYER_BUSH_MAP_PADDING);
+        let safeRadius = this._getMultiplayerBushPreferredSafeRadius() - MULTIPLAYER_BUSH_SAFE_PADDING;
+        if (safeRadius > 0) {
+            let len = pos.mag();
+            if (len > safeRadius) {
+                pos = len > 0 ? pos.mul(safeRadius / len) : cc.v2(0, 0);
+            }
+        }
+        pos = this.clampMapInnerPosition(pos, MULTIPLAYER_BUSH_MAP_PADDING);
+        return {
+            x: Math.round(pos.x),
+            y: Math.round(pos.y),
+        };
+    }
+
+    getMultiplayerBushSpawnPoints(limit = 24) {
         let result = [];
-        let step = Math.max(1, Math.floor(candidates.length / Math.max(1, limit)));
-        for (let i = 0; i < candidates.length; i += step) {
-            let pos = candidates[i];
+        let used = {};
+        let maxCount = Math.max(0, Math.floor(limit));
+        for (let i = 0; i < MULTIPLAYER_BUSH_LAYOUT_POINTS.length; i++) {
+            if (maxCount > 0 && result.length >= maxCount) {
+                break;
+            }
+            let pos = this._normalizeMultiplayerBushSpawnPoint(MULTIPLAYER_BUSH_LAYOUT_POINTS[i]);
             if (!pos) {
                 continue;
             }
-            result.push({
-                x: Math.round(pos.x),
-                y: Math.round(pos.y),
-            });
-            if (result.length >= limit) {
-                break;
+            let key = pos.x + ":" + pos.y;
+            if (used[key]) {
+                continue;
             }
+            used[key] = true;
+            result.push(pos);
         }
         return result;
     }
@@ -6593,6 +6649,9 @@ export class GameMap extends BaseComponent {
             else if (command.type === "playerHit") {
                 this.applyMultiplayerHit(command);
             }
+            else if (command.type === "bulletBounce") {
+                this._applyMultiplayerBulletBounce(command);
+            }
             else if (command.type === "energySpawn") {
                 this.onMultiplayerEnergySpawn(command.energy);
             }
@@ -7247,6 +7306,19 @@ export class GameMap extends BaseComponent {
             return;
         }
         targetPlayer.script.applyMultiplayerHit(hitData.damage, hitData.hp);
+    }
+
+    _applyMultiplayerBulletBounce(command) {
+        if (!this._multiplayerMode || !command || !command.bulletId) {
+            return;
+        }
+
+        let bullet = this._multiplayerBullets[command.bulletId];
+        if (!bullet || !cc.isValid(bullet) || !bullet.script || !bullet.script.applyMultiplayerBounce) {
+            return;
+        }
+
+        bullet.script.applyMultiplayerBounce(command.bounceLeft);
     }
 
     _applyMultiplayerSpecialEventSpawn(eventData) {

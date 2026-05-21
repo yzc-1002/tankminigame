@@ -71,6 +71,20 @@ var KILL_BADGE_TINTS = {
     4: [255, 215, 0],
     5: [186, 102, 255]
 };
+var MULTIPLAYER_SAFE_ZONE_START_PADDING = 80;
+var MULTIPLAYER_SAFE_ZONE_FIXED_RADIUS_RATIO = 0.86;
+var MULTIPLAYER_SAFE_ZONE_MIN_RADIUS = 140;
+var MULTIPLAYER_BUSH_RADIUS = 94;
+var MULTIPLAYER_BUSH_SAFE_PADDING = MULTIPLAYER_BUSH_RADIUS + 12;
+var MULTIPLAYER_BUSH_MAP_PADDING = 120;
+// 多人草丛默认布点，当前是东南西北中五个方位，后续可直接改这里的 x/y。
+var MULTIPLAYER_BUSH_LAYOUT_POINTS = [
+    { name: "east", x: 560, y: 0 },
+    { name: "south", x: 0, y: -560 },
+    { name: "west", x: -560, y: 0 },
+    { name: "north", x: 0, y: 560 },
+    { name: "center", x: 0, y: 0 },
+];
 //私有函数,请使用'_'开头
 //请修改'NewClass' => 自己的类名
 var GameMap = /** @class */ (function (_super) {
@@ -3031,26 +3045,59 @@ var GameMap = /** @class */ (function (_super) {
         }
         return result;
     };
+    GameMap.prototype._getMultiplayerBushPreferredSafeRadius = function () {
+        if (!this._tmSize) {
+            return 0;
+        }
+        var halfWidth = Math.max(0, this._tmSize.width / 2);
+        var halfHeight = Math.max(0, this._tmSize.height / 2);
+        var startRadiusBase = Math.min(halfWidth, halfHeight);
+        var startRadius = Math.max(MULTIPLAYER_SAFE_ZONE_MIN_RADIUS, Math.floor(Math.max(0, startRadiusBase - MULTIPLAYER_SAFE_ZONE_START_PADDING)));
+        var targetRadius = Math.max(MULTIPLAYER_SAFE_ZONE_MIN_RADIUS, Math.floor(startRadius * MULTIPLAYER_SAFE_ZONE_FIXED_RADIUS_RATIO));
+        return Math.min(startRadius, targetRadius);
+    };
+    GameMap.prototype._normalizeMultiplayerBushSpawnPoint = function (rawPoint) {
+        if (!rawPoint) {
+            return null;
+        }
+        var x = Number(rawPoint.x);
+        var y = Number(rawPoint.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return null;
+        }
+        var pos = this.clampMapInnerPosition(cc.v2(x, y), MULTIPLAYER_BUSH_MAP_PADDING);
+        var safeRadius = this._getMultiplayerBushPreferredSafeRadius() - MULTIPLAYER_BUSH_SAFE_PADDING;
+        if (safeRadius > 0) {
+            var len = pos.mag();
+            if (len > safeRadius) {
+                pos = len > 0 ? pos.mul(safeRadius / len) : cc.v2(0, 0);
+            }
+        }
+        pos = this.clampMapInnerPosition(pos, MULTIPLAYER_BUSH_MAP_PADDING);
+        return {
+            x: Math.round(pos.x),
+            y: Math.round(pos.y),
+        };
+    };
     GameMap.prototype.getMultiplayerBushSpawnPoints = function (limit) {
         if (limit === void 0) { limit = 24; }
-        var candidates = this._getMultiplayerSpawnCandidates();
-        if (!candidates || candidates.length <= 0) {
-            return [];
-        }
         var result = [];
-        var step = Math.max(1, Math.floor(candidates.length / Math.max(1, limit)));
-        for (var i = 0; i < candidates.length; i += step) {
-            var pos = candidates[i];
+        var used = {};
+        var maxCount = Math.max(0, Math.floor(limit));
+        for (var i = 0; i < MULTIPLAYER_BUSH_LAYOUT_POINTS.length; i++) {
+            if (maxCount > 0 && result.length >= maxCount) {
+                break;
+            }
+            var pos = this._normalizeMultiplayerBushSpawnPoint(MULTIPLAYER_BUSH_LAYOUT_POINTS[i]);
             if (!pos) {
                 continue;
             }
-            result.push({
-                x: Math.round(pos.x),
-                y: Math.round(pos.y),
-            });
-            if (result.length >= limit) {
-                break;
+            var key = pos.x + ":" + pos.y;
+            if (used[key]) {
+                continue;
             }
+            used[key] = true;
+            result.push(pos);
         }
         return result;
     };
@@ -5714,6 +5761,9 @@ var GameMap = /** @class */ (function (_super) {
             else if (command.type === "playerHit") {
                 this.applyMultiplayerHit(command);
             }
+            else if (command.type === "bulletBounce") {
+                this._applyMultiplayerBulletBounce(command);
+            }
             else if (command.type === "energySpawn") {
                 this.onMultiplayerEnergySpawn(command.energy);
             }
@@ -6323,6 +6373,16 @@ var GameMap = /** @class */ (function (_super) {
             return;
         }
         targetPlayer.script.applyMultiplayerHit(hitData.damage, hitData.hp);
+    };
+    GameMap.prototype._applyMultiplayerBulletBounce = function (command) {
+        if (!this._multiplayerMode || !command || !command.bulletId) {
+            return;
+        }
+        var bullet = this._multiplayerBullets[command.bulletId];
+        if (!bullet || !cc.isValid(bullet) || !bullet.script || !bullet.script.applyMultiplayerBounce) {
+            return;
+        }
+        bullet.script.applyMultiplayerBounce(command.bounceLeft);
     };
     GameMap.prototype._applyMultiplayerSpecialEventSpawn = function (eventData) {
         if (!this._multiplayerMode || !eventData || !eventData.id || !eventData.type) {

@@ -41,6 +41,9 @@ const PLAYER_EXP_STEP = 15;
 const PLAYER_LEVEL_HP_ADD = 5;
 const PLAYER_LEVEL_DAMAGE_ADD = 0.5;
 const PLAYER_LEVEL_SPEED_ADD = 18;
+const PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL = 2;
+const PLAYER_BOUNCE_MAX_COUNT = 5;
+const PLAYER_BOUNCE_DAMAGE_MULTIPLIER = 2;
 const SPECIAL_EVENT_START_DELAY = 8;
 const SPECIAL_EVENT_RESPAWN_MIN = 12;
 const SPECIAL_EVENT_RESPAWN_MAX = 20;
@@ -243,6 +246,14 @@ function getPlayerEnergyNeedExp(player) {
   return PLAYER_EXP_BASE + Math.max(0, (player.energyLevel || 1) - 1) * PLAYER_EXP_STEP;
 }
 
+function getPlayerBulletBounceCount(player) {
+  const energyLevel = player && Number.isFinite(player.energyLevel) ? player.energyLevel : 1;
+  if (energyLevel < PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL) {
+    return 0;
+  }
+  return clamp(energyLevel - PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL + 1, 1, PLAYER_BOUNCE_MAX_COUNT);
+}
+
 function createPlayerState(setup = {}) {
   const tankType = MULTIPLAYER_DEFAULT_TANK_TYPE;
   const playerLevel = MULTIPLAYER_FIXED_PLAYER_LEVEL;
@@ -263,6 +274,7 @@ function createPlayerState(setup = {}) {
     energyLevel: 1,
     energyExp: 0,
     energyNeedExp: PLAYER_EXP_BASE,
+    bulletBounceCount: 0,
     tarAmmoCount: 0,
     blackHoleAmmoCount: 0,
     freeBulletCount: PLAYER_FREE_BULLET_MAX,
@@ -287,6 +299,7 @@ function applyPlayerSetup(player, setup = {}) {
   player.energyLevel = state.energyLevel;
   player.energyExp = state.energyExp;
   player.energyNeedExp = state.energyNeedExp;
+  player.bulletBounceCount = getPlayerBulletBounceCount(player);
   player.tarAmmoCount = state.tarAmmoCount;
   player.blackHoleAmmoCount = state.blackHoleAmmoCount;
   player.freeBulletCount = state.freeBulletCount;
@@ -311,6 +324,7 @@ function resetPlayerRuntimeState(player) {
   player.energyLevel = state.energyLevel;
   player.energyExp = state.energyExp;
   player.energyNeedExp = state.energyNeedExp;
+  player.bulletBounceCount = getPlayerBulletBounceCount(player);
   player.tarAmmoCount = state.tarAmmoCount;
   player.blackHoleAmmoCount = state.blackHoleAmmoCount;
   player.freeBulletCount = state.freeBulletCount;
@@ -2089,11 +2103,11 @@ function removeSpecialEventInFrame(eventId, frameCommands, reason = 'timeout') {
 
 function applyBulletEventToServerState(player, bulletEvent) {
   if (!player || !bulletEvent || !bulletEvent.bulletId) {
-    return;
+    return null;
   }
   const bullet = room.bullets[bulletEvent.bulletId];
   if (!bullet || bullet.playerId !== player.playerId) {
-    return;
+    return null;
   }
   if (!bullet.eventStates) {
     bullet.eventStates = {};
@@ -2101,14 +2115,26 @@ function applyBulletEventToServerState(player, bulletEvent) {
   const eventType = bulletEvent.type;
   const stateKey = eventType + ':' + (bulletEvent.eventId || '');
   if (bullet.eventStates[stateKey]) {
-    return;
+    return null;
   }
   bullet.eventStates[stateKey] = true;
   if (eventType === 'damageDouble') {
     bullet.damage *= 2;
   } else if (eventType === 'blackHole') {
     bullet.destroyed = true;
+  } else if (eventType === 'bounce') {
+    if ((bullet.bounceLeft || 0) <= 0 || bullet.destroyed) {
+      return null;
+    }
+    bullet.bounceLeft = Math.max(0, (bullet.bounceLeft || 0) - 1);
+    bullet.bounced = true;
+    return {
+      type: 'bulletBounce',
+      bulletId: bullet.id,
+      bounceLeft: bullet.bounceLeft,
+    };
   }
+  return null;
 }
 
 function updateSpecialEvents(frameCommands) {
@@ -2177,6 +2203,7 @@ function buildPlayerStateCommand(player) {
     energyLevel: player.energyLevel,
     energyExp: player.energyExp,
     energyNeedExp: player.energyNeedExp,
+    bulletBounceCount: clamp(Math.round(player.bulletBounceCount || 0), 0, PLAYER_BOUNCE_MAX_COUNT),
     tarAmmoCount: player.tarAmmoCount || 0,
     blackHoleAmmoCount: player.blackHoleAmmoCount || 0,
     freeBulletCount: clamp(Math.round(player.freeBulletCount || 0), 0, PLAYER_FREE_BULLET_MAX),
@@ -2265,6 +2292,18 @@ function tryFireByPlayer(player, fireInput, frameCommands) {
     id: fireInput.id,
     playerId: player.playerId,
     damage: player.atk == null ? 5 : player.atk,
+    bounceLeft: clamp(
+      Math.round(
+        Number.isFinite(fireInput.bounceCount)
+          ? fireInput.bounceCount
+          : (player.bulletBounceCount || 0)
+      ),
+      0,
+      PLAYER_BOUNCE_MAX_COUNT
+    ),
+    bounced: false,
+    destroyed: false,
+    eventStates: {},
   };
 
   appendFrameCommand(frameCommands, buildPlayerFireStateCommand(player, paidShot));
@@ -2628,31 +2667,12 @@ function removeEnergyInFrame(energyId, frameCommands) {
   return energy;
 }
 
-function pickRandomUpgrade(player) {
-  const choices = [
-    {
-      id: 'hp',
-      amount: PLAYER_LEVEL_HP_ADD,
-    },
-    {
-      id: 'atk',
-      amount: PLAYER_LEVEL_DAMAGE_ADD,
-    },
-    {
-      id: 'speed',
-      amount: PLAYER_LEVEL_SPEED_ADD,
-    },
-  ];
-  const choice = choices[Math.floor(Math.random() * choices.length)];
-  if (choice.id === 'hp') {
-    player.maxHp += choice.amount;
-    player.hp = player.maxHp;
-  } else if (choice.id === 'atk') {
-    player.atk += choice.amount;
-  } else if (choice.id === 'speed') {
-    player.moveSpeedScale += choice.amount / 100;
-  }
-  return choice;
+function buildBounceUpgrade(player) {
+  const bounceCount = getPlayerBulletBounceCount(player);
+  return {
+    id: 'bounce',
+    amount: bounceCount,
+  };
 }
 
 function addPlayerEnergy(player, value) {
@@ -2674,7 +2694,8 @@ function addPlayerEnergy(player, value) {
     while (player.energyExp >= player.energyNeedExp) {
       player.energyExp -= player.energyNeedExp;
       player.energyLevel += 1;
-      const upgrade = pickRandomUpgrade(player);
+      player.bulletBounceCount = getPlayerBulletBounceCount(player);
+      const upgrade = buildBounceUpgrade(player);
       upgrades.push({
         playerId: player.playerId,
         type: upgrade.id,
@@ -2856,7 +2877,10 @@ function tick() {
 
       if (Array.isArray(src.bulletEvents) && src.bulletEvents.length > 0) {
         for (let eventIndex = 0; eventIndex < src.bulletEvents.length; eventIndex++) {
-          applyBulletEventToServerState(p, src.bulletEvents[eventIndex]);
+          const bulletCommand = applyBulletEventToServerState(p, src.bulletEvents[eventIndex]);
+          if (bulletCommand) {
+            appendFrameCommand(eventCommands, bulletCommand);
+          }
         }
       }
 
@@ -2902,7 +2926,11 @@ function tick() {
         if (!bullet || bullet.destroyed || !targetPlayer || targetPlayer.dead) {
           continue;
         }
-        targetPlayer.hp -= bullet.damage;
+        let finalDamage = bullet.damage;
+        if (bullet.bounced) {
+          finalDamage *= PLAYER_BOUNCE_DAMAGE_MULTIPLIER;
+        }
+        targetPlayer.hp -= finalDamage;
         if (targetPlayer.hp < 0) {
           targetPlayer.hp = 0;
         }
@@ -2910,7 +2938,7 @@ function tick() {
           type: 'playerHit',
           id: src.hit.id,
           tgid: src.hit.tgid,
-          damage: bullet.damage,
+          damage: finalDamage,
           hp: targetPlayer.hp,
         };
         if (targetPlayer.hp <= 0) {

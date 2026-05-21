@@ -1308,12 +1308,17 @@ var GameMain = /** @class */ (function (_super) {
     GameMain.prototype._buildMultiplayerFireCommand = function () {
         var player = this._getLocalMultiplayerPlayer();
         var fireType = 1;
+        var bounceCount = 0;
         if (player && player.script && player.script.getMultiplayerFireType) {
             fireType = player.script.getMultiplayerFireType();
+        }
+        if (player && player.script && player.script.getCurrentBulletBounceCount) {
+            bounceCount = player.script.getCurrentBulletBounceCount();
         }
         return {
             id: this._nextMultiplayerBulletId(),
             type: fireType,
+            bounceCount: bounceCount,
         };
     };
     GameMain.prototype._createDefaultMultiplayerInputs = function () {

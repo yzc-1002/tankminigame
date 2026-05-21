@@ -23,6 +23,7 @@ export class Bullet extends BaseComponent {
     _mutationType   = "";
     _mutationData   = null;
     _bounceLeft     = 0;
+    _hasBounced     = false;
     _penetrateLeft  = 0;
     _hitTargetIds   = {};
     _portalIgnoreId = "";
@@ -87,6 +88,7 @@ export class Bullet extends BaseComponent {
         this._mutationType = "";
         this._mutationData = null;
         this._bounceLeft = 0;
+        this._hasBounced = false;
         this._penetrateLeft = 0;
         this._hitTargetIds = {};
         this._portalIgnoreId = "";
@@ -187,6 +189,7 @@ export class Bullet extends BaseComponent {
         this._mutationType = mutationData.id;
         this._mutationData = mutationData;
         this._bounceLeft = mutationData.bounceCount || 0;
+        this._hasBounced = false;
         this._penetrateLeft = mutationData.penetrateCount || 0;
 
         if (mutationData.damageRatio && mutationData.damageRatio != 1) {
@@ -466,7 +469,11 @@ export class Bullet extends BaseComponent {
             return;
         }
 
-        hitTank.script.beHit(this._damage, this._damageType);
+        let hitDamage = this._damage;
+        if (this._hasBounced && hitTank.script && hitTank.script._camp == "player") {
+            hitDamage *= 2;
+        }
+        hitTank.script.beHit(hitDamage, this._damageType);
         if (this._camp == "player" && this._damageType == "crit"
             && this._map.playPlayerCritFeedback) {
             this._map.playPlayerCritFeedback();
@@ -486,9 +493,11 @@ export class Bullet extends BaseComponent {
     _handleObstacleCollision(currPosition, colliderSegment) {
         if (this._mutationType == "bounce" && this._bounceLeft > 0 && colliderSegment && colliderSegment.A && colliderSegment.B) {
             this._bounceLeft--;
+            this._hasBounced = true;
             this._dir = this._reflectDirectionBySegment(this._dir, colliderSegment.A, colliderSegment.B);
             this.node.angle = Utils.vectorsToDegress(this._dir) - 90;
             this.node.setPosition(currPosition.add(cc.v3(this._dir.mul(Math.max(6, this._speed * 0.75)))));
+            this._reportMultiplayerEvent("bounce", String(this._bounceLeft));
             return;
         }
 
@@ -593,6 +602,23 @@ export class Bullet extends BaseComponent {
             eventId: eventId || "",
             reason: reason || "",
         });
+    }
+
+    applyMultiplayerBounce(bounceLeft = null) {
+        if (this._isStop || this._mutationType != "bounce") {
+            return false;
+        }
+        if (bounceLeft != null && Number.isFinite(bounceLeft)) {
+            this._bounceLeft = Math.max(0, bounceLeft);
+        }
+        else if (this._bounceLeft > 0) {
+            this._bounceLeft--;
+        }
+        else{
+            return false;
+        }
+        this._hasBounced = true;
+        return true;
     }
 
     hasUsedSpreadBulletArea() {

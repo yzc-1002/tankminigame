@@ -37,6 +37,8 @@ var PLAYER_FREE_BULLET_RECOVER_INTERVAL = 0.6;
 var PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 var PLAYER_EXP_BASE = 30;
 var PLAYER_EXP_STEP = 15;
+var PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL = 2;
+var PLAYER_BOUNCE_MAX_COUNT = 5;
 var CHARGE_CANNON_BULLET_TYPE = 99;
 var OIL_SHELL_BULLET_TYPE = 100;
 var OIL_SHELL_MAX_COUNT = 1;
@@ -101,6 +103,7 @@ var Player = /** @class */ (function (_super) {
         _this._multiplayerInBush = false;
         _this._multiplayerBushId = null;
         _this._bushVisibilityMode = "normal";
+        _this._bulletBounceCount = 0;
         return _this;
     }
     Player.prototype.onLoad = function () {
@@ -150,6 +153,7 @@ var Player = /** @class */ (function (_super) {
         this._multiplayerInBush = false;
         this._multiplayerBushId = null;
         this._bushVisibilityMode = "normal";
+        this._bulletBounceCount = 0;
     };
     //设置坦克类型
     Player.prototype.setPlayerType = function (tankType, playerLevel) {
@@ -159,6 +163,7 @@ var Player = /** @class */ (function (_super) {
         this._hp = this._maxHp = this._config.HP * (this._level + 1);
         this._atk = this._config.ATK * (this._level + 1);
         this._refreshEnergyUI();
+        this._syncBulletBounceState(false);
     };
     Player.prototype.getMultiplayerSetupPayload = function () {
         return {
@@ -494,12 +499,7 @@ var Player = /** @class */ (function (_super) {
         return base + (this._energyLevel - 1) * step;
     };
     Player.prototype._levelUpByEnergy = function () {
-        var choices = this._buildEnergyUpgradeChoices();
-        if (!choices || choices.length <= 0) {
-            return;
-        }
-        var index = Math.floor(Math.random() * choices.length);
-        this.applyTestUpgradeChoice(choices[index]);
+        this._syncBulletBounceState(true);
     };
     Player.prototype._initEnergyUI = function () {
         if (!this._fire._lifebar || this._fire._lbHpLevel) {
@@ -817,6 +817,22 @@ var Player = /** @class */ (function (_super) {
         this._playUpgradeSelectFeedback(this._bulletMutationData);
     };
     Player.prototype._getCurrentBulletMutationData = function () {
+        var bounceCount = this.getCurrentBulletBounceCount();
+        if (bounceCount > 0) {
+            return {
+                id: "bounce",
+                title: "反弹子弹",
+                desc: "碰墙后自动反弹, 反弹后命中伤害翻倍",
+                shortLabel: "反",
+                valueText: "x" + bounceCount,
+                bounceCount: bounceCount,
+                penetrateCount: 0,
+                damageRatio: 1,
+                scale: 1,
+                color: cc.color(90, 180, 255, 255),
+                effectColor: cc.color(90, 180, 255, 210),
+            };
+        }
         if (!this._bulletMutationData) {
             return null;
         }
@@ -824,6 +840,37 @@ var Player = /** @class */ (function (_super) {
         data.color = this._bulletMutationData.color;
         data.effectColor = this._bulletMutationData.effectColor;
         return data;
+    };
+    Player.prototype._getBounceCountByEnergyLevel = function (energyLevel) {
+        if (energyLevel === void 0) { energyLevel = null; }
+        var level = energyLevel == null ? this._energyLevel : energyLevel;
+        if (level < PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL) {
+            return 0;
+        }
+        return Math.min(PLAYER_BOUNCE_MAX_COUNT, level - PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL + 1);
+    };
+    Player.prototype.getCurrentBulletBounceCount = function () {
+        return Math.max(0, this._bulletBounceCount || this._getBounceCountByEnergyLevel());
+    };
+    Player.prototype._syncBulletBounceState = function (showFeedback) {
+        if (showFeedback === void 0) { showFeedback = false; }
+        var prevBounceCount = this._bulletBounceCount || 0;
+        var nextBounceCount = this._getBounceCountByEnergyLevel();
+        this._bulletBounceCount = nextBounceCount;
+        if (nextBounceCount > 0) {
+            var choice = this._getCurrentBulletMutationData();
+            if (choice) {
+                if (showFeedback && nextBounceCount > prevBounceCount) {
+                    this._showBulletMutationMedal(choice);
+                    this._playUpgradeSelectFeedback(choice);
+                    this.showUpgradeToast(choice);
+                }
+                this._refreshBulletMutationEffect();
+            }
+        }
+        else {
+            this._hideBulletMutationEffect();
+        }
     };
     Player.prototype._showUpgradeFloat = function (choice) {
         if (!this.node.parent || !cc.isValid(this.node.parent)) {
@@ -1147,6 +1194,10 @@ var Player = /** @class */ (function (_super) {
         var type = fireData.type || this.getMultiplayerFireType();
         var attackRadius = this._config.AttackRadius;
         var mutationData = this._getCurrentBulletMutationData();
+        if (mutationData && mutationData.id == "bounce" && Number.isFinite(fireData.bounceCount)) {
+            mutationData.bounceCount = Math.max(0, Math.min(PLAYER_BOUNCE_MAX_COUNT, fireData.bounceCount));
+            mutationData.valueText = "x" + mutationData.bounceCount;
+        }
         var networkMeta = {
             bulletId: fireData.id,
             ownerPlayerId: this._multiplayerPlayerId,
@@ -1781,8 +1832,15 @@ var Player = /** @class */ (function (_super) {
         if (state.energyNeedExp != null && state.energyNeedExp > 0) {
             this._energyNeedExp = state.energyNeedExp;
         }
+        if (state.bulletBounceCount != null) {
+            this._bulletBounceCount = Math.max(0, Math.min(PLAYER_BOUNCE_MAX_COUNT, state.bulletBounceCount));
+        }
+        else {
+            this._bulletBounceCount = this._getBounceCountByEnergyLevel(this._energyLevel);
+        }
         this._multiplayerInBush = !!state.inBush;
         this._multiplayerBushId = state.bushId == null ? null : state.bushId;
+        this._syncBulletBounceState(false);
         if (this._energyLevel > prevEnergyLevel) {
             var choice = this._buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale);
             if (choice) {
@@ -1812,6 +1870,19 @@ var Player = /** @class */ (function (_super) {
         var atkDelta = this._atk - prevAtk;
         var speedRatioDelta = this._moveSpeedScale - prevMoveSpeedScale;
         var speedDelta = Math.round(speedRatioDelta * 100);
+        var bounceCount = this.getCurrentBulletBounceCount();
+        var prevBounceCount = this._getBounceCountByEnergyLevel(this._energyLevel - 1);
+        if (bounceCount > prevBounceCount) {
+            return {
+                id: "bounce",
+                title: "反弹子弹",
+                desc: "碰墙后自动反弹, 反弹后命中伤害翻倍",
+                shortLabel: "反",
+                valueText: "x" + bounceCount,
+                amount: bounceCount,
+                color: cc.color(90, 180, 255, 255),
+            };
+        }
         if (hpDelta > 0) {
             return {
                 id: "hp",

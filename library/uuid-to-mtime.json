@@ -2104,34 +2104,34 @@
     "meta": 1778838557209,
     "relativePath": "script\\base\\BaseComponent.ts"
   },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1778839483883,
-    "meta": 1778839574175,
-    "relativePath": "script\\BulletE.ts"
-  },
   "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
     "asset": 1778841985034,
     "meta": 1778841986828,
     "relativePath": "script\\config\\Tank.ts"
   },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1779246411490,
-    "meta": 1779246781865,
-    "relativePath": "script\\Player.ts"
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1779268358921,
+    "meta": 1779268500411,
+    "relativePath": "script\\BulletE.ts"
   },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1779250377355,
-    "meta": 1779251120776,
+    "asset": 1779268292694,
+    "meta": 1779268500678,
     "relativePath": "script\\GameMain.ts"
   },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1779268371203,
+    "meta": 1779268501745,
+    "relativePath": "script\\GameMap.ts"
+  },
   "08aed74e-b757-43ff-80e7-95f39a105a22": {
-    "asset": 1779250367281,
-    "meta": 1779251121837,
+    "asset": 1779268296140,
+    "meta": 1779268501788,
     "relativePath": "script\\network\\NetworkManager.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1779265816456,
-    "meta": 1779265924112,
-    "relativePath": "script\\GameMap.ts"
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1779268447081,
+    "meta": 1779268502018,
+    "relativePath": "script\\Player.ts"
   }
 }

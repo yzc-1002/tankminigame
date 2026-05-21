@@ -48,6 +48,7 @@ var Bullet = /** @class */ (function (_super) {
         _this._mutationType = "";
         _this._mutationData = null;
         _this._bounceLeft = 0;
+        _this._hasBounced = false;
         _this._penetrateLeft = 0;
         _this._hitTargetIds = {};
         _this._portalIgnoreId = "";
@@ -109,6 +110,7 @@ var Bullet = /** @class */ (function (_super) {
         this._mutationType = "";
         this._mutationData = null;
         this._bounceLeft = 0;
+        this._hasBounced = false;
         this._penetrateLeft = 0;
         this._hitTargetIds = {};
         this._portalIgnoreId = "";
@@ -198,6 +200,7 @@ var Bullet = /** @class */ (function (_super) {
         this._mutationType = mutationData.id;
         this._mutationData = mutationData;
         this._bounceLeft = mutationData.bounceCount || 0;
+        this._hasBounced = false;
         this._penetrateLeft = mutationData.penetrateCount || 0;
         if (mutationData.damageRatio && mutationData.damageRatio != 1) {
             this._damage *= mutationData.damageRatio;
@@ -445,7 +448,11 @@ var Bullet = /** @class */ (function (_super) {
         if (this._mutationType == "penetrate" && this._hitTargetIds[targetId]) {
             return;
         }
-        hitTank.script.beHit(this._damage, this._damageType);
+        var hitDamage = this._damage;
+        if (this._hasBounced && hitTank.script && hitTank.script._camp == "player") {
+            hitDamage *= 2;
+        }
+        hitTank.script.beHit(hitDamage, this._damageType);
         if (this._camp == "player" && this._damageType == "crit"
             && this._map.playPlayerCritFeedback) {
             this._map.playPlayerCritFeedback();
@@ -462,9 +469,11 @@ var Bullet = /** @class */ (function (_super) {
     Bullet.prototype._handleObstacleCollision = function (currPosition, colliderSegment) {
         if (this._mutationType == "bounce" && this._bounceLeft > 0 && colliderSegment && colliderSegment.A && colliderSegment.B) {
             this._bounceLeft--;
+            this._hasBounced = true;
             this._dir = this._reflectDirectionBySegment(this._dir, colliderSegment.A, colliderSegment.B);
             this.node.angle = Utils_1.Utils.vectorsToDegress(this._dir) - 90;
             this.node.setPosition(currPosition.add(cc.v3(this._dir.mul(Math.max(6, this._speed * 0.75)))));
+            this._reportMultiplayerEvent("bounce", String(this._bounceLeft));
             return;
         }
         this.doDestroy();
@@ -553,6 +562,23 @@ var Bullet = /** @class */ (function (_super) {
             eventId: eventId || "",
             reason: reason || "",
         });
+    };
+    Bullet.prototype.applyMultiplayerBounce = function (bounceLeft) {
+        if (bounceLeft === void 0) { bounceLeft = null; }
+        if (this._isStop || this._mutationType != "bounce") {
+            return false;
+        }
+        if (bounceLeft != null && Number.isFinite(bounceLeft)) {
+            this._bounceLeft = Math.max(0, bounceLeft);
+        }
+        else if (this._bounceLeft > 0) {
+            this._bounceLeft--;
+        }
+        else {
+            return false;
+        }
+        this._hasBounced = true;
+        return true;
     };
     Bullet.prototype.hasUsedSpreadBulletArea = function () {
         return this._spreadBulletUsed;

@@ -12,6 +12,8 @@ const PLAYER_FREE_BULLET_RECOVER_INTERVAL = 0.6;
 const PLAYER_PAID_SHOT_HP_COST = 5 * (1 - 0.1);
 const PLAYER_EXP_BASE = 30;
 const PLAYER_EXP_STEP = 15;
+const PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL = 2;
+const PLAYER_BOUNCE_MAX_COUNT = 5;
 const CHARGE_CANNON_BULLET_TYPE = 99;
 const OIL_SHELL_BULLET_TYPE = 100;
 const OIL_SHELL_MAX_COUNT = 1;
@@ -80,6 +82,7 @@ export class Player extends Tank {
     _multiplayerInBush = false;
     _multiplayerBushId = null;
     _bushVisibilityMode = "normal";
+    _bulletBounceCount = 0;
 
     onLoad () {
         super.onLoad();
@@ -132,6 +135,7 @@ export class Player extends Tank {
         this._multiplayerInBush = false;
         this._multiplayerBushId = null;
         this._bushVisibilityMode = "normal";
+        this._bulletBounceCount = 0;
     }
 
     //设置坦克类型
@@ -143,6 +147,7 @@ export class Player extends Tank {
         this._hp = this._maxHp = this._config.HP * (this._level+1);
         this._atk = this._config.ATK * (this._level+1);
         this._refreshEnergyUI();
+        this._syncBulletBounceState(false);
     }
 
     getMultiplayerSetupPayload() {
@@ -505,13 +510,7 @@ export class Player extends Tank {
     }
 
     _levelUpByEnergy() {
-        let choices = this._buildEnergyUpgradeChoices();
-        if (!choices || choices.length <= 0) {
-            return;
-        }
-
-        let index = Math.floor(Math.random() * choices.length);
-        this.applyTestUpgradeChoice(choices[index]);
+        this._syncBulletBounceState(true);
     }
 
     _initEnergyUI() {
@@ -880,6 +879,23 @@ export class Player extends Tank {
     }
 
     _getCurrentBulletMutationData() {
+        let bounceCount = this.getCurrentBulletBounceCount();
+        if (bounceCount > 0) {
+            return {
+                id: "bounce",
+                title: "反弹子弹",
+                desc: "碰墙后自动反弹, 反弹后命中伤害翻倍",
+                shortLabel: "反",
+                valueText: "x" + bounceCount,
+                bounceCount: bounceCount,
+                penetrateCount: 0,
+                damageRatio: 1,
+                scale: 1,
+                color: cc.color(90, 180, 255, 255),
+                effectColor: cc.color(90, 180, 255, 210),
+            };
+        }
+
         if (!this._bulletMutationData) {
             return null;
         }
@@ -888,6 +904,39 @@ export class Player extends Tank {
         data.color = this._bulletMutationData.color;
         data.effectColor = this._bulletMutationData.effectColor;
         return data;
+    }
+
+    _getBounceCountByEnergyLevel(energyLevel = null) {
+        let level = energyLevel == null ? this._energyLevel : energyLevel;
+        if (level < PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL) {
+            return 0;
+        }
+        return Math.min(PLAYER_BOUNCE_MAX_COUNT, level - PLAYER_BOUNCE_UNLOCK_ENERGY_LEVEL + 1);
+    }
+
+    getCurrentBulletBounceCount() {
+        return Math.max(0, this._bulletBounceCount || this._getBounceCountByEnergyLevel());
+    }
+
+    _syncBulletBounceState(showFeedback = false) {
+        let prevBounceCount = this._bulletBounceCount || 0;
+        let nextBounceCount = this._getBounceCountByEnergyLevel();
+        this._bulletBounceCount = nextBounceCount;
+
+        if (nextBounceCount > 0) {
+            let choice = this._getCurrentBulletMutationData();
+            if (choice) {
+                if (showFeedback && nextBounceCount > prevBounceCount) {
+                    this._showBulletMutationMedal(choice);
+                    this._playUpgradeSelectFeedback(choice);
+                    this.showUpgradeToast(choice);
+                }
+                this._refreshBulletMutationEffect();
+            }
+        }
+        else{
+            this._hideBulletMutationEffect();
+        }
     }
 
     _showUpgradeFloat(choice) {
@@ -1343,6 +1392,10 @@ export class Player extends Tank {
         let type = fireData.type || this.getMultiplayerFireType();
         let attackRadius = this._config.AttackRadius;
         let mutationData = this._getCurrentBulletMutationData();
+        if (mutationData && mutationData.id == "bounce" && Number.isFinite(fireData.bounceCount)) {
+            mutationData.bounceCount = Math.max(0, Math.min(PLAYER_BOUNCE_MAX_COUNT, fireData.bounceCount));
+            mutationData.valueText = "x" + mutationData.bounceCount;
+        }
         let networkMeta = {
             bulletId: fireData.id,
             ownerPlayerId: this._multiplayerPlayerId,
@@ -2103,8 +2156,15 @@ export class Player extends Tank {
         if (state.energyNeedExp != null && state.energyNeedExp > 0) {
             this._energyNeedExp = state.energyNeedExp;
         }
+        if (state.bulletBounceCount != null) {
+            this._bulletBounceCount = Math.max(0, Math.min(PLAYER_BOUNCE_MAX_COUNT, state.bulletBounceCount));
+        }
+        else{
+            this._bulletBounceCount = this._getBounceCountByEnergyLevel(this._energyLevel);
+        }
         this._multiplayerInBush = !!state.inBush;
         this._multiplayerBushId = state.bushId == null ? null : state.bushId;
+        this._syncBulletBounceState(false);
 
         if (this._energyLevel > prevEnergyLevel) {
             let choice = this._buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale);
@@ -2139,6 +2199,20 @@ export class Player extends Tank {
         let atkDelta = this._atk - prevAtk;
         let speedRatioDelta = this._moveSpeedScale - prevMoveSpeedScale;
         let speedDelta = Math.round(speedRatioDelta * 100);
+        let bounceCount = this.getCurrentBulletBounceCount();
+        let prevBounceCount = this._getBounceCountByEnergyLevel(this._energyLevel - 1);
+
+        if (bounceCount > prevBounceCount) {
+            return {
+                id: "bounce",
+                title: "反弹子弹",
+                desc: "碰墙后自动反弹, 反弹后命中伤害翻倍",
+                shortLabel: "反",
+                valueText: "x" + bounceCount,
+                amount: bounceCount,
+                color: cc.color(90, 180, 255, 255),
+            };
+        }
 
         if (hpDelta > 0) {
             return {

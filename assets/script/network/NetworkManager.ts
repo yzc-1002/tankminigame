@@ -124,7 +124,11 @@ export class NetworkManager {
                 x: source.aim.x,
                 y: source.aim.y,
             } : null,
-            fire: source.fire ? source.fire : false,
+            fire: source.fire && source.fire.id ? {
+                id: source.fire.id,
+                type: source.fire.type,
+                bounceCount: Number.isFinite(source.fire.bounceCount) ? source.fire.bounceCount : 0,
+            } : false,
             hit: source.hit ? source.hit : false,
             bulletEvents: Array.isArray(source.bulletEvents) ? source.bulletEvents : [],
             pickupEnergyId: source.pickupEnergyId == null ? null : source.pickupEnergyId,

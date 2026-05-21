@@ -1443,12 +1443,17 @@ export default class GameMain extends BaseComponent {
     _buildMultiplayerFireCommand() {
         let player = this._getLocalMultiplayerPlayer();
         let fireType = 1;
+        let bounceCount = 0;
         if (player && player.script && player.script.getMultiplayerFireType) {
             fireType = player.script.getMultiplayerFireType();
+        }
+        if (player && player.script && player.script.getCurrentBulletBounceCount) {
+            bounceCount = player.script.getCurrentBulletBounceCount();
         }
         return {
             id: this._nextMultiplayerBulletId(),
             type: fireType,
+            bounceCount: bounceCount,
         };
     }
 
