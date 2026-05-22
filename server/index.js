@@ -81,6 +81,12 @@ const BLACK_HOLE_ZONE_DESTROY_RADIUS = 14;
 const BLACK_HOLE_ZONE_GRAVITY = 160;
 const CONFIG_PICKUP_LIFETIME = 60;
 const CONFIG_SMALL_ENERGY_LIFETIME = 60;
+const SMALL_ENERGY_CHECK_INTERVAL = 10;
+const SMALL_ENERGY_MIN_COUNT = 24;
+const SMALL_ENERGY_TARGET_COUNT = 30;
+const SMALL_ENERGY_CLUSTER_RADIUS = 180;
+const SMALL_ENERGY_MIN_GAP = 58;
+const SMALL_ENERGY_PLAYER_SAFE_DISTANCE = 96;
 const ENERGY_WELL_BURST_INTERVAL = 10;
 const ENERGY_WELL_BURST_COUNT = 5;
 const ENERGY_WELL_BURST_SMALL_ENERGY_COUNT = 5;
@@ -152,63 +158,42 @@ const SPECIAL_EVENT_TYPES = [
 const RESOURCE_WAVE_CONFIG = [
   {
     time: 0,
-    resources: [
-      { position: { x: -320, y: 180 }, resourceType: 'energyEgg' },
-      { position: { x: 260, y: 140 }, resourceType: 'energyWell' },
-      { position: { x: 0, y: -220 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.TAR },
-    ],
+    resources: [],
     specialZones: [
-      { specialType: 'speedDouble', x: -120, y: 0 },
-      { specialType: 'portal', entryX: -520, entryY: -60, exitX: 520, exitY: 60 },
+      { specialType: 'blackHole', areaSlot: 'northWest' },
+      { specialType: 'speedDouble', areaSlot: 'southEast' },
     ],
   },
   {
     time: 60,
-    resources: [
-      { position: { x: -480, y: 240 }, resourceType: 'smallEnergy', count: 5 },
-      { position: { x: 360, y: -180 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.BLACK_HOLE },
-      { position: { x: 0, y: 320 }, resourceType: 'energyEgg' },
-    ],
+    resources: [],
     specialZones: [
-      { specialType: 'damageDouble', x: 240, y: 40 },
-      { specialType: 'centrifugal', x: -260, y: -120 },
+      { specialType: 'centrifugal', areaSlot: 'northEast' },
+      { specialType: 'damageDouble', areaSlot: 'southWest' },
     ],
   },
   {
     time: 120,
-    resources: [
-      { position: { x: -120, y: -260 }, resourceType: 'energyWell' },
-      { position: { x: 420, y: 220 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.PORTAL },
-      { position: { x: 0, y: 0 }, resourceType: 'smallEnergy', count: 8 },
-    ],
+    resources: [],
     specialZones: [
-      { specialType: 'spreadBullet', x: 40, y: 260 },
-      { specialType: 'blackHole', x: -420, y: 60 },
+      { specialType: 'damageDouble', areaSlot: 'northWest' },
+      { specialType: 'blackHole', areaSlot: 'southEast' },
     ],
   },
   {
     time: 180,
-    resources: [
-      { position: { x: 520, y: -80 }, resourceType: 'energyEgg' },
-      { position: { x: -360, y: 260 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.SPEED_DOUBLE },
-      { position: { x: -100, y: 100 }, resourceType: 'smallEnergy', count: 6 },
-    ],
+    resources: [],
     specialZones: [
-      { specialType: 'portal', entryX: -540, entryY: -280, exitX: 540, exitY: 280 },
-      { specialType: 'damageDouble', x: 0, y: -80 },
+      { specialType: 'speedDouble', areaSlot: 'northEast' },
+      { specialType: 'centrifugal', areaSlot: 'southWest' },
     ],
   },
   {
     time: 240,
-    resources: [
-      { position: { x: 0, y: 280 }, resourceType: 'energyWell' },
-      { position: { x: -460, y: -180 }, resourceType: 'pickup', pickupType: PICKUP_TYPE.DAMAGE_DOUBLE },
-      { position: { x: 380, y: -60 }, resourceType: 'smallEnergy', count: 10 },
-    ],
+    resources: [],
     specialZones: [
-      { specialType: 'centrifugal', x: -40, y: 60 },
-      { specialType: 'speedDouble', x: 320, y: -260 },
-      { specialType: 'blackHole', x: -320, y: 260 },
+      { specialType: 'blackHole', areaSlot: 'northEast' },
+      { specialType: 'speedDouble', areaSlot: 'southWest' },
     ],
   },
 ];
@@ -264,6 +249,9 @@ const room = {
   safeZone: null,
   matchFlow: null,
   waveState: null,
+  waveAreaSlots: null,
+  smallEnergyNextCheckTime: 0,
+  smallEnergyHubSlotIds: [],
 };
 
 function isSocketOpen(ws) {
@@ -2497,6 +2485,161 @@ function getSpecialEventSpawnSources() {
   return [];
 }
 
+function getWaveAreaSlotTarget(slotId, padding = 0) {
+  const zone = getPreferredSpawnSafeZone();
+  const bounds = room.mapBounds || { halfWidth: 1400, halfHeight: 900 };
+  const defs = {
+    northWest: { dirX: -1, dirY: 1 },
+    northEast: { dirX: 1, dirY: 1 },
+    southWest: { dirX: -1, dirY: -1 },
+    southEast: { dirX: 1, dirY: -1 },
+  };
+  const def = defs[slotId] || defs.northWest;
+  if (zone) {
+    const usableRadius = Math.max(160, zone.radius - Math.max(0, padding) - 90);
+    return clampPointToBounds({
+      x: zone.centerX + def.dirX * usableRadius * 0.5,
+      y: zone.centerY + def.dirY * usableRadius * 0.42,
+    }, padding);
+  }
+  return clampPointToBounds({
+    x: def.dirX * bounds.halfWidth * 0.45,
+    y: def.dirY * bounds.halfHeight * 0.4,
+  }, padding);
+}
+
+function doesPointMatchWaveAreaSlot(point, slotId) {
+  if (!point) {
+    return false;
+  }
+  const zone = getPreferredSpawnSafeZone();
+  const centerX = zone ? zone.centerX : 0;
+  const centerY = zone ? zone.centerY : 0;
+  if (slotId === 'northWest') {
+    return point.x <= centerX && point.y >= centerY;
+  }
+  if (slotId === 'northEast') {
+    return point.x >= centerX && point.y >= centerY;
+  }
+  if (slotId === 'southWest') {
+    return point.x <= centerX && point.y <= centerY;
+  }
+  if (slotId === 'southEast') {
+    return point.x >= centerX && point.y <= centerY;
+  }
+  return true;
+}
+
+function chooseBestWaveAreaSlotPoint(candidates, target, usedPoints, padding = 0) {
+  if (!Array.isArray(candidates) || candidates.length <= 0) {
+    return null;
+  }
+  let best = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < candidates.length; i++) {
+    const point = clampPointToBounds(candidates[i], padding);
+    let minUsedDistance = Number.POSITIVE_INFINITY;
+    for (let j = 0; j < usedPoints.length; j++) {
+      minUsedDistance = Math.min(minUsedDistance, Math.sqrt(distanceSqr(point, usedPoints[j])));
+    }
+    if (minUsedDistance < 220) {
+      continue;
+    }
+    const score = Math.sqrt(distanceSqr(point, target));
+    if (score < bestScore) {
+      bestScore = score;
+      best = point;
+    }
+  }
+  if (best) {
+    return best;
+  }
+  return clampPointToBounds(pickOne(candidates), padding);
+}
+
+function buildWaveAreaSlots() {
+  const padding = SPECIAL_EVENT_BLACK_HOLE_RADIUS + 40;
+  const source = filterPointsInsidePreferredSafeZone(getSpecialEventSpawnSources(), padding);
+  const slotIds = ['northWest', 'northEast', 'southWest', 'southEast'];
+  const slots = {};
+  const usedPoints = [];
+  for (let i = 0; i < slotIds.length; i++) {
+    const slotId = slotIds[i];
+    const target = getWaveAreaSlotTarget(slotId, padding);
+    const quadrantCandidates = source.filter((point) => doesPointMatchWaveAreaSlot(point, slotId));
+    const preferred = quadrantCandidates.length > 0 ? quadrantCandidates : source;
+    const picked = chooseBestWaveAreaSlotPoint(preferred, target, usedPoints, padding) || target;
+    if (picked) {
+      const point = clampPointToBounds(picked, padding);
+      slots[slotId] = point;
+      usedPoints.push(point);
+    }
+  }
+  return slots;
+}
+
+function getWaveAreaSlots() {
+  if (!room.waveAreaSlots || typeof room.waveAreaSlots !== 'object') {
+    room.waveAreaSlots = buildWaveAreaSlots();
+  }
+  return room.waveAreaSlots || {};
+}
+
+function getWaveAreaSlotPoint(slotId, padding = 0, validator = null) {
+  const slots = getWaveAreaSlots();
+  const point = slots[slotId] || getWaveAreaSlotTarget(slotId, padding);
+  if (point) {
+    const resolved = resolveConfiguredSpawnPoint(point, padding, `areaSlot:${slotId}`, validator);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return chooseSpecialEventPoint(padding);
+}
+
+function getSmallEnergyHubSlotIds() {
+  if (Array.isArray(room.smallEnergyHubSlotIds) && room.smallEnergyHubSlotIds.length >= 2) {
+    return room.smallEnergyHubSlotIds.slice(0, 2);
+  }
+  const slots = getWaveAreaSlots();
+  const slotIds = Object.keys(slots);
+  let bestPair = null;
+  let bestDistance = -1;
+  for (let i = 0; i < slotIds.length; i++) {
+    for (let j = i + 1; j < slotIds.length; j++) {
+      const pointA = slots[slotIds[i]];
+      const pointB = slots[slotIds[j]];
+      if (!pointA || !pointB) {
+        continue;
+      }
+      const dist = distanceSqr(pointA, pointB);
+      if (dist > bestDistance) {
+        bestDistance = dist;
+        bestPair = [slotIds[i], slotIds[j]];
+      }
+    }
+  }
+  room.smallEnergyHubSlotIds = bestPair || ['northWest', 'southEast'];
+  return room.smallEnergyHubSlotIds.slice(0, 2);
+}
+
+function getSpecialEventOccupiedPoints(eventData) {
+  if (!eventData) {
+    return [];
+  }
+  const result = [];
+  if (eventData.center) {
+    result.push(eventData.center);
+  }
+  if (eventData.entryPos) {
+    result.push(eventData.entryPos);
+  }
+  if (eventData.exitPos) {
+    result.push(eventData.exitPos);
+  }
+  return result;
+}
+
 function isSpecialEventPointAvailable(point, padding = 90) {
   if (!point) {
     return false;
@@ -2520,6 +2663,19 @@ function isSpecialEventPointAvailable(point, padding = 90) {
     const egg = room.energyEggs[i];
     if (egg && !egg.removed && Math.sqrt(distanceSqr(egg, point)) < SPECIAL_EVENT_MIN_EGG_DISTANCE) {
       return false;
+    }
+  }
+  for (let i = 0; i < room.activeSpecialEvents.length; i++) {
+    const eventData = room.activeSpecialEvents[i];
+    if (!eventData) {
+      continue;
+    }
+    const occupiedPoints = getSpecialEventOccupiedPoints(eventData);
+    const avoidRadius = Math.max(120, Number(eventData.radius) || 0, padding * 0.9);
+    for (let j = 0; j < occupiedPoints.length; j++) {
+      if (Math.sqrt(distanceSqr(occupiedPoints[j], point)) < avoidRadius) {
+        return false;
+      }
     }
   }
   const clamped = clampPointToBounds(point, padding);
@@ -2842,6 +2998,11 @@ function buildSpecialEventFromConfig(item) {
   }
   const id = `evt_${room.nextSpecialEventId++}`;
   const duration = Number.isFinite(Number(item.duration)) ? Math.max(1, Number(item.duration)) : SPECIAL_EVENT_DURATION;
+  const eventPadding = eventType === 'blackHole'
+    ? SPECIAL_EVENT_BLACK_HOLE_RADIUS + 40
+    : eventType === 'centrifugal'
+      ? SPECIAL_EVENT_CENTRIFUGAL_RADIUS + 40
+      : SPECIAL_EVENT_DAMAGE_RADIUS + 40;
   if (eventType === 'portal') {
     const entryPos = resolveConfiguredSpawnPoint({
       x: item.entryX,
@@ -2865,10 +3026,12 @@ function buildSpecialEventFromConfig(item) {
       source: 'wave',
     };
   }
-  const center = resolveConfiguredSpawnPoint({
-    x: item.x,
-    y: item.y,
-  }, eventType === 'blackHole' ? SPECIAL_EVENT_BLACK_HOLE_RADIUS + 40 : 100, `special:${eventType}`);
+  const center = item.areaSlot
+    ? getWaveAreaSlotPoint(item.areaSlot, eventPadding, (point) => isSpecialEventPointAvailable(point, eventPadding))
+    : resolveConfiguredSpawnPoint({
+      x: item.x,
+      y: item.y,
+    }, eventPadding, `special:${eventType}`, (point) => isSpecialEventPointAvailable(point, eventPadding));
   if (!center) {
     return null;
   }
@@ -2952,6 +3115,75 @@ function spawnConfiguredSpecialEventInFrame(frameCommands, item) {
     event: eventData,
   });
   return eventData;
+}
+
+function isSmallEnergyPointAvailable(point) {
+  if (!point) {
+    return false;
+  }
+  for (let i = 0; i < room.energies.length; i++) {
+    const energy = room.energies[i];
+    if (energy && Math.sqrt(distanceSqr(energy, point)) < SMALL_ENERGY_MIN_GAP) {
+      return false;
+    }
+  }
+  for (let i = 0; i < room.players.length; i++) {
+    const player = room.players[i];
+    if (!player || player.dead || player.disconnected) {
+      continue;
+    }
+    if (Math.sqrt(distanceSqr(getPlayerRuntimePosition(player), point)) < SMALL_ENERGY_PLAYER_SAFE_DISTANCE) {
+      return false;
+    }
+  }
+  for (let i = 0; i < room.energyEggs.length; i++) {
+    const egg = room.energyEggs[i];
+    if (egg && !egg.removed && Math.sqrt(distanceSqr(egg, point)) < 110) {
+      return false;
+    }
+  }
+  const clamped = clampPointToBounds(point, 42);
+  return Math.abs(clamped.x - point.x) < 0.01 && Math.abs(clamped.y - point.y) < 0.01;
+}
+
+function spawnMaintainedSmallEnergiesInFrame(frameCommands, targetCount) {
+  const total = Math.max(0, Math.floor(Number(targetCount) || 0));
+  if (total <= 0) {
+    return 0;
+  }
+  const hubSlotIds = getSmallEnergyHubSlotIds();
+  const created = [];
+  for (let i = 0; i < total; i++) {
+    const hubSlotId = hubSlotIds[i % Math.max(1, hubSlotIds.length)] || 'northWest';
+    const hubCenter = getWaveAreaSlotPoint(hubSlotId, 42, null);
+    let resolved = null;
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.sqrt(Math.random()) * SMALL_ENERGY_CLUSTER_RADIUS;
+      const candidate = hubCenter
+        ? {
+          x: hubCenter.x + Math.cos(angle) * distance,
+          y: hubCenter.y + Math.sin(angle) * distance,
+        }
+        : chooseRandomPreferredSafePoint(42);
+      resolved = resolveConfiguredSpawnPoint(candidate, 42, `smallEnergyHub:${hubSlotId}`, isSmallEnergyPointAvailable);
+      if (resolved) {
+        break;
+      }
+    }
+    if (!resolved) {
+      continue;
+    }
+    const energy = createEnergyAtPosition(resolved.x, resolved.y, ENERGY_VALUE);
+    energy.lifeTime = CONFIG_SMALL_ENERGY_LIFETIME;
+    energy.spawnType = 'smallEnergy';
+    created.push(energy);
+    appendFrameCommand(frameCommands, {
+      type: 'energySpawn',
+      energy,
+    });
+  }
+  return created.length;
 }
 
 function spawnConfiguredSmallEnergyInFrame(frameCommands, point, count) {
@@ -3076,8 +3308,8 @@ function triggerConfiguredWave(frameCommands, waveIndex, waveConfig) {
   }
   appendAnnouncement(frameCommands, {
     id: `wave_${waveIndex}`,
-    text: `第 ${waveIndex + 1} 波资源刷新`,
-    subText: `时间点 ${waveConfig.time}s`,
+    text: `第 ${waveIndex + 1} 波系统区域刷新`,
+    subText: `时间点 ${waveConfig.time}s，刷新 2 个系统区域`,
     style: 'info',
     duration: 2.4,
   });
@@ -3698,6 +3930,16 @@ function tryConsumeEnergy(player, energyId, frameCommands) {
 }
 
 function updateEnergySpawns(frameCommands) {
+  const now = Math.max(0, room.elapsedSeconds);
+  if (now + 0.0001 < (room.smallEnergyNextCheckTime || 0)) {
+    return;
+  }
+  room.smallEnergyNextCheckTime = now + SMALL_ENERGY_CHECK_INTERVAL;
+  const aliveCount = room.energies.filter(Boolean).length;
+  if (aliveCount >= SMALL_ENERGY_MIN_COUNT) {
+    return;
+  }
+  spawnMaintainedSmallEnergiesInFrame(frameCommands, SMALL_ENERGY_TARGET_COUNT - aliveCount);
 }
 
 function initMatchEnergyEggPlan() {
@@ -4102,6 +4344,9 @@ function startGame() {
     nextWaveIndex: 0,
     triggered: {},
   };
+  room.waveAreaSlots = buildWaveAreaSlots();
+  room.smallEnergyNextCheckTime = 0;
+  room.smallEnergyHubSlotIds = getSmallEnergyHubSlotIds();
   initMatchEnergyEggPlan();
 
   room.players.forEach((p, index) => {
@@ -4118,6 +4363,7 @@ function startGame() {
   room.covers = buildInitialCovers();
 
   const initialFrameCommands = [];
+  updateEnergySpawns(initialFrameCommands);
   updateConfiguredWaveSpawns(initialFrameCommands);
 
   broadcastRoomState({ spawnSlots: room.spawnSlots });
@@ -4362,6 +4608,9 @@ function resetRoom() {
     nextWaveIndex: 0,
     triggered: {},
   };
+  room.waveAreaSlots = null;
+  room.smallEnergyNextCheckTime = 0;
+  room.smallEnergyHubSlotIds = [];
   console.log('[Room] Reset');
 }
 
