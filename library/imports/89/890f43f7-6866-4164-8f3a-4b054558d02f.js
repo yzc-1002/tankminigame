@@ -1495,8 +1495,12 @@ var GameMain = /** @class */ (function (_super) {
         if (this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerSpawnCandidates) {
             spawnCandidates = this._fire._tiled.script.getMultiplayerSpawnCandidates();
         }
+        var bushes = [];
+        if (this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerBushesFromMap) {
+            bushes = this._fire._tiled.script.getMultiplayerBushesFromMap();
+        }
         var bushSpawnPoints = [];
-        if (this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerBushSpawnPoints) {
+        if (bushes.length <= 0 && this._fire && this._fire._tiled && this._fire._tiled.script && this._fire._tiled.script.getMultiplayerBushSpawnPoints) {
             bushSpawnPoints = this._fire._tiled.script.getMultiplayerBushSpawnPoints();
         }
         return {
@@ -1509,6 +1513,7 @@ var GameMain = /** @class */ (function (_super) {
             energySpawnPoints: energySpawnPoints,
             mapBounds: mapBounds,
             spawnCandidates: spawnCandidates,
+            bushes: bushes,
             bushSpawnPoints: bushSpawnPoints,
         };
     };

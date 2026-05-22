@@ -503,6 +503,8 @@ function sanitizeBushes(list) {
     const x = Number(item.x);
     const y = Number(item.y);
     const radius = Number(item.radius);
+    const width = Number(item.width);
+    const height = Number(item.height);
     if (!Number.isFinite(id) || !Number.isFinite(x) || !Number.isFinite(y)) {
       continue;
     }
@@ -512,11 +514,34 @@ function sanitizeBushes(list) {
     }
     used[key] = true;
     const point = clampPointToBounds({ x, y }, MULTIPLAYER_BUSH_SPAWN_PADDING);
+    const rects = Array.isArray(item.rects)
+      ? item.rects.map((rect) => {
+        if (!rect || typeof rect !== 'object') {
+          return null;
+        }
+        const rectX = Number(rect.x);
+        const rectY = Number(rect.y);
+        const rectWidth = Number(rect.width);
+        const rectHeight = Number(rect.height);
+        if (!Number.isFinite(rectX) || !Number.isFinite(rectY) || !Number.isFinite(rectWidth) || !Number.isFinite(rectHeight)) {
+          return null;
+        }
+        return {
+          x: Math.round(rectX),
+          y: Math.round(rectY),
+          width: Math.max(1, Math.round(rectWidth)),
+          height: Math.max(1, Math.round(rectHeight)),
+        };
+      }).filter(Boolean)
+      : [];
     result.push({
       id,
       x: Math.round(point.x),
       y: Math.round(point.y),
+      width: Number.isFinite(width) && width > 0 ? Math.round(width) : 0,
+      height: Number.isFinite(height) && height > 0 ? Math.round(height) : 0,
       radius: Number.isFinite(radius) && radius > 24 ? Math.round(radius) : MULTIPLAYER_BUSH_RADIUS,
+      rects,
     });
   }
   return result;
@@ -1149,6 +1174,25 @@ function findBushContainingPlayer(player) {
     if (!bush) {
       continue;
     }
+    if (Array.isArray(bush.rects) && bush.rects.length > 0) {
+      for (let j = 0; j < bush.rects.length; j++) {
+        const rect = bush.rects[j];
+        if (!rect) {
+          continue;
+        }
+        const halfWidth = Math.max(0, (rect.width || 0) / 2 - playerRadius * 0.22);
+        const halfHeight = Math.max(0, (rect.height || 0) / 2 - playerRadius * 0.22);
+        if (halfWidth <= 0 || halfHeight <= 0) {
+          continue;
+        }
+        const dx = Math.abs((pos.x || 0) - (rect.x || 0));
+        const dy = Math.abs((pos.y || 0) - (rect.y || 0));
+        if (dx <= halfWidth && dy <= halfHeight) {
+          return bush;
+        }
+      }
+      continue;
+    }
     const hideRadius = Math.max(24, (bush.radius || MULTIPLAYER_BUSH_RADIUS) - playerRadius * 0.22);
     if (distanceSqr(pos, bush) <= hideRadius * hideRadius) {
       return bush;
@@ -1158,6 +1202,9 @@ function findBushContainingPlayer(player) {
 }
 
 function buildInitialBushes() {
+  if (Array.isArray(room.bushes) && room.bushes.length > 0) {
+    return sanitizeBushes(room.bushes);
+  }
   const source = Array.isArray(room.bushSpawnPoints) && room.bushSpawnPoints.length > 0
     ? shuffle(filterPointsInsidePreferredSafeZone(room.bushSpawnPoints, MULTIPLAYER_BUSH_RADIUS + 12))
     : [];

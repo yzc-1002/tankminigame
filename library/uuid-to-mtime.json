@@ -2139,19 +2139,19 @@
     "meta": 1779432848521,
     "relativePath": "prefab\\obstacle\\Grass.prefab"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1779422396517,
-    "meta": 1779422406343,
-    "relativePath": "script\\GameMain.ts"
-  },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1779434241013,
-    "meta": 1779434245087,
-    "relativePath": "script\\GameMap.ts"
-  },
   "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
     "asset": 1779434553913,
     "meta": 1779434554927,
     "relativePath": "map1\\tankMap.tmx"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1779435615022,
+    "meta": 1779435793491,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1779436195239,
+    "meta": 1779436342406,
+    "relativePath": "script\\GameMap.ts"
   }
 }

@@ -54,6 +54,7 @@ const MULTIPLAYER_SPAWN_SAFE_PADDING = 56;
 const MULTIPLAYER_BUSH_RADIUS = 94;
 const MULTIPLAYER_BUSH_SAFE_PADDING = MULTIPLAYER_BUSH_RADIUS + 12;
 const MULTIPLAYER_BUSH_MAP_PADDING = 120;
+const MAP_GRASS_BUSH_MERGE_GAP = 6;
 // 多人草丛默认布点，当前是东南西北中五个方位，后续可直接改这里的 x/y。
 const MULTIPLAYER_BUSH_LAYOUT_POINTS = [
     { name: "east", x: 560, y: 0 },
@@ -219,6 +220,8 @@ export class GameMap extends BaseComponent {
     _energyEggs = [];
     _energyEggBushes = [];
     _multiplayerBushes = [];
+    _mapGrassBushTiles = [];
+    _mapGrassBushes = [];
 
     //加载完成
     onLoad () {
@@ -270,6 +273,8 @@ export class GameMap extends BaseComponent {
         this._tmSize = this.node.getContentSize();
         // this._tmSize = new cc.Size(this._tiledMap.getMapSize().width * this._tiledMap.getTileSize().width, this._tiledMap.getMapSize().height * this._tiledMap.getTileSize().height);
         this._tileSize = this._tiledMap.getTileSize();
+        this._mapGrassBushTiles = [];
+        this._mapGrassBushes = [];
     }
 
     _ensureDecalLayer() {
@@ -304,6 +309,8 @@ export class GameMap extends BaseComponent {
         let _startTime = (new Date()).valueOf();
         let objects = this._tmObj.getObjects();
         console.log("objects11",objects)
+        this._mapGrassBushTiles = [];
+        this._mapGrassBushes = [];
         for (let i = 0; i < objects.length; i++) {
             let obj = objects[i];
             
@@ -338,8 +345,17 @@ export class GameMap extends BaseComponent {
                 obstacle.parent = this._fire._tmLayerObstacle;
                 obstacle.position = cc.v3(offset);
                 obstacle.zIndex = this.judgezIndex(offset.y);
+                if (obj.name == "grass") {
+                    let grassTile = this._buildMapGrassBushTileData(obj, offset, obstacle);
+                    if (grassTile) {
+                        this._mapGrassBushTiles.push(grassTile);
+                    }
+                }
             }
 
+            if (obj.name == "grass") {
+                continue;
+            }
             for (let j = 0; j < obj.polylinePoints.length - 1; j++) {
                 let start = obj.polylinePoints[j];
                 let end = obj.polylinePoints[j+1];
@@ -355,6 +371,7 @@ export class GameMap extends BaseComponent {
             }
 
         }
+        this._rebuildMapGrassBushes();
 
         let _endTime = (new Date()).valueOf();
         let cost = _endTime - _startTime;
@@ -3619,6 +3636,176 @@ export class GameMap extends BaseComponent {
         return this._getMultiplayerPreferredSafeRadius();
     }
 
+    _buildMapGrassBushTileData(obj, offset, node = null) {
+        if (!obj) {
+            return null;
+        }
+        let width = Number(obj.width);
+        let height = Number(obj.height);
+        return {
+            x: Math.round(offset.x),
+            y: Math.round(offset.y),
+            width: Number.isFinite(width) && width > 0 ? Math.round(width) : 188,
+            height: Number.isFinite(height) && height > 0 ? Math.round(height) : 188,
+            node: node,
+        };
+    }
+
+    _bushRectsTouchOrOverlap(rectA, rectB, gap = MAP_GRASS_BUSH_MERGE_GAP) {
+        if (!rectA || !rectB) {
+            return false;
+        }
+        let halfWidthA = Math.max(0, (rectA.width || 0) / 2);
+        let halfHeightA = Math.max(0, (rectA.height || 0) / 2);
+        let halfWidthB = Math.max(0, (rectB.width || 0) / 2);
+        let halfHeightB = Math.max(0, (rectB.height || 0) / 2);
+        let dx = Math.abs((rectA.x || 0) - (rectB.x || 0));
+        let dy = Math.abs((rectA.y || 0) - (rectB.y || 0));
+        return dx <= (halfWidthA + halfWidthB + gap) && dy <= (halfHeightA + halfHeightB + gap);
+    }
+
+    _rebuildMapGrassBushes() {
+        let groups = [];
+        let visited = {};
+        for (let i = 0; i < this._mapGrassBushTiles.length; i++) {
+            if (visited[i]) {
+                continue;
+            }
+            let queue = [i];
+            visited[i] = true;
+            let groupTiles = [];
+            while (queue.length > 0) {
+                let index = queue.shift();
+                let tile = this._mapGrassBushTiles[index];
+                if (!tile) {
+                    continue;
+                }
+                groupTiles.push(tile);
+                for (let j = 0; j < this._mapGrassBushTiles.length; j++) {
+                    if (visited[j]) {
+                        continue;
+                    }
+                    let otherTile = this._mapGrassBushTiles[j];
+                    if (!otherTile) {
+                        continue;
+                    }
+                    if (this._bushRectsTouchOrOverlap(tile, otherTile)) {
+                        visited[j] = true;
+                        queue.push(j);
+                    }
+                }
+            }
+            if (groupTiles.length > 0) {
+                groups.push(this._buildMergedMapGrassBush(groupTiles, groups.length + 1));
+            }
+        }
+        this._mapGrassBushes = groups;
+    }
+
+    _buildMergedMapGrassBush(tiles, bushId) {
+        if (!tiles || tiles.length <= 0) {
+            return null;
+        }
+        let minX = 0;
+        let maxX = 0;
+        let minY = 0;
+        let maxY = 0;
+        let started = false;
+        let nodes = [];
+        let rects = [];
+        for (let i = 0; i < tiles.length; i++) {
+            let tile = tiles[i];
+            if (!tile) {
+                continue;
+            }
+            let halfWidth = Math.max(0, (tile.width || 0) / 2);
+            let halfHeight = Math.max(0, (tile.height || 0) / 2);
+            let left = (tile.x || 0) - halfWidth;
+            let right = (tile.x || 0) + halfWidth;
+            let bottom = (tile.y || 0) - halfHeight;
+            let top = (tile.y || 0) + halfHeight;
+            if (!started) {
+                minX = left;
+                maxX = right;
+                minY = bottom;
+                maxY = top;
+                started = true;
+            }
+            else{
+                minX = Math.min(minX, left);
+                maxX = Math.max(maxX, right);
+                minY = Math.min(minY, bottom);
+                maxY = Math.max(maxY, top);
+            }
+            rects.push({
+                x: Math.round(tile.x || 0),
+                y: Math.round(tile.y || 0),
+                width: Math.round(tile.width || 0),
+                height: Math.round(tile.height || 0),
+            });
+            if (tile.node && cc.isValid(tile.node)) {
+                nodes.push(tile.node);
+            }
+        }
+        if (!started) {
+            return null;
+        }
+        let width = Math.max(1, Math.round(maxX - minX));
+        let height = Math.max(1, Math.round(maxY - minY));
+        let centerX = Math.round((minX + maxX) / 2);
+        let centerY = Math.round((minY + maxY) / 2);
+        return {
+            id: bushId,
+            x: centerX,
+            y: centerY,
+            width: width,
+            height: height,
+            radius: Math.max(Math.round(Math.max(width, height) / 2), MULTIPLAYER_BUSH_RADIUS),
+            rects: rects,
+            nodes: nodes,
+            node: nodes.length > 0 ? nodes[0] : null,
+            fromMapGrass: true,
+        };
+    }
+
+    getMultiplayerBushesFromMap() {
+        let result = [];
+        for (let i = 0; i < this._mapGrassBushes.length; i++) {
+            let bush = this._mapGrassBushes[i];
+            if (!bush) {
+                continue;
+            }
+            result.push({
+                id: bush.id == null ? i + 1 : bush.id,
+                x: Math.round(bush.x || 0),
+                y: Math.round(bush.y || 0),
+                width: Math.round(bush.width || 0),
+                height: Math.round(bush.height || 0),
+                radius: Math.round(bush.radius || MULTIPLAYER_BUSH_RADIUS),
+                rects: Array.isArray(bush.rects) ? bush.rects.map((rect) => ({
+                    x: Math.round(rect.x || 0),
+                    y: Math.round(rect.y || 0),
+                    width: Math.round(rect.width || 0),
+                    height: Math.round(rect.height || 0),
+                })) : [],
+            });
+        }
+        return result;
+    }
+
+    _getMapGrassBushById(bushId) {
+        if (bushId == null) {
+            return null;
+        }
+        for (let i = 0; i < this._mapGrassBushes.length; i++) {
+            let bush = this._mapGrassBushes[i];
+            if (bush && bush.id == bushId) {
+                return bush;
+            }
+        }
+        return null;
+    }
+
     _normalizeMultiplayerBushSpawnPoint(rawPoint) {
         if (!rawPoint) {
             return null;
@@ -3645,6 +3832,21 @@ export class GameMap extends BaseComponent {
     }
 
     getMultiplayerBushSpawnPoints(limit = 24) {
+        let mapBushes = this.getMultiplayerBushesFromMap();
+        if (mapBushes.length > 0) {
+            let result = [];
+            let maxCount = Math.max(0, Math.floor(limit));
+            for (let i = 0; i < mapBushes.length; i++) {
+                if (maxCount > 0 && result.length >= maxCount) {
+                    break;
+                }
+                result.push({
+                    x: mapBushes[i].x,
+                    y: mapBushes[i].y,
+                });
+            }
+            return result;
+        }
         let result = [];
         let used = {};
         let maxCount = Math.max(0, Math.floor(limit));
@@ -6402,8 +6604,11 @@ export class GameMap extends BaseComponent {
         this._energyEggBushes = [];
         for (let i = 0; i < this._multiplayerBushes.length; i++) {
             let bush = this._multiplayerBushes[i];
-            if (bush && bush.node && cc.isValid(bush.node)) {
+            if (bush && bush.multiplayerGenerated && bush.node && cc.isValid(bush.node)) {
                 bush.node.destroy();
+            }
+            else if (bush) {
+                this._setBushVisualOpacity(bush, 255);
             }
         }
         this._multiplayerBushes = [];
@@ -6964,7 +7169,7 @@ export class GameMap extends BaseComponent {
     _initMultiplayerBushes(bushes = []) {
         for (let i = 0; i < this._multiplayerBushes.length; i++) {
             let bush = this._multiplayerBushes[i];
-            if (bush && bush.node && cc.isValid(bush.node)) {
+            if (bush && bush.multiplayerGenerated && bush.node && cc.isValid(bush.node)) {
                 bush.node.destroy();
             }
         }
@@ -6984,6 +7189,23 @@ export class GameMap extends BaseComponent {
         }
         let pos = cc.v2(bushData.x || 0, bushData.y || 0);
         let radius = bushData.radius == null ? 94 : bushData.radius;
+        let mapBush = this._getMapGrassBushById(bushData.id);
+        if (mapBush) {
+            return {
+                id: bushData.id == null ? mapBush.id : bushData.id,
+                node: mapBush.node,
+                nodes: mapBush.nodes,
+                rects: Array.isArray(bushData.rects) && bushData.rects.length > 0 ? bushData.rects : mapBush.rects,
+                width: bushData.width == null ? mapBush.width : bushData.width,
+                height: bushData.height == null ? mapBush.height : bushData.height,
+                x: bushData.x == null ? mapBush.x : bushData.x,
+                y: bushData.y == null ? mapBush.y : bushData.y,
+                radius: bushData.radius == null ? mapBush.radius : bushData.radius,
+                multiplayer: true,
+                multiplayerGenerated: false,
+                fromMapGrass: true,
+            };
+        }
         let root = new cc.Node("_multiplayerBush");
         root.parent = this._fire._tmLayerObstacle;
         root.setPosition(cc.v3(pos));
@@ -7012,9 +7234,80 @@ export class GameMap extends BaseComponent {
         return {
             id: bushData.id == null ? this._multiplayerBushes.length + 1 : bushData.id,
             node: root,
+            nodes: [root],
+            rects: Array.isArray(bushData.rects) ? bushData.rects : [],
+            width: bushData.width,
+            height: bushData.height,
+            x: bushData.x,
+            y: bushData.y,
             radius: radius,
             multiplayer: true,
+            multiplayerGenerated: true,
         };
+    }
+
+    _getBushDisplayNodes(bush) {
+        if (!bush) {
+            return [];
+        }
+        if (Array.isArray(bush.nodes) && bush.nodes.length > 0) {
+            return bush.nodes;
+        }
+        return bush.node ? [bush.node] : [];
+    }
+
+    _setBushVisualOpacity(bush, opacity = 255) {
+        let nodes = this._getBushDisplayNodes(bush);
+        for (let i = 0; i < nodes.length; i++) {
+            let node = nodes[i];
+            if (!node || !cc.isValid(node)) {
+                continue;
+            }
+            node.opacity = opacity;
+        }
+    }
+
+    _refreshBushDisplayOrder(bush) {
+        let nodes = this._getBushDisplayNodes(bush);
+        for (let i = 0; i < nodes.length; i++) {
+            let node = nodes[i];
+            if (!node || !cc.isValid(node)) {
+                continue;
+            }
+            node.zIndex = this.judgezIndex(node.y) + 2;
+        }
+    }
+
+    _isPointInsideBushRect(point, rect, inset = 0) {
+        if (!point || !rect) {
+            return false;
+        }
+        let halfWidth = Math.max(0, (rect.width || 0) / 2 - inset);
+        let halfHeight = Math.max(0, (rect.height || 0) / 2 - inset);
+        if (halfWidth <= 0 || halfHeight <= 0) {
+            return false;
+        }
+        let dx = Math.abs(point.x - (rect.x || 0));
+        let dy = Math.abs(point.y - (rect.y || 0));
+        return dx <= halfWidth && dy <= halfHeight;
+    }
+
+    _isPointInsideBush(point, bush, inset = 0) {
+        if (!point || !bush) {
+            return false;
+        }
+        let pos = cc.v2(point);
+        if (Array.isArray(bush.rects) && bush.rects.length > 0) {
+            for (let i = 0; i < bush.rects.length; i++) {
+                if (this._isPointInsideBushRect(pos, bush.rects[i], inset)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        let radius = Math.max(0, (bush.radius || MULTIPLAYER_BUSH_RADIUS) - inset);
+        let center = cc.v2(bush.x || (bush.node ? bush.node.x : 0), bush.y || (bush.node ? bush.node.y : 0));
+        return pos.sub(center).magSqr() <= radius * radius;
     }
 
     _getMultiplayerBushById(bushId) {
@@ -7046,8 +7339,8 @@ export class GameMap extends BaseComponent {
             if (!bush || !bush.node || !cc.isValid(bush.node)) {
                 continue;
             }
-            bush.node.zIndex = this.judgezIndex(bush.node.y) + 2;
-            bush.node.opacity = localBushId != null && bush.id == localBushId ? 155 : 255;
+            this._refreshBushDisplayOrder(bush);
+            this._setBushVisualOpacity(bush, localBushId != null && bush.id == localBushId ? 155 : 255);
         }
 
         for (let i = 0; i < this._multiplayerPlayers.length; i++) {
@@ -7082,7 +7375,7 @@ export class GameMap extends BaseComponent {
                 continue;
             }
             let bush = this._getMultiplayerBushById(localBushId);
-            let hidden = bush && cc.v2(energy.position).sub(bush.node.position).mag() <= bush.radius * 0.8;
+            let hidden = bush && this._isPointInsideBush(energy.position, bush, 0);
             energy.opacity = hidden ? 110 : 255;
         }
 
@@ -7095,7 +7388,7 @@ export class GameMap extends BaseComponent {
                 continue;
             }
             let bush = this._getMultiplayerBushById(localBushId);
-            let hidden = bush && cc.v2(skill.position).sub(bush.node.position).mag() <= bush.radius * 0.8;
+            let hidden = bush && this._isPointInsideBush(skill.position, bush, 0);
             skill.opacity = hidden ? 110 : 255;
         }
 
@@ -7108,7 +7401,7 @@ export class GameMap extends BaseComponent {
                 continue;
             }
             let bush = this._getMultiplayerBushById(localBushId);
-            let hidden = bush && cc.v2(spill.node.position).sub(bush.node.position).mag() <= bush.radius * 0.82;
+            let hidden = bush && this._isPointInsideBush(spill.node.position, bush, 0);
             if (hidden) {
                 spill.node.opacity = Math.min(spill.node.opacity, 120);
             }
