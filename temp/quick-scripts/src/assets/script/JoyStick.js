@@ -90,14 +90,14 @@ var JoyStick = /** @class */ (function (_super) {
         var controlType = this._getControlType(pos);
         if (controlType == "skill" && this._skillTouchId == null) {
             this._skillTouchId = touchId;
-            if (this._skillMode != "charge") {
-                // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
-                yyp.eventCenter.emit("oil-shell-trigger", { pressed: true });
-                this._updateOilSkillDrag(pos, true);
-            }
-            else {
-                this._refreshChargeProgress(0);
-                yyp.eventCenter.emit("charge-cannon-press", {});
+            if (this._isDragSkillMode()) {
+                this._updateSkillDrag(pos, true);
+                if (this._skillMode == "charge") {
+                    yyp.eventCenter.emit("charge-cannon-press", { pressed: true });
+                }
+                else {
+                    yyp.eventCenter.emit("oil-shell-trigger", { pressed: true });
+                }
             }
             return;
         }
@@ -139,8 +139,15 @@ var JoyStick = /** @class */ (function (_super) {
         else if (touchId == this._shootTouchId) {
             this._updateShootStick(pos);
         }
-        else if (touchId == this._skillTouchId && this._skillMode != "charge") {
-            this._updateOilSkillDrag(pos, false);
+        else if (touchId == this._skillTouchId && this._isDragSkillMode()) {
+            this._updateSkillDrag(pos, false);
+            if (this._skillMode == "charge") {
+                yyp.eventCenter.emit("charge-cannon-press", {
+                    aiming: true,
+                    dir: cc.v2(this._oilAimDir),
+                    ratio: this._getCurrentSkillDragRatio(pos),
+                });
+            }
         }
     };
     JoyStick.prototype._onTouchEnd = function (event) {
@@ -159,11 +166,10 @@ var JoyStick = /** @class */ (function (_super) {
             this._skillTouchId = null;
             this._resetSkillButtonPosition();
             if (this._skillMode != "charge") {
-                // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
                 yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, release: true });
             }
             else if (this._skillMode == "charge") {
-                yyp.eventCenter.emit("charge-cannon-release", {});
+                yyp.eventCenter.emit("charge-cannon-release", { release: true });
             }
         }
         else if (touchId == this._sacrificeTouchId) {
@@ -200,7 +206,6 @@ var JoyStick = /** @class */ (function (_super) {
         this._setSacrificeButtonPressed(false);
         this._setCoverButtonPressed(false);
         if (this._skillMode != "charge") {
-            // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
             yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, cancelled: true });
         }
         yyp.eventCenter.emit("joy-stick", { dir: this._moveDir, ratio: 0 });
@@ -278,7 +283,25 @@ var JoyStick = /** @class */ (function (_super) {
         }
         skillBtn.setPosition(this._skillTouchPos);
     };
-    JoyStick.prototype._updateOilSkillDrag = function (pos, isStart) {
+    JoyStick.prototype._isDragSkillMode = function () {
+        return true;
+    };
+    JoyStick.prototype._getSkillDragMaxLen = function (skillBtn) {
+        return Math.max(skillBtn.width * 0.95, 56);
+    };
+    JoyStick.prototype._getCurrentSkillDragRatio = function (pos) {
+        var skillBtn = this._getCurrentSkillButton();
+        if (!skillBtn) {
+            return 0;
+        }
+        var delta = pos.sub(this._skillTouchPos);
+        var maxLen = this._getSkillDragMaxLen(skillBtn);
+        if (maxLen <= 0) {
+            return 0;
+        }
+        return Math.max(0, Math.min(1, delta.mag() / maxLen));
+    };
+    JoyStick.prototype._updateSkillDrag = function (pos, isStart) {
         var skillBtn = this._getCurrentSkillButton();
         if (!skillBtn) {
             return;
@@ -291,18 +314,20 @@ var JoyStick = /** @class */ (function (_super) {
         if (len > 0.001) {
             this._oilAimDir = delta.normalize();
         }
-        var maxLen = Math.max(skillBtn.width * 0.95, 56);
+        var maxLen = this._getSkillDragMaxLen(skillBtn);
         var ratio = maxLen > 0 ? len / maxLen : 0;
         if (ratio > 1) {
             ratio = 1;
             delta = this._oilAimDir.mul(maxLen);
         }
         skillBtn.setPosition(this._skillTouchPos.add(delta));
-        yyp.eventCenter.emit("oil-shell-trigger", {
-            aiming: true,
-            dir: cc.v2(this._oilAimDir),
-            ratio: ratio,
-        });
+        if (this._skillMode != "charge") {
+            yyp.eventCenter.emit("oil-shell-trigger", {
+                aiming: true,
+                dir: cc.v2(this._oilAimDir),
+                ratio: ratio,
+            });
+        }
     };
     JoyStick.prototype._limitStickRange = function (bgNode, joystickNode, touchPos, dir) {
         // 限定摇杆在范围内移动

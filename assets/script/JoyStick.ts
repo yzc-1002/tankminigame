@@ -67,14 +67,14 @@ export class JoyStick extends BaseComponent {
         let controlType = this._getControlType(pos);
         if (controlType == "skill" && this._skillTouchId == null) {
             this._skillTouchId = touchId;
-            if (this._skillMode != "charge") {
-            // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
-                yyp.eventCenter.emit("oil-shell-trigger", { pressed: true });
-                this._updateOilSkillDrag(pos, true);
-            }
-            else{
-                this._refreshChargeProgress(0);
-                yyp.eventCenter.emit("charge-cannon-press", {});
+            if (this._isDragSkillMode()) {
+                this._updateSkillDrag(pos, true);
+                if (this._skillMode == "charge") {
+                    yyp.eventCenter.emit("charge-cannon-press", { pressed: true });
+                }
+                else{
+                    yyp.eventCenter.emit("oil-shell-trigger", { pressed: true });
+                }
             }
             return;
         }
@@ -119,8 +119,15 @@ export class JoyStick extends BaseComponent {
         else if (touchId == this._shootTouchId) {
             this._updateShootStick(pos);
         }
-        else if (touchId == this._skillTouchId && this._skillMode != "charge") {
-            this._updateOilSkillDrag(pos, false);
+        else if (touchId == this._skillTouchId && this._isDragSkillMode()) {
+            this._updateSkillDrag(pos, false);
+            if (this._skillMode == "charge") {
+                yyp.eventCenter.emit("charge-cannon-press", {
+                    aiming: true,
+                    dir: cc.v2(this._oilAimDir),
+                    ratio: this._getCurrentSkillDragRatio(pos),
+                });
+            }
         }
     }
 
@@ -140,11 +147,10 @@ export class JoyStick extends BaseComponent {
             this._skillTouchId = null;
             this._resetSkillButtonPosition();
             if (this._skillMode != "charge") {
-            // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
                 yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, release: true });
             }
             else if (this._skillMode == "charge") {
-                yyp.eventCenter.emit("charge-cannon-release", {});
+                yyp.eventCenter.emit("charge-cannon-release", { release: true });
             }
         }
         else if (touchId == this._sacrificeTouchId) {
@@ -183,7 +189,6 @@ export class JoyStick extends BaseComponent {
         this._setSacrificeButtonPressed(false);
         this._setCoverButtonPressed(false);
         if (this._skillMode != "charge") {
-        // if ((this._skillMode == "oil" || this._skillMode == "blackHole" || this._skillMode == "portal" || this._skillMode == "speedDouble" || this._skillMode == "damageDouble")){
             yyp.eventCenter.emit("oil-shell-trigger", { pressed: false, cancelled: true });
         }
         yyp.eventCenter.emit("joy-stick",{dir:this._moveDir, ratio:0});
@@ -274,7 +279,28 @@ export class JoyStick extends BaseComponent {
         skillBtn.setPosition(this._skillTouchPos);
     }
 
-    _updateOilSkillDrag(pos, isStart) {
+    _isDragSkillMode() {
+        return true;
+    }
+
+    _getSkillDragMaxLen(skillBtn) {
+        return Math.max(skillBtn.width * 0.95, 56);
+    }
+
+    _getCurrentSkillDragRatio(pos) {
+        let skillBtn = this._getCurrentSkillButton();
+        if (!skillBtn) {
+            return 0;
+        }
+        let delta = pos.sub(this._skillTouchPos);
+        let maxLen = this._getSkillDragMaxLen(skillBtn);
+        if (maxLen <= 0) {
+            return 0;
+        }
+        return Math.max(0, Math.min(1, delta.mag() / maxLen));
+    }
+
+    _updateSkillDrag(pos, isStart) {
         let skillBtn = this._getCurrentSkillButton();
         if (!skillBtn) {
             return;
@@ -287,18 +313,20 @@ export class JoyStick extends BaseComponent {
         if (len > 0.001) {
             this._oilAimDir = delta.normalize();
         }
-        let maxLen = Math.max(skillBtn.width * 0.95, 56);
+        let maxLen = this._getSkillDragMaxLen(skillBtn);
         let ratio = maxLen > 0 ? len / maxLen : 0;
         if (ratio > 1) {
             ratio = 1;
             delta = this._oilAimDir.mul(maxLen);
         }
         skillBtn.setPosition(this._skillTouchPos.add(delta));
-        yyp.eventCenter.emit("oil-shell-trigger", {
-            aiming: true,
-            dir: cc.v2(this._oilAimDir),
-            ratio: ratio,
-        });
+        if (this._skillMode != "charge") {
+            yyp.eventCenter.emit("oil-shell-trigger", {
+                aiming: true,
+                dir: cc.v2(this._oilAimDir),
+                ratio: ratio,
+            });
+        }
     }
 
     _limitStickRange(bgNode, joystickNode, touchPos, dir) {

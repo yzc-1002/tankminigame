@@ -288,7 +288,21 @@ export class Player extends Tank {
         if (this._multiplayerMode && this._multiplayerRemote) {
             return;
         }
-        if (this._inGame == false || this._chargeCannonCdTime > 0 || this._chargeCannonCharging) {
+        if (this._inGame == false || this._chargeCannonCdTime > 0) {
+            return;
+        }
+        let aiming = !!(event && event.aiming === true);
+        if (aiming) {
+            if (!this._chargeCannonCharging) {
+                return;
+            }
+            if (event.dir && event.dir.magSqr && event.dir.magSqr() > 0.0001) {
+                this._shootInputDir = cc.v2(event.dir).normalize();
+                this._barrelDir = cc.v2(this._shootInputDir);
+            }
+            return;
+        }
+        if (this._chargeCannonCharging) {
             return;
         }
 
