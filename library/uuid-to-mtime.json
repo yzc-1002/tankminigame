@@ -2089,11 +2089,6 @@
     "meta": 1778838557209,
     "relativePath": "script\\base\\BaseComponent.ts"
   },
-  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
-    "asset": 1778841985034,
-    "meta": 1778841986828,
-    "relativePath": "script\\config\\Tank.ts"
-  },
   "57473783-53bb-4668-9e13-3d2242e0eae2": {
     "asset": 1779268358921,
     "meta": 1779268500411,
@@ -2113,11 +2108,6 @@
     "asset": 1779356041632,
     "meta": 1779356067036,
     "relativePath": "script\\JoyStick.ts"
-  },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1779361679465,
-    "meta": 1779361745244,
-    "relativePath": "script\\Player.ts"
   },
   "64f8c8d0-ddd9-488a-9077-7eecc3e7fe0e": {
     "asset": 1779418747638,
@@ -2144,14 +2134,24 @@
     "meta": 1779434554927,
     "relativePath": "map1\\tankMap.tmx"
   },
-  "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1779435615022,
-    "meta": 1779435793491,
-    "relativePath": "script\\GameMain.ts"
-  },
   "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
     "asset": 1779436195239,
     "meta": 1779436342406,
     "relativePath": "script\\GameMap.ts"
+  },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1779440395032,
+    "meta": 1779440628940,
+    "relativePath": "script\\Player.ts"
+  },
+  "890f43f7-6866-4164-8f3a-4b054558d02f": {
+    "asset": 1779441667717,
+    "meta": 1779441679417,
+    "relativePath": "script\\GameMain.ts"
+  },
+  "ce4f9ffa-3a1a-487a-bc04-182abc9822e2": {
+    "asset": 1779441745103,
+    "meta": 1779441750546,
+    "relativePath": "script\\config\\Tank.ts"
   }
 }

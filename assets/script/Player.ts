@@ -2406,7 +2406,10 @@ export class Player extends Tank {
     }
 
     _updateLowHpPlayerFeedback() {
-        if (!this._inGame || !this.isLowHp()) {
+        let shouldAlertLowHp = this._inGame
+            && this.isLowHp()
+            && (!this._multiplayerMode || !this._multiplayerRemote);
+        if (!shouldAlertLowHp) {
             this._stopLowHpPlayerFeedback();
             return;
         }

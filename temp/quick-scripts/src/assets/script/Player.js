@@ -2055,7 +2055,10 @@ var Player = /** @class */ (function (_super) {
         effect.runAction(cc.sequence(cc.spawn(cc.scaleTo(0.18, 1.25), cc.fadeTo(0.18, 60)), cc.fadeOut(0.1), cc.removeSelf()));
     };
     Player.prototype._updateLowHpPlayerFeedback = function () {
-        if (!this._inGame || !this.isLowHp()) {
+        var shouldAlertLowHp = this._inGame
+            && this.isLowHp()
+            && (!this._multiplayerMode || !this._multiplayerRemote);
+        if (!shouldAlertLowHp) {
             this._stopLowHpPlayerFeedback();
             return;
         }
