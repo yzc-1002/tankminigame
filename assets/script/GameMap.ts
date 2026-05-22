@@ -84,6 +84,12 @@ export class GameMap extends BaseComponent {
     mountain03Prefab: cc.Prefab = null;
     
     @property(cc.Prefab)
+    mountainPrefab: cc.Prefab = null;
+
+    @property(cc.Prefab)
+    grassPrefab: cc.Prefab = null;
+
+    @property(cc.Prefab)
     bulletPrefab: cc.Prefab = null;
 
     @property(cc.Prefab)
@@ -321,6 +327,12 @@ export class GameMap extends BaseComponent {
                 }
                 else if (obj.name == "mountain03") {
                     obstacle = cc.instantiate(this.mountain03Prefab);
+                }
+                else if (obj.name == "mountain") {
+                    obstacle = cc.instantiate(this.mountainPrefab);
+                }
+                else if (obj.name == "grass") {
+                    obstacle = cc.instantiate(this.grassPrefab);
                 }
                 
                 obstacle.parent = this._fire._tmLayerObstacle;

@@ -29,6 +29,12 @@ const SHOOT_RECOIL_RETURN_TIME = 0.11;
 const SHOOT_FLASH_FADE_IN = 0.02;
 const SHOOT_FLASH_FADE_OUT = 0.07;
 const SACRIFICE_HP_RATIO = 0.5;
+const MULTIPLAYER_REMOTE_POSITION_EPSILON = 6;
+const MULTIPLAYER_REMOTE_POSITION_SNAP_DISTANCE = 80;
+const MULTIPLAYER_LOCAL_POSITION_EPSILON = 24;
+const MULTIPLAYER_LOCAL_POSITION_SNAP_DISTANCE = 120;
+const MULTIPLAYER_REMOTE_POSITION_BLEND = 0.35;
+const MULTIPLAYER_LOCAL_POSITION_BLEND = 0.2;
 
 @ccclass
 export class Player extends Tank {
@@ -82,6 +88,9 @@ export class Player extends Tank {
     _multiplayerPlayerId = -1;      //多人玩家ID
     _multiplayerInBush = false;
     _multiplayerBushId = null;
+    _multiplayerSyncPosition = null;
+    _multiplayerSyncDir = null;
+    _multiplayerSyncSpeed = 0;
     _bushVisibilityMode = "normal";
     _bulletBounceCount = 0;
 
@@ -136,6 +145,9 @@ export class Player extends Tank {
         this._localPreviewBarrelDir = null;
         this._multiplayerInBush = false;
         this._multiplayerBushId = null;
+        this._multiplayerSyncPosition = null;
+        this._multiplayerSyncDir = null;
+        this._multiplayerSyncSpeed = 0;
         this._bushVisibilityMode = "normal";
         this._bulletBounceCount = 0;
     }
@@ -718,6 +730,7 @@ export class Player extends Tank {
             this._map.playerSkillIconCollisionTest();
 
             this._refreshPosition(dt);
+            this._applyMultiplayerPositionCorrection();
             if (this._oilShellPreviewing) {
                 this._refreshOilShellPreview();
             }
@@ -2145,6 +2158,19 @@ export class Player extends Tank {
             return;
         }
 
+        if (Number.isFinite(state.x) && Number.isFinite(state.y)) {
+            this._multiplayerSyncPosition = cc.v2(state.x, state.y);
+        }
+        if (Number.isFinite(state.dirX) && Number.isFinite(state.dirY)) {
+            let syncDir = cc.v2(state.dirX, state.dirY);
+            if (syncDir.magSqr() > 0.0001) {
+                this._multiplayerSyncDir = syncDir.normalize();
+            }
+        }
+        if (Number.isFinite(state.speed)) {
+            this._multiplayerSyncSpeed = Math.max(0, state.speed);
+        }
+
         let prevHp = this._hp;
         let prevMaxHp = this._maxHp;
         let prevAtk = this._atk;
@@ -2251,6 +2277,49 @@ export class Player extends Tank {
             this.doDeath();
         }
         this._refreshBushVisibilityState();
+    }
+
+    _applyMultiplayerPositionCorrection() {
+        if (!this._multiplayerMode || !this._multiplayerSyncPosition || !this.node || !cc.isValid(this.node)) {
+            return;
+        }
+
+        let currPosition = cc.v2(this.node.position);
+        let targetPosition = cc.v2(this._multiplayerSyncPosition);
+        let offset = targetPosition.sub(currPosition);
+        let distance = offset.mag();
+        let epsilon = this._multiplayerRemote ? MULTIPLAYER_REMOTE_POSITION_EPSILON : MULTIPLAYER_LOCAL_POSITION_EPSILON;
+        if (distance <= epsilon) {
+            return;
+        }
+
+        let snapDistance = this._multiplayerRemote ? MULTIPLAYER_REMOTE_POSITION_SNAP_DISTANCE : MULTIPLAYER_LOCAL_POSITION_SNAP_DISTANCE;
+        if (distance >= snapDistance) {
+            this.node.setPosition(targetPosition);
+            if (this._multiplayerSyncDir && this._multiplayerSyncDir.magSqr() > 0.0001) {
+                this._dir = cc.v2(this._multiplayerSyncDir);
+                if (this._multiplayerRemote) {
+                    this._barrelDir = cc.v2(this._multiplayerSyncDir);
+                }
+            }
+            if (!this._multiplayerRemote) {
+                this._currentSpeed = this._multiplayerSyncSpeed || 0;
+            }
+            return;
+        }
+
+        if (!this._multiplayerRemote) {
+            return;
+        }
+
+        let blend = this._multiplayerRemote ? MULTIPLAYER_REMOTE_POSITION_BLEND : MULTIPLAYER_LOCAL_POSITION_BLEND;
+        let nextPosition = currPosition.add(offset.mul(blend));
+        this.node.setPosition(nextPosition);
+
+        if (this._multiplayerRemote && this._multiplayerSyncDir && this._multiplayerSyncDir.magSqr() > 0.0001) {
+            this._dir = cc.v2(this._multiplayerSyncDir);
+            this._barrelDir = cc.v2(this._multiplayerSyncDir);
+        }
     }
 
     _buildUpgradeChoiceFromStateDelta(prevMaxHp, prevAtk, prevMoveSpeedScale) {

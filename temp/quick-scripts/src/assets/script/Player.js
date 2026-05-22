@@ -54,6 +54,12 @@ var SHOOT_RECOIL_RETURN_TIME = 0.11;
 var SHOOT_FLASH_FADE_IN = 0.02;
 var SHOOT_FLASH_FADE_OUT = 0.07;
 var SACRIFICE_HP_RATIO = 0.5;
+var MULTIPLAYER_REMOTE_POSITION_EPSILON = 6;
+var MULTIPLAYER_REMOTE_POSITION_SNAP_DISTANCE = 80;
+var MULTIPLAYER_LOCAL_POSITION_EPSILON = 24;
+var MULTIPLAYER_LOCAL_POSITION_SNAP_DISTANCE = 120;
+var MULTIPLAYER_REMOTE_POSITION_BLEND = 0.35;
+var MULTIPLAYER_LOCAL_POSITION_BLEND = 0.2;
 var Player = /** @class */ (function (_super) {
     __extends(Player, _super);
     function Player() {
@@ -103,6 +109,9 @@ var Player = /** @class */ (function (_super) {
         _this._multiplayerPlayerId = -1; //多人玩家ID
         _this._multiplayerInBush = false;
         _this._multiplayerBushId = null;
+        _this._multiplayerSyncPosition = null;
+        _this._multiplayerSyncDir = null;
+        _this._multiplayerSyncSpeed = 0;
         _this._bushVisibilityMode = "normal";
         _this._bulletBounceCount = 0;
         return _this;
@@ -154,6 +163,9 @@ var Player = /** @class */ (function (_super) {
         this._localPreviewBarrelDir = null;
         this._multiplayerInBush = false;
         this._multiplayerBushId = null;
+        this._multiplayerSyncPosition = null;
+        this._multiplayerSyncDir = null;
+        this._multiplayerSyncSpeed = 0;
         this._bushVisibilityMode = "normal";
         this._bulletBounceCount = 0;
     };
@@ -672,6 +684,7 @@ var Player = /** @class */ (function (_super) {
             //玩家和技能icon,碰撞检测
             this._map.playerSkillIconCollisionTest();
             this._refreshPosition(dt);
+            this._applyMultiplayerPositionCorrection();
             if (this._oilShellPreviewing) {
                 this._refreshOilShellPreview();
             }
@@ -1819,6 +1832,18 @@ var Player = /** @class */ (function (_super) {
         if (!this._multiplayerMode || !state) {
             return;
         }
+        if (Number.isFinite(state.x) && Number.isFinite(state.y)) {
+            this._multiplayerSyncPosition = cc.v2(state.x, state.y);
+        }
+        if (Number.isFinite(state.dirX) && Number.isFinite(state.dirY)) {
+            var syncDir = cc.v2(state.dirX, state.dirY);
+            if (syncDir.magSqr() > 0.0001) {
+                this._multiplayerSyncDir = syncDir.normalize();
+            }
+        }
+        if (Number.isFinite(state.speed)) {
+            this._multiplayerSyncSpeed = Math.max(0, state.speed);
+        }
         var prevHp = this._hp;
         var prevMaxHp = this._maxHp;
         var prevAtk = this._atk;
@@ -1921,6 +1946,43 @@ var Player = /** @class */ (function (_super) {
             this.doDeath();
         }
         this._refreshBushVisibilityState();
+    };
+    Player.prototype._applyMultiplayerPositionCorrection = function () {
+        if (!this._multiplayerMode || !this._multiplayerSyncPosition || !this.node || !cc.isValid(this.node)) {
+            return;
+        }
+        var currPosition = cc.v2(this.node.position);
+        var targetPosition = cc.v2(this._multiplayerSyncPosition);
+        var offset = targetPosition.sub(currPosition);
+        var distance = offset.mag();
+        var epsilon = this._multiplayerRemote ? MULTIPLAYER_REMOTE_POSITION_EPSILON : MULTIPLAYER_LOCAL_POSITION_EPSILON;
+        if (distance <= epsilon) {
+            return;
+        }
+        var snapDistance = this._multiplayerRemote ? MULTIPLAYER_REMOTE_POSITION_SNAP_DISTANCE : MULTIPLAYER_LOCAL_POSITION_SNAP_DISTANCE;
+        if (distance >= snapDistance) {
+            this.node.setPosition(targetPosition);
+            if (this._multiplayerSyncDir && this._multiplayerSyncDir.magSqr() > 0.0001) {
+                this._dir = cc.v2(this._multiplayerSyncDir);
+                if (this._multiplayerRemote) {
+                    this._barrelDir = cc.v2(this._multiplayerSyncDir);
+                }
+            }
+            if (!this._multiplayerRemote) {
+                this._currentSpeed = this._multiplayerSyncSpeed || 0;
+            }
+            return;
+        }
+        if (!this._multiplayerRemote) {
+            return;
+        }
+        var blend = this._multiplayerRemote ? MULTIPLAYER_REMOTE_POSITION_BLEND : MULTIPLAYER_LOCAL_POSITION_BLEND;
+        var nextPosition = currPosition.add(offset.mul(blend));
+        this.node.setPosition(nextPosition);
+        if (this._multiplayerRemote && this._multiplayerSyncDir && this._multiplayerSyncDir.magSqr() > 0.0001) {
+            this._dir = cc.v2(this._multiplayerSyncDir);
+            this._barrelDir = cc.v2(this._multiplayerSyncDir);
+        }
     };
     Player.prototype._buildUpgradeChoiceFromStateDelta = function (prevMaxHp, prevAtk, prevMoveSpeedScale) {
         var hpDelta = this._maxHp - prevMaxHp;

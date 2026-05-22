@@ -530,6 +530,12 @@
     "mountain03Prefab": {
       "__uuid__": "88ce651f-7b92-432b-9bc8-420358f971a5"
     },
+    "mountainPrefab": {
+      "__uuid__": "3234a327-569e-465e-8858-439fbdf49bc3"
+    },
+    "grassPrefab": {
+      "__uuid__": "d0d01e7a-c3c0-4b80-9fd4-875f079919a8"
+    },
     "bulletPrefab": {
       "__uuid__": "3fc53a6e-3d1c-43fa-afa9-4399c2f68ee3"
     },
@@ -542,6 +548,7 @@
     "skillPrefab": {
       "__uuid__": "a764c1c6-00c9-4f63-b136-bdf247b9cd15"
     },
+    "energyPrefab": null,
     "_id": ""
   },
   {

@@ -100,8 +100,8 @@ const SPECIAL_EVENT_CENTRIFUGAL_ROTATE_ANGLE = Math.PI * 0.5;
 const SPECIAL_EVENT_CENTRIFUGAL_ANGULAR_SPEED = Math.PI * 4.2;
 const SPECIAL_EVENT_SPREAD_BULLET_COUNT = 2;
 const SPECIAL_EVENT_SPREAD_BULLET_ANGLE = 20;
-const SAFE_ZONE_START_PADDING = 80;
-const SAFE_ZONE_FIXED_RADIUS_RATIO = 0.86;
+const SAFE_ZONE_START_PADDING = -40;
+const SAFE_ZONE_FIXED_RADIUS_RATIO = 1;
 const SAFE_ZONE_MIN_RADIUS = 140;
 const SAFE_ZONE_DAMAGE_INTERVAL = 1;
 const SAFE_ZONE_DAMAGE_PER_TICK = 4;
@@ -2701,6 +2701,8 @@ function spawnInitialSpecialEvents() {
 
 function buildPlayerStateCommand(player) {
   const bush = findBushContainingPlayer(player);
+  const pos = getPlayerRuntimePosition(player);
+  const dir = getPlayerRuntimeDir(player);
   player.inBush = !!bush;
   player.bushId = bush ? bush.id : null;
   return {
@@ -2721,6 +2723,11 @@ function buildPlayerStateCommand(player) {
     stopFireTime: Math.max(0, player.stopFireTime || 0),
     freeBulletRecoverTime: Math.max(0, player.freeBulletRecoverTime || 0),
     shotCooldownRemaining: Math.max(0, player.shotCooldownRemaining || 0),
+    x: Math.round(pos.x),
+    y: Math.round(pos.y),
+    dirX: Number(dir.x.toFixed(4)),
+    dirY: Number(dir.y.toFixed(4)),
+    speed: Number((((player.lastSnapshot && player.lastSnapshot.speed) || 0)).toFixed(3)),
     inBush: !!player.inBush,
     bushId: player.bushId == null ? null : player.bushId,
     dead: !!player.dead,

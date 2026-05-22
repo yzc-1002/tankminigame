@@ -545,8 +545,8 @@
     "relativePath": "prefab\\obstacle\\Mountain01.prefab"
   },
   "1b121631-93a2-4c4a-8d85-b2fd57b76736": {
-    "asset": 1776683591517,
-    "meta": 1776683591518,
+    "asset": 1779423693734,
+    "meta": 1779423693735,
     "relativePath": "prefab\\obstacle\\Mountain02.prefab"
   },
   "88ce651f-7b92-432b-9bc8-420358f971a5": {
@@ -555,8 +555,8 @@
     "relativePath": "prefab\\obstacle\\Mountain03.prefab"
   },
   "d11ca874-923b-41a9-b8a1-3b60addee4da": {
-    "asset": 1776683591525,
-    "meta": 1776683591525,
+    "asset": 1779422613192,
+    "meta": 1779422613192,
     "relativePath": "prefab\\obstacle\\Tree01.prefab"
   },
   "1ecced93-d71c-42e2-84a0-74941ffcfceb": {
@@ -1794,11 +1794,6 @@
     "meta": 1778835810872,
     "relativePath": "map1\\tankSprite.tsx"
   },
-  "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
-    "asset": 1778835088850,
-    "meta": 1778835816311,
-    "relativePath": "map1\\tankMap.tmx"
-  },
   "4fca405f-1fc6-47cc-8382-58263bf7e229": {
     "asset": 1778835088856,
     "meta": 1778835810916,
@@ -1825,8 +1820,8 @@
     "relativePath": "prefab\\Finish.prefab"
   },
   "a7976efa-dcd2-4d89-9b42-43c437d4e6f4": {
-    "asset": 1778835810951,
-    "meta": 1778835810953,
+    "asset": 1779423748889,
+    "meta": 1779423748890,
     "relativePath": "prefab\\GameMap.prefab"
   },
   "9eb8f898-f012-4150-bd35-1b087a918955": {
@@ -1905,8 +1900,8 @@
     "relativePath": "resources\\shader\\ripple-distortion.effect"
   },
   "2d2f792f-a40c-49bb-a189-ed176a246e49": {
-    "asset": 1778843714952,
-    "meta": 1778843714961,
+    "asset": 1779422507374,
+    "meta": 1779422507380,
     "relativePath": "scene\\GameScene.fire"
   },
   "1e8b141b-5b9d-48bb-aac6-bbfe073b2e61": {
@@ -2109,29 +2104,54 @@
     "meta": 1779353206432,
     "relativePath": "script\\network\\NetworkManager.ts"
   },
-  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
-    "asset": 1779354897749,
-    "meta": 1779354924409,
-    "relativePath": "script\\GameMap.ts"
-  },
   "f60d2c9a-5abd-4e9e-a544-4c2bd3a90006": {
     "asset": 1779355573649,
     "meta": 1779355641367,
     "relativePath": "script\\OilPickup.ts"
-  },
-  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1779355588220,
-    "meta": 1779355641658,
-    "relativePath": "script\\Player.ts"
   },
   "bc87592d-3055-4635-bb55-a57728de0328": {
     "asset": 1779356041632,
     "meta": 1779356067036,
     "relativePath": "script\\JoyStick.ts"
   },
+  "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
+    "asset": 1779361679465,
+    "meta": 1779361745244,
+    "relativePath": "script\\Player.ts"
+  },
+  "64f8c8d0-ddd9-488a-9077-7eecc3e7fe0e": {
+    "asset": 1779418747638,
+    "meta": 1779421987988,
+    "relativePath": "texture\\ui\\mountain.png"
+  },
+  "ec6d8f2d-dfa4-404e-bc8e-1513db96b8be": {
+    "asset": 1779421995262,
+    "meta": 1779422001577,
+    "relativePath": "texture\\ui\\grass.png"
+  },
+  "3234a327-569e-465e-8858-439fbdf49bc3": {
+    "asset": 1779432828993,
+    "meta": 1779432828994,
+    "relativePath": "prefab\\obstacle\\Mountain.prefab"
+  },
+  "d0d01e7a-c3c0-4b80-9fd4-875f079919a8": {
+    "asset": 1779432848520,
+    "meta": 1779432848521,
+    "relativePath": "prefab\\obstacle\\Grass.prefab"
+  },
   "890f43f7-6866-4164-8f3a-4b054558d02f": {
-    "asset": 1779356371043,
-    "meta": 1779356447880,
+    "asset": 1779422396517,
+    "meta": 1779422406343,
     "relativePath": "script\\GameMain.ts"
+  },
+  "8d08cf8e-1717-4dc6-8461-0cfceff1d328": {
+    "asset": 1779434241013,
+    "meta": 1779434245087,
+    "relativePath": "script\\GameMap.ts"
+  },
+  "bc5ed24f-073b-42f1-b368-0573a8f1ea55": {
+    "asset": 1779434553913,
+    "meta": 1779434554927,
+    "relativePath": "map1\\tankMap.tmx"
   }
 }

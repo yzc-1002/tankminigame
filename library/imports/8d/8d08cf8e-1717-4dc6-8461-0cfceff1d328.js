@@ -99,6 +99,8 @@ var GameMap = /** @class */ (function (_super) {
         _this.mountain01Prefab = null;
         _this.mountain02Prefab = null;
         _this.mountain03Prefab = null;
+        _this.mountainPrefab = null;
+        _this.grassPrefab = null;
         _this.bulletPrefab = null;
         _this.enemyPrefab = null;
         _this.playerPrefab = null;
@@ -306,6 +308,12 @@ var GameMap = /** @class */ (function (_super) {
                 }
                 else if (obj.name == "mountain03") {
                     obstacle = cc.instantiate(this.mountain03Prefab);
+                }
+                else if (obj.name == "mountain") {
+                    obstacle = cc.instantiate(this.mountainPrefab);
+                }
+                else if (obj.name == "grass") {
+                    obstacle = cc.instantiate(this.grassPrefab);
                 }
                 obstacle.parent = this._fire._tmLayerObstacle;
                 obstacle.position = cc.v3(offset);
@@ -6974,6 +6982,12 @@ var GameMap = /** @class */ (function (_super) {
     __decorate([
         property(cc.Prefab)
     ], GameMap.prototype, "mountain03Prefab", void 0);
+    __decorate([
+        property(cc.Prefab)
+    ], GameMap.prototype, "mountainPrefab", void 0);
+    __decorate([
+        property(cc.Prefab)
+    ], GameMap.prototype, "grassPrefab", void 0);
     __decorate([
         property(cc.Prefab)
     ], GameMap.prototype, "bulletPrefab", void 0);
