@@ -785,7 +785,7 @@ export class Bullet extends BaseComponent {
 
 
     //创建子弹(类型/位置/方向/炮管长度/射程/攻击力/目标阵营)
-    static createBulletEx(bulletType,pos,dir,wipeLen,gunshot,atk,camp,parentNode,map,speed = 8,mutationData = null, networkMeta = null){
+    static createBulletEx(bulletType,pos,dir,wipeLen,gunshot,atk,camp,parentNode,map,speed = 16,mutationData = null, networkMeta = null){
         gunshot = gunshot - wipeLen;
         let bdir = dir;
         let bpos = pos;

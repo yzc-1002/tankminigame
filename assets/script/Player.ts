@@ -1411,7 +1411,7 @@ export class Player extends Tank {
         let type = (this._viewMode || this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
         let attackRadius = this._viewMode ? this._config.AttackRadius * 0.8 :this._config.AttackRadius;
         let mutationData = this._viewMode ? null : this._getCurrentBulletMutationData();
-        Bullet.createBulletEx(type,this.node.position,this._barrelDir,this._fire._lyBarrel.height+20,attackRadius,this._atk,this._camp,this.node.parent,this._map,8,mutationData);
+        Bullet.createBulletEx(type,this.node.position,this._barrelDir,this._fire._lyBarrel.height+20,attackRadius,this._atk,this._camp,this.node.parent,this._map,16,mutationData);
         if (this._map && this._map.isShootEffectTestMode && this._map.isShootEffectTestMode()) {
             this._playShootFeedback(type, mutationData);
         }
@@ -1448,7 +1448,7 @@ export class Player extends Tank {
             this._camp,
             this.node.parent,
             this._map,
-            8,
+            16,
             mutationData,
             networkMeta
         );

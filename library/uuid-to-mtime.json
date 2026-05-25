@@ -2089,11 +2089,6 @@
     "meta": 1778838557209,
     "relativePath": "script\\base\\BaseComponent.ts"
   },
-  "57473783-53bb-4668-9e13-3d2242e0eae2": {
-    "asset": 1779268358921,
-    "meta": 1779268500411,
-    "relativePath": "script\\BulletE.ts"
-  },
   "f60d2c9a-5abd-4e9e-a544-4c2bd3a90006": {
     "asset": 1779355573649,
     "meta": 1779355641367,
@@ -2149,9 +2144,14 @@
     "meta": 1779443635571,
     "relativePath": "script\\JoyStick.ts"
   },
+  "57473783-53bb-4668-9e13-3d2242e0eae2": {
+    "asset": 1779445419502,
+    "meta": 1779445421611,
+    "relativePath": "script\\BulletE.ts"
+  },
   "e97ecbbc-d2db-4d16-bf64-4f71ad2345b7": {
-    "asset": 1779443587611,
-    "meta": 1779443635858,
+    "asset": 1779445419513,
+    "meta": 1779445421912,
     "relativePath": "script\\Player.ts"
   }
 }

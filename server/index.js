@@ -6,7 +6,7 @@ const TICK_RATE = 20;
 const TICK_INTERVAL = 1000 / TICK_RATE;
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 4;
-const START_DELAY = 3;
+const START_DELAY = 6;
 const MAX_PENDING_INPUTS = 10;
 const SPAWN_SLOT_COUNT = 4;
 const ENERGY_BORN_INTERVAL = 4;
@@ -59,7 +59,7 @@ const SPECIAL_EVENT_SPEED_RADIUS = 60;
 const SPECIAL_EVENT_BLACK_HOLE_RADIUS = 100;
 const SPECIAL_EVENT_BLACK_HOLE_DESTROY_RADIUS = 14;
 const TAR_PICKUP_MAX_COUNT = 1;
-const TAR_PICKUP_START_DELAY = 1;
+const TAR_PICKUP_START_DELAY = 15;
 const TAR_PICKUP_RESPAWN_MIN = 10;
 const TAR_PICKUP_RESPAWN_MAX = 16;
 const TAR_PICKUP_RADIUS = 42;
@@ -94,6 +94,7 @@ const ENERGY_WELL_RADIUS = 46;
 const CONFIG_PICKUP_TOUCH_RADIUS = 92;
 const CONFIG_PICKUP_USE_DURATION = 20;
 const CONFIG_PICKUP_MAX_COUNT = 1;
+const MULTIPLAYER_ENABLE_PICKUP_SPAWNS = false;
 const SERVER_CHILD_BULLET_SPEED_SCALE = 1.05;
 const SERVER_CHILD_BULLET_DAMAGE_SCALE = 0.8;
 const SERVER_CHILD_BULLET_GUNSHOT_SCALE = 0.55;
@@ -162,6 +163,9 @@ const RESOURCE_WAVE_CONFIG = [
     specialZones: [
       { specialType: 'blackHole', areaSlot: 'northWest' },
       { specialType: 'speedDouble', areaSlot: 'southEast' },
+      { specialType: 'portal', entryX: -880, entryY: 520, exitX: 880, exitY: -520 },
+      { specialType: 'damageDouble', areaSlot: 'northEast' },
+      { specialType: 'centrifugal', areaSlot: 'southWest' },
     ],
   },
   {
@@ -170,6 +174,9 @@ const RESOURCE_WAVE_CONFIG = [
     specialZones: [
       { specialType: 'centrifugal', areaSlot: 'northEast' },
       { specialType: 'damageDouble', areaSlot: 'southWest' },
+      { specialType: 'portal', entryX: -920, entryY: -500, exitX: 920, exitY: 500 },
+      { specialType: 'speedDouble', areaSlot: 'northWest' },
+      { specialType: 'blackHole', areaSlot: 'southEast' },
     ],
   },
   {
@@ -178,6 +185,8 @@ const RESOURCE_WAVE_CONFIG = [
     specialZones: [
       { specialType: 'damageDouble', areaSlot: 'northWest' },
       { specialType: 'blackHole', areaSlot: 'southEast' },
+      { specialType: 'portal', entryX: -160, entryY: 580, exitX: 160, exitY: -580 },
+      { specialType: 'centrifugal', areaSlot: 'northEast' },
     ],
   },
   {
@@ -186,6 +195,9 @@ const RESOURCE_WAVE_CONFIG = [
     specialZones: [
       { specialType: 'speedDouble', areaSlot: 'northEast' },
       { specialType: 'centrifugal', areaSlot: 'southWest' },
+      { specialType: 'damageDouble', areaSlot: 'northWest' },
+      { specialType: 'speedDouble', areaSlot: 'southEast' },
+      { specialType: 'blackHole', x: 0, y: 520 },
     ],
   },
   {
@@ -194,6 +206,8 @@ const RESOURCE_WAVE_CONFIG = [
     specialZones: [
       { specialType: 'blackHole', areaSlot: 'northEast' },
       { specialType: 'speedDouble', areaSlot: 'southWest' },
+      { specialType: 'centrifugal', areaSlot: 'northWest' },
+      { specialType: 'damageDouble', areaSlot: 'southEast' },
     ],
   },
 ];
@@ -839,6 +853,39 @@ function getWaveState() {
     };
   }
   return room.waveState;
+}
+
+function getResourceWaveCycleDuration() {
+  if (!Array.isArray(RESOURCE_WAVE_CONFIG) || RESOURCE_WAVE_CONFIG.length <= 0) {
+    return 0;
+  }
+  if (RESOURCE_WAVE_CONFIG.length === 1) {
+    const singleTime = Math.max(0, Number(RESOURCE_WAVE_CONFIG[0].time) || 0);
+    return Math.max(60, singleTime + 60);
+  }
+  const lastWave = RESOURCE_WAVE_CONFIG[RESOURCE_WAVE_CONFIG.length - 1] || {};
+  const prevWave = RESOURCE_WAVE_CONFIG[RESOURCE_WAVE_CONFIG.length - 2] || {};
+  const lastTime = Math.max(0, Number(lastWave.time) || 0);
+  const prevTime = Math.max(0, Number(prevWave.time) || 0);
+  const interval = Math.max(1, lastTime - prevTime || 60);
+  return lastTime + interval;
+}
+
+function getWaveScheduleBySequence(sequenceIndex) {
+  if (!Array.isArray(RESOURCE_WAVE_CONFIG) || RESOURCE_WAVE_CONFIG.length <= 0 || sequenceIndex < 0) {
+    return null;
+  }
+  const configIndex = sequenceIndex % RESOURCE_WAVE_CONFIG.length;
+  const cycleIndex = Math.floor(sequenceIndex / RESOURCE_WAVE_CONFIG.length);
+  const waveConfig = RESOURCE_WAVE_CONFIG[configIndex];
+  if (!waveConfig) {
+    return null;
+  }
+  const cycleDuration = getResourceWaveCycleDuration();
+  return {
+    config: waveConfig,
+    scheduledTime: cycleDuration * cycleIndex + Math.max(0, Number(waveConfig.time) || 0),
+  };
 }
 
 function clonePoint(point) {
@@ -2361,10 +2408,6 @@ function updateTarPickupSpawns(frameCommands) {
     room.tarPickupSpawnCd -= TICK_INTERVAL / 1000;
     return;
   }
-  if (room.players.some((player) => (player && !player.dead && !player.disconnected && (player.tarAmmoCount || 0) > 0))) {
-    room.tarPickupSpawnCd = 1;
-    return;
-  }
   spawnTarPickupInFrame(frameCommands);
   room.tarPickupSpawnCd = randomBetween(TAR_PICKUP_RESPAWN_MIN, TAR_PICKUP_RESPAWN_MAX);
 }
@@ -2392,10 +2435,6 @@ function updateBlackHolePickupSpawns(frameCommands) {
   }
   if (room.blackHolePickupSpawnCd > 0) {
     room.blackHolePickupSpawnCd -= TICK_INTERVAL / 1000;
-    return;
-  }
-  if (room.players.some((player) => (player && !player.dead && !player.disconnected && (player.blackHoleAmmoCount || 0) > 0))) {
-    room.blackHolePickupSpawnCd = 1;
     return;
   }
   spawnBlackHolePickupInFrame(frameCommands);
@@ -3288,6 +3327,9 @@ function spawnConfiguredResourceInFrame(frameCommands, item) {
     return spawnConfiguredSmallEnergyInFrame(frameCommands, point, item.count);
   }
   if (resourceType === 'pickup') {
+    if (!MULTIPLAYER_ENABLE_PICKUP_SPAWNS) {
+      return null;
+    }
     return spawnConfiguredPickupInFrame(frameCommands, point, item.pickupType);
   }
   logWaveSkip('unknown resource type', item);
@@ -3317,15 +3359,12 @@ function triggerConfiguredWave(frameCommands, waveIndex, waveConfig) {
 
 function updateConfiguredWaveSpawns(frameCommands) {
   const state = getWaveState();
-  while (state.nextWaveIndex < RESOURCE_WAVE_CONFIG.length) {
-    const wave = RESOURCE_WAVE_CONFIG[state.nextWaveIndex];
-    if (!wave || room.elapsedSeconds + 0.0001 < wave.time) {
+  while (true) {
+    const scheduledWave = getWaveScheduleBySequence(state.nextWaveIndex);
+    if (!scheduledWave || room.elapsedSeconds + 0.0001 < scheduledWave.scheduledTime) {
       break;
     }
-    if (!state.triggered[state.nextWaveIndex]) {
-      state.triggered[state.nextWaveIndex] = true;
-      triggerConfiguredWave(frameCommands, state.nextWaveIndex, wave);
-    }
+    triggerConfiguredWave(frameCommands, state.nextWaveIndex, scheduledWave.config);
     state.nextWaveIndex++;
   }
 }
@@ -4209,12 +4248,16 @@ function tick() {
 
   updateEnergyEggs(frameCommands);
   updateConfiguredEnergyWells(frameCommands);
-  updateConfiguredPickups(frameCommands);
+  if (MULTIPLAYER_ENABLE_PICKUP_SPAWNS) {
+    updateConfiguredPickups(frameCommands);
+  }
   updateTimedEnergies(frameCommands);
   appendAllCoverSyncCommands(frameCommands);
   updateSpecialEvents(frameCommands);
-  updateTarPickupSpawns(frameCommands);
-  updateBlackHolePickupSpawns(frameCommands);
+  if (MULTIPLAYER_ENABLE_PICKUP_SPAWNS) {
+    updateTarPickupSpawns(frameCommands);
+    updateBlackHolePickupSpawns(frameCommands);
+  }
   updateTarSpills(frameCommands);
   updateBlackHoleZones(frameCommands);
   updateMatchAnnouncements(frameCommands);

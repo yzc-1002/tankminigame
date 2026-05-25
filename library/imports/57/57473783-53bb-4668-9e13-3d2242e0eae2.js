@@ -724,7 +724,7 @@ var Bullet = /** @class */ (function (_super) {
     };
     //创建子弹(类型/位置/方向/炮管长度/射程/攻击力/目标阵营)
     Bullet.createBulletEx = function (bulletType, pos, dir, wipeLen, gunshot, atk, camp, parentNode, map, speed, mutationData, networkMeta) {
-        if (speed === void 0) { speed = 8; }
+        if (speed === void 0) { speed = 16; }
         if (mutationData === void 0) { mutationData = null; }
         if (networkMeta === void 0) { networkMeta = null; }
         gunshot = gunshot - wipeLen;

@@ -1216,7 +1216,7 @@ var Player = /** @class */ (function (_super) {
         var type = (this._viewMode || this._skill2Time > 0) ? this._config.BType2 : this._config.BType1;
         var attackRadius = this._viewMode ? this._config.AttackRadius * 0.8 : this._config.AttackRadius;
         var mutationData = this._viewMode ? null : this._getCurrentBulletMutationData();
-        BulletE_1.Bullet.createBulletEx(type, this.node.position, this._barrelDir, this._fire._lyBarrel.height + 20, attackRadius, this._atk, this._camp, this.node.parent, this._map, 8, mutationData);
+        BulletE_1.Bullet.createBulletEx(type, this.node.position, this._barrelDir, this._fire._lyBarrel.height + 20, attackRadius, this._atk, this._camp, this.node.parent, this._map, 16, mutationData);
         if (this._map && this._map.isShootEffectTestMode && this._map.isShootEffectTestMode()) {
             this._playShootFeedback(type, mutationData);
         }
@@ -1240,7 +1240,7 @@ var Player = /** @class */ (function (_super) {
             bulletId: fireData.id,
             ownerPlayerId: this._multiplayerPlayerId,
         };
-        BulletE_1.Bullet.createBulletEx(type, this.node.position, this._barrelDir, this._fire._lyBarrel.height + 20, attackRadius, this._atk, this._camp, this.node.parent, this._map, 8, mutationData, networkMeta);
+        BulletE_1.Bullet.createBulletEx(type, this.node.position, this._barrelDir, this._fire._lyBarrel.height + 20, attackRadius, this._atk, this._camp, this.node.parent, this._map, 16, mutationData, networkMeta);
         if (!this._multiplayerRemote) {
             this._playShootFeedback(type, mutationData);
             MusicManager_1.MusicManager.playEffect("shoot");
